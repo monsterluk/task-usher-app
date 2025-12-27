@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users } from 'lucide-react';
 
 const Navigation = () => {
   const { currentUser, logout } = useApp();
@@ -16,6 +16,40 @@ const Navigation = () => {
 
   const isManager = currentUser.role === 'manager';
 
+  const NavButton = ({ path, icon: Icon, label }: { path: string; icon: React.ElementType; label: string }) => {
+    const isActive = location.pathname.includes(path);
+    return (
+      <button
+        onClick={() => navigate(path)}
+        className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+          isActive 
+            ? 'bg-primary-foreground/20' 
+            : 'hover:bg-primary-foreground/10'
+        }`}
+      >
+        <Icon size={18} />
+        <span>{label}</span>
+      </button>
+    );
+  };
+
+  const MobileNavButton = ({ path, icon: Icon, label }: { path: string; icon: React.ElementType; label: string }) => {
+    const isActive = location.pathname.includes(path);
+    return (
+      <button
+        onClick={() => navigate(path)}
+        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md transition-colors ${
+          isActive 
+            ? 'bg-primary-foreground/20' 
+            : 'hover:bg-primary-foreground/10'
+        }`}
+      >
+        <Icon size={18} />
+        <span className="text-sm">{label}</span>
+      </button>
+    );
+  };
+
   return (
     <nav className="bg-primary text-primary-foreground">
       <div className="container mx-auto px-4">
@@ -29,41 +63,12 @@ const Navigation = () => {
           <div className="hidden md:flex items-center gap-1">
             {isManager ? (
               <>
-                <button
-                  onClick={() => navigate('/manager/orders')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
-                    location.pathname.includes('/orders') 
-                      ? 'bg-primary-foreground/20' 
-                      : 'hover:bg-primary-foreground/10'
-                  }`}
-                >
-                  <ClipboardList size={18} />
-                  <span>Zlecenia</span>
-                </button>
-                <button
-                  onClick={() => navigate('/manager/reports')}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
-                    location.pathname.includes('/reports') 
-                      ? 'bg-primary-foreground/20' 
-                      : 'hover:bg-primary-foreground/10'
-                  }`}
-                >
-                  <FileText size={18} />
-                  <span>Raporty</span>
-                </button>
+                <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+                <NavButton path="/manager/workers" icon={Users} label="Pracownicy" />
+                <NavButton path="/manager/reports" icon={FileText} label="Raporty" />
               </>
             ) : (
-              <button
-                onClick={() => navigate('/worker/stages')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
-                  location.pathname.includes('/stages') 
-                    ? 'bg-primary-foreground/20' 
-                    : 'hover:bg-primary-foreground/10'
-                }`}
-              >
-                <Clock size={18} />
-                <span>Moje Etapy</span>
-              </button>
+              <NavButton path="/worker/stages" icon={Clock} label="Moje Etapy" />
             )}
           </div>
 
@@ -82,44 +87,15 @@ const Navigation = () => {
         </div>
 
         {/* Mobile navigation */}
-        <div className="md:hidden flex gap-2 pb-3">
+        <div className="md:hidden flex gap-2 pb-3 overflow-x-auto">
           {isManager ? (
             <>
-              <button
-                onClick={() => navigate('/manager/orders')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md transition-colors ${
-                  location.pathname.includes('/orders') 
-                    ? 'bg-primary-foreground/20' 
-                    : 'hover:bg-primary-foreground/10'
-                }`}
-              >
-                <ClipboardList size={18} />
-                <span>Zlecenia</span>
-              </button>
-              <button
-                onClick={() => navigate('/manager/reports')}
-                className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md transition-colors ${
-                  location.pathname.includes('/reports') 
-                    ? 'bg-primary-foreground/20' 
-                    : 'hover:bg-primary-foreground/10'
-                }`}
-              >
-                <FileText size={18} />
-                <span>Raporty</span>
-              </button>
+              <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+              <MobileNavButton path="/manager/workers" icon={Users} label="Pracownicy" />
+              <MobileNavButton path="/manager/reports" icon={FileText} label="Raporty" />
             </>
           ) : (
-            <button
-              onClick={() => navigate('/worker/stages')}
-              className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md transition-colors ${
-                location.pathname.includes('/stages') 
-                  ? 'bg-primary-foreground/20' 
-                  : 'hover:bg-primary-foreground/10'
-              }`}
-            >
-              <Clock size={18} />
-              <span>Moje Etapy</span>
-            </button>
+            <MobileNavButton path="/worker/stages" icon={Clock} label="Moje Etapy" />
           )}
         </div>
       </div>
