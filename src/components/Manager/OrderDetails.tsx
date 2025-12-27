@@ -1,18 +1,26 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { stages, workers } from '@/data/mockData';
+import { stages, workers, getStageStatusColor } from '@/data/mockData';
 import { OrderStage, TimeEntry } from '@/types';
-import { ArrowLeft, Check, Users, ChevronRight } from 'lucide-react';
+import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package } from 'lucide-react';
+import { toast } from '@/hooks/use-toast';
 
 const OrderDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { orders, setOrders, setTimeEntries } = useApp();
+  const { orders, setOrders, setTimeEntries, timeEntries } = useApp();
   
   const order = orders.find(o => o.id === Number(id));
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
   const [stageWorkers, setStageWorkers] = useState<Record<number, number[]>>({});
+  const [showShipmentForm, setShowShipmentForm] = useState(false);
+  const [shipmentData, setShipmentData] = useState({
+    weight: '',
+    dimensions: '',
+    package_type: 'PACZKA',
+    service: 'STANDARD'
+  });
 
   useEffect(() => {
     if (order?.stages) {
@@ -54,11 +62,35 @@ const OrderDetails = () => {
     });
   };
 
+  const getStageStatus = (stageId: number): string => {
+    const orderStage = order.stages?.find(s => s.stageId === stageId);
+    if (!orderStage) return 'pending';
+    return orderStage.status;
+  };
+
+  const getStageStatusLabel = (status: string): string => {
+    switch (status) {
+      case 'pending': return 'NOWY';
+      case 'in_progress': return 'W TRAKCIE';
+      case 'completed': return 'GOTOWY';
+      case 'delayed': return 'OPÓŹNIONY';
+      default: return 'NOWY';
+    }
+  };
+
+  const getStageWorkerTime = (stageId: number): string => {
+    const stageEntries = timeEntries.filter(te => te.orderId === order.id && te.stageId === stageId);
+    const totalSeconds = stageEntries.reduce((acc, te) => acc + te.totalSeconds, 0);
+    if (totalSeconds === 0) return '';
+    const hours = Math.floor(totalSeconds / 3600);
+    const mins = Math.floor((totalSeconds % 3600) / 60);
+    return `${hours}:${mins.toString().padStart(2, '0')}`;
+  };
+
   const saveAndAdvanceStage = (stageId: number) => {
     const stage = stages.find(s => s.id === stageId);
     const assignedWorkerIds = stageWorkers[stageId] || [];
 
-    // Create time entries for assigned workers
     const newTimeEntries: TimeEntry[] = assignedWorkerIds.map(workerId => {
       const worker = workers.find(w => w.id === workerId)!;
       return {
@@ -78,7 +110,6 @@ const OrderDetails = () => {
 
     setTimeEntries(prev => [...prev, ...newTimeEntries]);
 
-    // Update order stages
     const updatedStages: OrderStage[] = selectedStages.map(sId => {
       const existingStage = order.stages?.find(s => s.stageId === sId);
       const stageName = stages.find(s => s.id === sId)!.name;
@@ -96,6 +127,39 @@ const OrderDetails = () => {
         ? { ...o, stages: updatedStages, status: 'W_TRAKCIE' as const }
         : o
     ));
+
+    toast({ title: "Etap uruchomiony", description: `Etap ${stage?.name} jest teraz w trakcie realizacji.` });
+  };
+
+  const handleOrderCourier = () => {
+    // Mock API call - in production this would call Apaczka API
+    const mockShipmentNumber = `APK-${Date.now().toString().slice(-9)}`;
+    const mockTrackingUrl = `https://apaczka.pl/track/${mockShipmentNumber}`;
+
+    setOrders(prev => prev.map(o => 
+      o.id === order.id 
+        ? { 
+            ...o, 
+            shipment_number: mockShipmentNumber,
+            shipment_status: 'ZAMÓWIONA' as const,
+            shipment_tracking_url: mockTrackingUrl
+          }
+        : o
+    ));
+
+    setShowShipmentForm(false);
+    toast({ title: "Kurier zamówiony", description: `Nr przesyłki: ${mockShipmentNumber}` });
+  };
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Skopiowano", description: "Nr przesyłki skopiowany do schowka" });
+  };
+
+  const updateShipmentStatus = (status: 'OCZEKUJE' | 'ZAMÓWIONA' | 'W_DRODZE' | 'DOSTARCZONO') => {
+    setOrders(prev => prev.map(o => 
+      o.id === order.id ? { ...o, shipment_status: status } : o
+    ));
   };
 
   return (
@@ -108,64 +172,137 @@ const OrderDetails = () => {
         Wróć do listy
       </button>
 
+      {/* Order Info */}
       <div className="card-industrial mb-6">
         <h1 className="text-2xl md:text-3xl font-bold mb-4">
           Zlecenie {order.order_number}
         </h1>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-base">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-base">
           <div>
-            <span className="text-muted-foreground">Klient:</span>
+            <span className="text-muted-foreground text-sm">Klient:</span>
             <p className="font-semibold">{order.client_name}</p>
+            {order.client_email && <p className="text-sm text-muted-foreground">{order.client_email}</p>}
+            {order.client_phone && <p className="text-sm text-muted-foreground">{order.client_phone}</p>}
           </div>
           <div>
-            <span className="text-muted-foreground">Produkt:</span>
+            <span className="text-muted-foreground text-sm">Produkt:</span>
             <p className="font-semibold">{order.product_name}</p>
+            <p className="text-sm text-muted-foreground">{order.quantity} szt.</p>
           </div>
           <div>
-            <span className="text-muted-foreground">Ilość:</span>
-            <p className="font-semibold">{order.quantity} szt.</p>
+            <span className="text-muted-foreground text-sm">Cena:</span>
+            <p className="font-semibold">{order.price_total?.toFixed(2) || '-'} zł</p>
+            {order.price_per_unit && <p className="text-sm text-muted-foreground">{order.price_per_unit.toFixed(2)} zł/szt.</p>}
           </div>
           <div>
-            <span className="text-muted-foreground">Termin:</span>
+            <span className="text-muted-foreground text-sm">Termin:</span>
             <p className="font-semibold">{new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}</p>
           </div>
+          {order.client_order_number && (
+            <div>
+              <span className="text-muted-foreground text-sm">Nr zam. klienta:</span>
+              <p className="font-semibold">{order.client_order_number}</p>
+            </div>
+          )}
+          {order.invoice_number && (
+            <div>
+              <span className="text-muted-foreground text-sm">Faktura:</span>
+              <p className="font-semibold">{order.invoice_number}</p>
+              {order.invoice_date && <p className="text-sm text-muted-foreground">{new Date(order.invoice_date).toLocaleDateString('pl-PL')}</p>}
+            </div>
+          )}
         </div>
+        {order.notes && (
+          <div className="mt-4 pt-4 border-t border-border">
+            <span className="text-muted-foreground text-sm">Uwagi:</span>
+            <p className="font-medium">{order.notes}</p>
+          </div>
+        )}
+        {order.folder_path && (
+          <div className="mt-2">
+            <span className="text-muted-foreground text-sm">Folder:</span>
+            <p className="font-mono text-sm">{order.folder_path}</p>
+          </div>
+        )}
       </div>
 
-      <div className="card-industrial">
+      {/* Stages with Colors */}
+      <div className="card-industrial mb-6">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           <Check size={24} />
-          Wybierz Etapy
+          Etapy Zlecenia
         </h2>
+
+        {/* Legend */}
+        <div className="flex flex-wrap gap-4 mb-6 p-3 bg-muted/30 rounded-md">
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--stage-pending))' }}></div>
+            <span className="text-sm">NOWY</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--stage-in-progress))' }}></div>
+            <span className="text-sm">W TRAKCIE</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--stage-completed))' }}></div>
+            <span className="text-sm">GOTOWY</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="w-4 h-4 rounded" style={{ backgroundColor: 'hsl(var(--stage-delayed))' }}></div>
+            <span className="text-sm">OPÓŹNIONY</span>
+          </div>
+        </div>
         
         <div className="space-y-4">
           {stages.map((stage) => {
             const isSelected = selectedStages.includes(stage.id);
             const assignedWorkers = stageWorkers[stage.id] || [];
             const orderStage = order.stages?.find(s => s.stageId === stage.id);
+            const stageStatus = getStageStatus(stage.id);
+            const stageColor = getStageStatusColor(stageStatus, order.planned_completion_date);
+            const stageTime = getStageWorkerTime(stage.id);
+            const assignedWorkerNames = assignedWorkers.map(wId => workers.find(w => w.id === wId)?.name).filter(Boolean);
             
             return (
               <div 
                 key={stage.id} 
-                className={`border rounded-md transition-colors ${
-                  isSelected ? 'border-primary bg-muted/50' : 'border-border'
-                }`}
+                className="border rounded-md transition-colors overflow-hidden"
+                style={{ borderLeftWidth: '4px', borderLeftColor: stageColor }}
               >
                 <div className="p-4">
-                  <label className="flex items-center gap-3 cursor-pointer">
+                  <label className="flex items-start gap-3 cursor-pointer">
                     <input
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => toggleStage(stage.id)}
-                      className="w-5 h-5 rounded border-2 border-primary accent-primary"
+                      className="w-5 h-5 rounded border-2 border-primary accent-primary mt-1"
                     />
-                    <span className="font-semibold text-lg">{stage.name}</span>
-                    {orderStage?.status === 'completed' && (
-                      <span className="status-badge status-done ml-auto">Ukończony</span>
-                    )}
-                    {orderStage?.status === 'in_progress' && (
-                      <span className="status-badge status-in-progress ml-auto">W trakcie</span>
-                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <div 
+                          className="w-4 h-4 rounded flex-shrink-0" 
+                          style={{ backgroundColor: stageColor }}
+                        />
+                        <span className="font-semibold text-lg">{stage.name}</span>
+                        <span 
+                          className="text-xs px-2 py-1 rounded font-medium"
+                          style={{ 
+                            backgroundColor: stageColor,
+                            color: stageStatus === 'pending' ? 'hsl(var(--foreground))' : 'white'
+                          }}
+                        >
+                          {getStageStatusLabel(stageStatus)}
+                        </span>
+                        {stageTime && (
+                          <span className="text-sm text-muted-foreground">({stageTime})</span>
+                        )}
+                      </div>
+                      {assignedWorkerNames.length > 0 && (
+                        <p className="text-sm text-muted-foreground mt-1">
+                          Pracownicy: {assignedWorkerNames.join(', ')}
+                        </p>
+                      )}
+                    </div>
                   </label>
                 </div>
 
@@ -177,7 +314,7 @@ const OrderDetails = () => {
                     </div>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                      {workers.map((worker) => (
+                      {workers.filter(w => w.active).map((worker) => (
                         <label
                           key={worker.id}
                           className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
@@ -194,7 +331,7 @@ const OrderDetails = () => {
                           />
                           <div className="flex-1 min-w-0">
                             <p className="font-medium truncate">{worker.name}</p>
-                            <p className="text-sm text-muted-foreground">{worker.hourly_rate.toFixed(2)} zł/h</p>
+                            <p className="text-sm text-muted-foreground">{worker.position} • {worker.hourly_rate.toFixed(2)} zł/h</p>
                           </div>
                         </label>
                       ))}
@@ -214,6 +351,153 @@ const OrderDetails = () => {
               </div>
             );
           })}
+        </div>
+      </div>
+
+      {/* Shipping Section */}
+      <div className="card-industrial">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <Truck size={24} />
+          Wysyłka
+        </h2>
+
+        <div className="space-y-4">
+          {/* Shipment Status */}
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <label className="text-muted-foreground text-sm min-w-[120px]">Status przesyłki:</label>
+            <select
+              value={order.shipment_status || 'OCZEKUJE'}
+              onChange={(e) => updateShipmentStatus(e.target.value as any)}
+              className="input-industrial flex-1 max-w-xs"
+            >
+              <option value="OCZEKUJE">OCZEKUJE</option>
+              <option value="ZAMÓWIONA">ZAMÓWIONA</option>
+              <option value="W_DRODZE">W DRODZE</option>
+              <option value="DOSTARCZONO">DOSTARCZONO</option>
+            </select>
+          </div>
+
+          {/* Shipment Info */}
+          {order.shipment_number && (
+            <div className="p-4 bg-muted/30 rounded-md space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                <span className="text-muted-foreground text-sm min-w-[120px]">Nr przesyłki:</span>
+                <span className="font-mono font-semibold">{order.shipment_number}</span>
+                <button
+                  onClick={() => copyToClipboard(order.shipment_number!)}
+                  className="btn-secondary py-1 px-2 text-sm"
+                >
+                  <Copy size={14} className="mr-1" />
+                  Kopiuj
+                </button>
+              </div>
+              {order.shipment_tracking_url && (
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                  <span className="text-muted-foreground text-sm min-w-[120px]">Śledzenie:</span>
+                  <a
+                    href={order.shipment_tracking_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn-secondary py-1 px-2 text-sm inline-flex items-center"
+                  >
+                    <ExternalLink size={14} className="mr-1" />
+                    Otwórz link
+                  </a>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Order Courier Button */}
+          {!order.shipment_number && !showShipmentForm && (
+            <button
+              onClick={() => setShowShipmentForm(true)}
+              className="btn-primary w-full sm:w-auto"
+            >
+              <Package size={18} className="mr-2" />
+              Zamów kuriera
+            </button>
+          )}
+
+          {/* Courier Order Form */}
+          {showShipmentForm && (
+            <div className="p-4 border border-border rounded-md space-y-4 bg-muted/10">
+              <h3 className="font-semibold flex items-center gap-2">
+                <Package size={18} />
+                Formularz Apaczka
+              </h3>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Waga (kg)</label>
+                  <input
+                    type="text"
+                    value={shipmentData.weight}
+                    onChange={(e) => setShipmentData(prev => ({ ...prev, weight: e.target.value }))}
+                    placeholder="np. 2.5"
+                    className="input-industrial w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Wymiary (cm)</label>
+                  <input
+                    type="text"
+                    value={shipmentData.dimensions}
+                    onChange={(e) => setShipmentData(prev => ({ ...prev, dimensions: e.target.value }))}
+                    placeholder="np. 30x20x10"
+                    className="input-industrial w-full"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Typ paczki</label>
+                  <select
+                    value={shipmentData.package_type}
+                    onChange={(e) => setShipmentData(prev => ({ ...prev, package_type: e.target.value }))}
+                    className="input-industrial w-full"
+                  >
+                    <option value="PACZKA">PACZKA</option>
+                    <option value="PALETA">PALETA</option>
+                    <option value="KOPERTA">KOPERTA</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm text-muted-foreground mb-1">Usługa</label>
+                  <select
+                    value={shipmentData.service}
+                    onChange={(e) => setShipmentData(prev => ({ ...prev, service: e.target.value }))}
+                    className="input-industrial w-full"
+                  >
+                    <option value="STANDARD">STANDARD</option>
+                    <option value="EXPRESS">EXPRESS</option>
+                    <option value="EKONOMICZNA">EKONOMICZNA</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="p-3 bg-muted/30 rounded-md">
+                <p className="text-sm text-muted-foreground mb-1">Adres odbiorcy:</p>
+                <p className="font-medium">{order.client_name}</p>
+                {order.client_email && <p className="text-sm">{order.client_email}</p>}
+                {order.client_phone && <p className="text-sm">{order.client_phone}</p>}
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <button
+                  onClick={handleOrderCourier}
+                  className="btn-success flex-1 sm:flex-none"
+                >
+                  <Truck size={18} className="mr-2" />
+                  Wyślij do Apaczki
+                </button>
+                <button
+                  onClick={() => setShowShipmentForm(false)}
+                  className="btn-secondary"
+                >
+                  Anuluj
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
