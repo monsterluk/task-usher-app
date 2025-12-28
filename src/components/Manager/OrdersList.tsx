@@ -1,15 +1,26 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Eye, Archive, RotateCcw, Package, Calendar } from 'lucide-react';
+import { Plus, Download, Eye, Archive, RotateCcw, Loader2 } from 'lucide-react';
 import { getStageStatusColor } from '@/data/mockData';
 
 type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE';
 
 const OrdersList = () => {
-  const { orders, setOrders } = useApp();
+  const { orders, setOrders, refreshOrders, loading } = useApp();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterType>('AKTYWNE');
+  const [localLoading, setLocalLoading] = useState(true);
+
+  // Ładuj zlecenia z API przy mount
+  useEffect(() => {
+    const loadOrders = async () => {
+      setLocalLoading(true);
+      await refreshOrders();
+      setLocalLoading(false);
+    };
+    loadOrders();
+  }, [refreshOrders]);
 
   const filteredOrders = orders.filter(order => {
     if (filter === 'AKTYWNE') return !order.archived && order.status !== 'GOTOWE';
@@ -17,9 +28,26 @@ const OrdersList = () => {
     return true;
   });
 
+  // Oblicz dni do terminu
+  const getDaysUntilDeadline = (deadline: string) => {
+    const today = new Date();
+    const deadlineDate = new Date(deadline);
+    const diffTime = deadlineDate.getTime() - today.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
+
+  // Kolor dla dni do terminu
+  const getDeadlineColor = (days: number) => {
+    if (days < 0) return 'text-red-500 font-bold'; // Opóźnione
+    if (days <= 2) return 'text-orange-500 font-bold'; // Pilne
+    if (days <= 7) return 'text-yellow-500'; // Ostrzeżenie
+    return ''; // Normalne
+  };
+
   const toggleArchive = (orderId: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === orderId ? { ...o, archived: !o.archived } : o
     ));
   };
@@ -34,34 +62,62 @@ const OrdersList = () => {
   };
 
   const StageIndicators = ({ stages, plannedDate }: { stages?: any[]; plannedDate: string }) => (
-    <div className="flex gap-1.5">
+    <div className="flex gap-1">
       {(stages || []).slice(0, 5).map((stage, i) => (
         <div
           key={i}
-          className="stage-dot"
+          className="w-4 h-4 rounded-sm"
           style={{ backgroundColor: getStageStatusColor(stage.status, plannedDate) }}
-          title={`${stage.stageName}: ${stage.status}`}
+          title={}
         />
       ))}
       {(stages?.length || 0) > 5 && (
-        <span className="text-xs text-muted-foreground font-medium ml-1">+{(stages?.length || 0) - 5}</span>
+        <span className="text-xs text-muted-foreground">+{(stages?.length || 0) - 5}</span>
       )}
     </div>
   );
 
-  const activeCount = orders.filter(o => !o.archived && o.status !== 'GOTOWE').length;
-  const archiveCount = orders.filter(o => o.archived || o.status === 'GOTOWE').length;
+  const exportToCSV = () => {
+    const headers = ['Nr zlecenia', 'Klient', 'Produkt', 'Ilość', 'Wartość', 'Termin', 'Status'];
+    const rows = filteredOrders.map(o => [
+      o.order_number,
+      o.client_name,
+      o.product_name,
+      o.quantity,
+      o.price_total?.toFixed(2) || '0',
+      o.planned_completion_date,
+      o.status
+    ]);
+    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = ;
+    a.click();
+  };
+
+  // Loading state
+  if (loading || localLoading) {
+    return (
+      <div className="flex items-center justify-center p-8">
+        <Loader2 className="animate-spin" size={32} />
+        <span className="ml-2">Ładowanie zleceń z API...</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 md:p-6 animate-fade-in">
-      {/* Header */}
+    <div className="p-4 md:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Lista Zleceń</h1>
-          <p className="text-muted-foreground mt-1">Zarządzaj zamówieniami produkcyjnymi</p>
+          <h1 className="text-2xl md:text-3xl font-bold">📋 Lista Zleceń</h1>
+          <p className="text-sm text-muted-foreground">
+            {orders.length} zleceń w systemie
+          </p>
         </div>
         <div className="flex gap-3">
-          <button className="btn-secondary">
+          <button onClick={exportToCSV} className="btn-secondary">
             <Download size={18} className="mr-2" />
             Eksport CSV
           </button>
@@ -72,43 +128,17 @@ const OrdersList = () => {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-        <div className="card-industrial bg-primary/5 border-primary/20">
-          <div className="text-2xl font-bold text-primary">{orders.length}</div>
-          <div className="text-sm text-muted-foreground">Wszystkie</div>
-        </div>
-        <div className="card-industrial bg-success/5 border-success/20">
-          <div className="text-2xl font-bold text-success">{activeCount}</div>
-          <div className="text-sm text-muted-foreground">Aktywne</div>
-        </div>
-        <div className="card-industrial bg-warning/5 border-warning/20">
-          <div className="text-2xl font-bold text-warning">
-            {orders.filter(o => o.status === 'W_TRAKCIE').length}
-          </div>
-          <div className="text-sm text-muted-foreground">W trakcie</div>
-        </div>
-        <div className="card-industrial bg-muted">
-          <div className="text-2xl font-bold text-muted-foreground">{archiveCount}</div>
-          <div className="text-sm text-muted-foreground">Archiwum</div>
-        </div>
-      </div>
-
       {/* Filters */}
-      <div className="flex gap-2 mb-6 bg-secondary/50 p-1.5 rounded-xl w-fit">
+      <div className="flex gap-2 mb-4">
         {(['AKTYWNE', 'ARCHIWUM', 'WSZYSTKIE'] as FilterType[]).map(f => (
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={`px-5 py-2 rounded-lg font-medium text-sm transition-all duration-200 ${
-              filter === f 
-                ? 'bg-card text-foreground shadow-md' 
-                : 'text-muted-foreground hover:text-foreground'
-            }`}
+            className={}
           >
-            {f}
-            {f === 'AKTYWNE' && <span className="ml-2 text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">{activeCount}</span>}
-            {f === 'ARCHIWUM' && <span className="ml-2 text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full">{archiveCount}</span>}
+            {f} ({f === 'AKTYWNE' ? orders.filter(o => !o.archived && o.status !== 'GOTOWE').length :
+                f === 'ARCHYWUM' ? orders.filter(o => o.archived || o.status === 'GOTOWE').length :
+                orders.length})
           </button>
         ))}
       </div>
@@ -118,112 +148,93 @@ const OrdersList = () => {
         <table className="table-industrial">
           <thead>
             <tr>
-              <th>ID Zlecenia</th>
+              <th>Nr</th>
               <th>Klient</th>
               <th>Produkt</th>
+              <th>Ilość</th>
+              <th>Wartość</th>
               <th>Etapy</th>
               <th>Termin</th>
+              <th>Dni</th>
               <th>Status</th>
-              <th className="text-right">Akcje</th>
+              <th>Akcje</th>
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.map((order) => (
-              <tr 
-                key={order.id} 
-                className={`cursor-pointer ${order.archived ? 'opacity-60' : ''}`}
-                onClick={() => navigate(`/manager/orders/${order.id}`)}
-              >
-                <td className="font-mono font-bold text-primary">{order.order_number}</td>
-                <td className="font-medium">{order.client_name}</td>
-                <td className="text-muted-foreground">{order.product_name}</td>
-                <td><StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} /></td>
-                <td>
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Calendar size={14} />
-                    {new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}
-                  </div>
-                </td>
-                <td>{getStatusBadge(order.status)}</td>
-                <td className="text-right">
-                  <div className="flex gap-2 justify-end" onClick={(e) => e.stopPropagation()}>
-                    <button 
-                      onClick={() => navigate(`/manager/orders/${order.id}`)} 
-                      className="btn-secondary py-2 px-3"
-                      title="Szczegóły"
-                    >
-                      <Eye size={16} />
-                    </button>
-                    <button 
-                      onClick={(e) => toggleArchive(order.id, e)} 
-                      className="btn-secondary py-2 px-3" 
-                      title={order.archived ? 'Przywróć' : 'Archiwizuj'}
-                    >
-                      {order.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
-                    </button>
-                  </div>
+            {filteredOrders.length === 0 ? (
+              <tr>
+                <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                  Brak zleceń do wyświetlenia
                 </td>
               </tr>
-            ))}
+            ) : (
+              filteredOrders.map((order) => {
+                const days = getDaysUntilDeadline(order.planned_completion_date);
+                return (
+                  <tr key={order.id} className={order.archived ? 'opacity-60' : ''}>
+                    <td className="font-mono font-semibold">{order.order_number}</td>
+                    <td>{order.client_name}</td>
+                    <td>{order.product_name}</td>
+                    <td>{order.quantity} szt.</td>
+                    <td className="font-mono">{order.price_total?.toFixed(2) || '0.00'} zł</td>
+                    <td><StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} /></td>
+                    <td>{new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}</td>
+                    <td className={getDeadlineColor(days)}>
+                      {days < 0 ?  : 
+                       days === 0 ? 'Dziś' : 
+                       }
+                    </td>
+                    <td>{getStatusBadge(order.status)}</td>
+                    <td className="flex gap-2">
+                      <button onClick={() => navigate()} className="btn-secondary py-2 px-3" title="Szczegóły">
+                        <Eye size={16} />
+                      </button>
+                      <button onClick={(e) => toggleArchive(order.id, e)} className="btn-secondary py-2 px-3" title={order.archived ? 'Przywróć' : 'Archiwizuj'}>
+                        {order.archived ? <RotateCcw size={16} /> : <Archive size={16} />}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
-        
-        {filteredOrders.length === 0 && (
-          <div className="text-center py-12 text-muted-foreground">
-            <Package size={48} className="mx-auto mb-4 opacity-30" />
-            <p className="font-medium">Brak zleceń do wyświetlenia</p>
-            <p className="text-sm mt-1">Zmień filtr lub dodaj nowe zlecenie</p>
-          </div>
-        )}
       </div>
 
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
-        {filteredOrders.map((order) => (
-          <div 
-            key={order.id} 
-            className={`card-industrial-hover cursor-pointer ${order.archived ? 'opacity-60' : ''}`}
-            onClick={() => navigate(`/manager/orders/${order.id}`)}
-          >
-            <div className="flex justify-between items-start mb-3">
-              <span className="font-mono font-bold text-lg text-primary">{order.order_number}</span>
-              {getStatusBadge(order.status)}
-            </div>
-            <div className="space-y-2 text-sm mb-4">
-              <p className="font-medium">{order.client_name}</p>
-              <p className="text-muted-foreground">{order.product_name}</p>
-              <div className="flex items-center gap-2">
-                <span className="text-muted-foreground">Etapy:</span>
-                <StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} />
-              </div>
-              <div className="flex items-center gap-2 text-muted-foreground">
-                <Calendar size={14} />
-                <span>Termin: {new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}</span>
-              </div>
-            </div>
-            <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
-              <button 
-                onClick={() => navigate(`/manager/orders/${order.id}`)} 
-                className="btn-primary flex-1"
-              >
-                <Eye size={16} className="mr-2" />
-                Szczegóły
-              </button>
-              <button 
-                onClick={(e) => toggleArchive(order.id, e)} 
-                className="btn-secondary px-4"
-              >
-                {order.archived ? <RotateCcw size={18} /> : <Archive size={18} />}
-              </button>
-            </div>
+        {filteredOrders.length === 0 ? (
+          <div className="text-center py-8 text-muted-foreground">
+            Brak zleceń do wyświetlenia
           </div>
-        ))}
-
-        {filteredOrders.length === 0 && (
-          <div className="card-industrial text-center py-8 text-muted-foreground">
-            <Package size={40} className="mx-auto mb-3 opacity-30" />
-            <p className="font-medium">Brak zleceń</p>
-          </div>
+        ) : (
+          filteredOrders.map((order) => {
+            const days = getDaysUntilDeadline(order.planned_completion_date);
+            return (
+              <div key={order.id} className={}>
+                <div className="flex justify-between items-start mb-3">
+                  <span className="font-mono font-bold text-lg">{order.order_number}</span>
+                  {getStatusBadge(order.status)}
+                </div>
+                <div className="space-y-2 text-sm mb-4">
+                  <p><span className="text-muted-foreground">Klient:</span> {order.client_name}</p>
+                  <p><span className="text-muted-foreground">Produkt:</span> {order.product_name}</p>
+                  <p><span className="text-muted-foreground">Ilość:</span> {order.quantity} szt. | <span className="text-muted-foreground">Wartość:</span> {order.price_total?.toFixed(2) || '0.00'} zł</p>
+                  <p><span className="text-muted-foreground">Termin:</span> {new Date(order.planned_completion_date).toLocaleDateString('pl-PL')} (<span className={getDeadlineColor(days)}>{days < 0 ?  : }</span>)</p>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">Etapy:</span>
+                    <StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} />
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => navigate()} className="btn-primary flex-1">Szczegóły</button>
+                  <button onClick={(e) => toggleArchive(order.id, e)} className="btn-secondary">
+                    {order.archived ? <RotateCcw size={18} /> : <Archive size={18} />}
+                  </button>
+                </div>
+              </div>
+            );
+          })
         )}
       </div>
     </div>

@@ -18,6 +18,8 @@ interface AppContextType {
   apiConnected: boolean;
   refreshOrders: () => Promise<void>;
   refreshWorkers: () => Promise<void>;
+  error: string | null;
+  clearError: () => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -45,6 +47,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [loading, setLoading] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const clearError = () => setError(null);
 
   // Sprawdź czy API jest dostępne i odśwież dane
   useEffect(() => {
@@ -52,6 +57,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const token = localStorage.getItem('plexisystem_token');
       if (token) {
         try {
+          setLoading(true);
           const userData = await authApi.me();
           if (userData.user) {
             setCurrentUser({
@@ -65,14 +71,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             await refreshOrders();
             await refreshWorkers();
           }
-        } catch {
-          // API niedostępne - używaj localStorage
+        } catch (err) {
           console.log('API niedostępne, używam localStorage');
           setApiConnected(false);
+        } finally {
+          setLoading(false);
         }
       }
     };
-    
+
     checkApiAndRefresh();
   }, []);
 
@@ -100,34 +107,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const refreshOrders = async () => {
     try {
       const response = await ordersApi.getAll();
-      if (response.orders) {
-        setOrders(response.orders);
+      // API zwraca: { success: true, data: { orders: [...] } }
+      // Lub: { success: true, orders: [...] } - stary format
+      const ordersData = response.data?.orders || response.orders;
+      if (ordersData) {
+        setOrders(ordersData);
       }
-    } catch {
+    } catch (err) {
       console.log('Nie można pobrać zleceń z API');
+      setError('Nie udało się pobrać zleceń z serwera');
     }
   };
 
   const refreshWorkers = async () => {
     try {
       const response = await workersApi.getAll();
-      if (response.workers) {
-        setWorkers(response.workers);
+      // API zwraca: { success: true, data: { workers: [...] } }
+      // Lub: { success: true, workers: [...] } - stary format
+      const workersData = response.data?.workers || response.workers;
+      if (workersData) {
+        setWorkers(workersData);
       }
-    } catch {
+    } catch (err) {
       console.log('Nie można pobrać pracowników z API');
+      setError('Nie udało się pobrać pracowników z serwera');
     }
   };
 
   const login = async (email: string, password: string, role: 'manager' | 'worker'): Promise<boolean> => {
     if (!email || !password) return false;
-    
+
     setLoading(true);
-    
+    clearError();
+
     try {
       // Spróbuj zalogować przez API
       const response = await authApi.login(email, password);
-      
+
       if (response.token && response.user) {
         localStorage.setItem('plexisystem_token', response.token);
         setCurrentUser({
@@ -137,49 +153,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
           email: response.user.email,
         });
         setApiConnected(true);
-        
-        // Odśwież dane z API
+        // Pobierz dane z API
         await refreshOrders();
         await refreshWorkers();
-        
-        setLoading(false);
-        return true;
-      }
-    } catch (error) {
-      console.log('API login failed, trying localStorage fallback', error);
-    }
-    
-    // Fallback do localStorage (dla trybu offline/demo)
-    if (role === 'manager') {
-      const managerWorker = workers.find(w => 
-        w.email.toLowerCase() === email.toLowerCase() && w.role === 'manager' && w.active
-      );
-      
-      if (managerWorker) {
-        setCurrentUser({
-          id: managerWorker.id,
-          name: managerWorker.name,
-          role: 'manager',
-          email: managerWorker.email
-        });
         setLoading(false);
         return true;
       }
       
-      // Demo fallback
-      setCurrentUser({
-        id: 0,
-        name: 'Kierownik',
-        role: 'manager',
-        email
-      });
-      setLoading(false);
-      return true;
-    } else {
-      const matchedWorker = workers.find(w => 
+      // Fallback dla demo - szukaj w workers
+      const matchedWorker = workers.find(w =>
         w.email.toLowerCase() === email.toLowerCase() && w.active
       );
-      
+
       if (matchedWorker) {
         setCurrentUser({
           id: matchedWorker.id,
@@ -190,23 +175,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLoading(false);
         return true;
       }
-      
+
       // Demo fallback
       const firstActiveWorker = workers.find(w => w.active && w.role === 'worker') || workers[0];
-      setCurrentUser({
-        id: firstActiveWorker.id,
-        name: firstActiveWorker.name,
-        role: 'worker',
-        email
-      });
+      if (firstActiveWorker) {
+        setCurrentUser({
+          id: firstActiveWorker.id,
+          name: firstActiveWorker.name,
+          role: 'worker',
+          email: email
+        });
+        setLoading(false);
+        return true;
+      }
+
+      setError('Nie znaleziono użytkownika');
       setLoading(false);
-      return true;
+      return false;
+      
+    } catch (err: any) {
+      console.error('Login error:', err);
+      setError(err.response?.data?.error || 'Błąd logowania');
+      setLoading(false);
+      return false;
     }
   };
 
   const logout = async () => {
     setLoading(true);
-    
+
     try {
       if (apiConnected) {
         await authApi.logout();
@@ -214,7 +211,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     } catch {
       console.log('API logout failed');
     }
-    
+
     localStorage.removeItem('plexisystem_token');
     setCurrentUser(null);
     setApiConnected(false);
@@ -237,6 +234,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       apiConnected,
       refreshOrders,
       refreshWorkers,
+      error,
+      clearError,
     }}>
       {children}
     </AppContext.Provider>
