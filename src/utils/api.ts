@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://beata254.mikrus.xyz:4000';
+const API_URL = import.meta.env.VITE_API_URL || 'https://beata254.mikrus.xyz:20254';
 
 const api = axios.create({
   baseURL: API_URL,
