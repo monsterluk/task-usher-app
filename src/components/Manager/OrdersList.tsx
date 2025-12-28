@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
 import { getStageStatusColor } from '@/data/mockData';
 
 type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE';
+type SortField = 'order_number' | 'client_name' | 'product_name' | 'quantity' | 'price_total' | 'planned_completion_date' | 'status';
+type SortDirection = 'asc' | 'desc';
 
 const OrdersList = () => {
   const { orders, setOrders, refreshOrders, loading } = useApp();
@@ -13,6 +15,8 @@ const OrdersList = () => {
   const [localLoading, setLocalLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState<SortField>('planned_completion_date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const itemsPerPage = 15;
 
   // Ładuj zlecenia z API przy mount
@@ -49,10 +53,49 @@ const OrdersList = () => {
     return true;
   });
 
+  // Sort orders
+  const sortedOrders = [...filteredOrders].sort((a, b) => {
+    let aVal: any = a[sortField];
+    let bVal: any = b[sortField];
+
+    // Handle special cases
+    if (sortField === 'price_total') {
+      aVal = aVal || 0;
+      bVal = bVal || 0;
+    } else if (sortField === 'planned_completion_date') {
+      aVal = new Date(aVal).getTime();
+      bVal = new Date(bVal).getTime();
+    } else if (typeof aVal === 'string') {
+      aVal = aVal.toLowerCase();
+      bVal = bVal?.toLowerCase() || '';
+    }
+
+    if (aVal < bVal) return sortDirection === 'asc' ? -1 : 1;
+    if (aVal > bVal) return sortDirection === 'asc' ? 1 : -1;
+    return 0;
+  });
+
   // Pagination calculations
-  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const totalPages = Math.ceil(sortedOrders.length / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
-  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + itemsPerPage);
+  const paginatedOrders = sortedOrders.slice(startIndex, startIndex + itemsPerPage);
+
+  // Handle sort toggle
+  const handleSort = (field: SortField) => {
+    if (sortField === field) {
+      setSortDirection(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortField(field);
+      setSortDirection('asc');
+    }
+    setCurrentPage(1);
+  };
+
+  // Sort icon component
+  const SortIcon = ({ field }: { field: SortField }) => {
+    if (sortField !== field) return <ArrowUpDown size={14} className="opacity-30" />;
+    return sortDirection === 'asc' ? <ArrowUp size={14} /> : <ArrowDown size={14} />;
+  };
 
   // Oblicz dni do terminu
   const getDaysUntilDeadline = (deadline: string) => {
@@ -200,15 +243,29 @@ const OrdersList = () => {
         <table className="table-industrial">
           <thead>
             <tr>
-              <th>Nr</th>
-              <th>Klient</th>
-              <th>Produkt</th>
-              <th>Ilość</th>
-              <th>Wartość</th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('order_number')}>
+                <span className="flex items-center gap-1">Nr <SortIcon field="order_number" /></span>
+              </th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('client_name')}>
+                <span className="flex items-center gap-1">Klient <SortIcon field="client_name" /></span>
+              </th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('product_name')}>
+                <span className="flex items-center gap-1">Produkt <SortIcon field="product_name" /></span>
+              </th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('quantity')}>
+                <span className="flex items-center gap-1">Ilość <SortIcon field="quantity" /></span>
+              </th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('price_total')}>
+                <span className="flex items-center gap-1">Wartość <SortIcon field="price_total" /></span>
+              </th>
               <th>Etapy</th>
-              <th>Termin</th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('planned_completion_date')}>
+                <span className="flex items-center gap-1">Termin <SortIcon field="planned_completion_date" /></span>
+              </th>
               <th>Dni</th>
-              <th>Status</th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('status')}>
+                <span className="flex items-center gap-1">Status <SortIcon field="status" /></span>
+              </th>
               <th>Akcje</th>
             </tr>
           </thead>
