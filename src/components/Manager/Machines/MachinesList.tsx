@@ -112,7 +112,7 @@ const MachinesList = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = ;
+    a.download = `plexisystem_maszyny_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
@@ -208,7 +208,7 @@ const MachinesList = () => {
       {/* Machines Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {machines.map((machine) => (
-          <div key={machine.id} className={}>
+          <div key={machine.id} className={`card-industrial ${!machine.active ? 'opacity-60' : ''}`}>
             <div className="flex items-start justify-between mb-3">
               <div className="flex items-center gap-3">
                 <div className="bg-primary/10 p-2 rounded-lg">

@@ -68,7 +68,7 @@ const OrdersList = () => {
           key={i}
           className="w-4 h-4 rounded-sm"
           style={{ backgroundColor: getStageStatusColor(stage.status, plannedDate) }}
-          title={}
+          title={stage.stage_name || `Etap ${i + 1}`}
         />
       ))}
       {(stages?.length || 0) > 5 && (
@@ -93,7 +93,7 @@ const OrdersList = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = ;
+    a.download = `plexisystem_zlecenia_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
   };
 
@@ -134,10 +134,14 @@ const OrdersList = () => {
           <button
             key={f}
             onClick={() => setFilter(f)}
-            className={}
+            className={`px-4 py-2 rounded-md transition-colors ${
+              filter === f
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted hover:bg-muted/80'
+            }`}
           >
             {f} ({f === 'AKTYWNE' ? orders.filter(o => !o.archived && o.status !== 'GOTOWE').length :
-                f === 'ARCHYWUM' ? orders.filter(o => o.archived || o.status === 'GOTOWE').length :
+                f === 'ARCHIWUM' ? orders.filter(o => o.archived || o.status === 'GOTOWE').length :
                 orders.length})
           </button>
         ))}
@@ -180,13 +184,13 @@ const OrdersList = () => {
                     <td><StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} /></td>
                     <td>{new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}</td>
                     <td className={getDeadlineColor(days)}>
-                      {days < 0 ?  : 
-                       days === 0 ? 'Dziś' : 
-                       }
+                      {days < 0 ? `${Math.abs(days)} dni temu` :
+                       days === 0 ? 'Dziś' :
+                       `${days} dni`}
                     </td>
                     <td>{getStatusBadge(order.status)}</td>
                     <td className="flex gap-2">
-                      <button onClick={() => navigate()} className="btn-secondary py-2 px-3" title="Szczegóły">
+                      <button onClick={() => navigate(`/manager/orders/${order.id}`)} className="btn-secondary py-2 px-3" title="Szczegóły">
                         <Eye size={16} />
                       </button>
                       <button onClick={(e) => toggleArchive(order.id, e)} className="btn-secondary py-2 px-3" title={order.archived ? 'Przywróć' : 'Archiwizuj'}>
@@ -211,7 +215,7 @@ const OrdersList = () => {
           filteredOrders.map((order) => {
             const days = getDaysUntilDeadline(order.planned_completion_date);
             return (
-              <div key={order.id} className={}>
+              <div key={order.id} className={`card-industrial ${order.archived ? 'opacity-60' : ''}`}>
                 <div className="flex justify-between items-start mb-3">
                   <span className="font-mono font-bold text-lg">{order.order_number}</span>
                   {getStatusBadge(order.status)}
@@ -220,14 +224,14 @@ const OrdersList = () => {
                   <p><span className="text-muted-foreground">Klient:</span> {order.client_name}</p>
                   <p><span className="text-muted-foreground">Produkt:</span> {order.product_name}</p>
                   <p><span className="text-muted-foreground">Ilość:</span> {order.quantity} szt. | <span className="text-muted-foreground">Wartość:</span> {order.price_total?.toFixed(2) || '0.00'} zł</p>
-                  <p><span className="text-muted-foreground">Termin:</span> {new Date(order.planned_completion_date).toLocaleDateString('pl-PL')} (<span className={getDeadlineColor(days)}>{days < 0 ?  : }</span>)</p>
+                  <p><span className="text-muted-foreground">Termin:</span> {new Date(order.planned_completion_date).toLocaleDateString('pl-PL')} (<span className={getDeadlineColor(days)}>{days < 0 ? `${Math.abs(days)} dni temu` : days === 0 ? 'Dziś' : `${days} dni`}</span>)</p>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Etapy:</span>
                     <StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} />
                   </div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => navigate()} className="btn-primary flex-1">Szczegóły</button>
+                  <button onClick={() => navigate(`/manager/orders/${order.id}`)} className="btn-primary flex-1">Szczegóły</button>
                   <button onClick={(e) => toggleArchive(order.id, e)} className="btn-secondary">
                     {order.archived ? <RotateCcw size={18} /> : <Archive size={18} />}
                   </button>

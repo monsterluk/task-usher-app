@@ -155,12 +155,12 @@ export const StageBadge = ({ stageName, size = 'md' }: { stageName: string; size
   };
   
   return (
-    <span 
-      className={}
-      style={{ 
-        backgroundColor: color.bg, 
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-medium ${sizeClasses[size]}`}
+      style={{
+        backgroundColor: color.bg,
         color: color.text,
-        border: 
+        border: `2px solid ${color.border}`
       }}
     >
       <span>{color.icon}</span>
@@ -179,11 +179,11 @@ export const StatusBadge = ({ status, size = 'md' }: { status: string; size?: 's
   };
   
   return (
-    <span 
-      className={}
-      style={{ 
-        backgroundColor: color.bg, 
-        color: color.text 
+    <span
+      className={`inline-flex items-center gap-1 rounded-full font-medium ${sizeClasses[size]}`}
+      style={{
+        backgroundColor: color.bg,
+        color: color.text
       }}
     >
       <span>{color.label.split(' ')[0]}</span>
@@ -211,18 +211,18 @@ export const StageProgressBar = ({
         const isPending = index > currentIndex;
         
         return (
-          <div 
+          <div
             key={stage}
             className="flex-1 h-3 rounded-full transition-all"
             style={{
-              backgroundColor: isCompleted 
-                ? color.bg 
-                : isCurrent 
-                  ? color.border 
+              backgroundColor: isCompleted
+                ? color.bg
+                : isCurrent
+                  ? color.border
                   : '#E5E7EB',
               transform: isCurrent ? 'scaleY(1.5)' : 'scaleY(1)',
             }}
-            title={}
+            title={`${stage}${isCompleted ? ' (ukończony)' : isCurrent ? ' (w trakcie)' : ' (oczekuje)'}`}
           />
         );
       })}
