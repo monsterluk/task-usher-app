@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Order, TimeEntry, User, Worker, UserRole } from '@/types';
-import { initialOrders, initialTimeEntries, workers as initialWorkers } from '@/data/mockData';
+import { Order, TimeEntry, User, Worker, UserRole, Machine, WorkSession } from '@/types';
+import { initialOrders, initialTimeEntries, workers as initialWorkers, initialMachines } from '@/data/mockData';
 import { authApi, workersApi, ordersApi, isDemoMode } from '@/utils/api';
 
 interface AppContextType {
@@ -8,6 +8,10 @@ interface AppContextType {
   setOrders: React.Dispatch<React.SetStateAction<Order[]>>;
   workers: Worker[];
   setWorkers: React.Dispatch<React.SetStateAction<Worker[]>>;
+  machines: Machine[];
+  setMachines: React.Dispatch<React.SetStateAction<Machine[]>>;
+  workSessions: WorkSession[];
+  setWorkSessions: React.Dispatch<React.SetStateAction<WorkSession[]>>;
   timeEntries: TimeEntry[];
   setTimeEntries: React.Dispatch<React.SetStateAction<TimeEntry[]>>;
   currentUser: User | null;
@@ -38,6 +42,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() => {
     const saved = localStorage.getItem('plexisystem_time_entries');
     return saved ? JSON.parse(saved) : initialTimeEntries;
+  });
+
+  const [machines, setMachines] = useState<Machine[]>(() => {
+    const saved = localStorage.getItem('plexisystem_machines');
+    return saved ? JSON.parse(saved) : initialMachines;
+  });
+
+  const [workSessions, setWorkSessions] = useState<WorkSession[]>(() => {
+    const saved = localStorage.getItem('plexisystem_work_sessions');
+    return saved ? JSON.parse(saved) : [];
   });
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -103,6 +117,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   useEffect(() => {
     localStorage.setItem('plexisystem_time_entries', JSON.stringify(timeEntries));
   }, [timeEntries]);
+
+  useEffect(() => {
+    localStorage.setItem('plexisystem_machines', JSON.stringify(machines));
+  }, [machines]);
+
+  useEffect(() => {
+    localStorage.setItem('plexisystem_work_sessions', JSON.stringify(workSessions));
+  }, [workSessions]);
 
   useEffect(() => {
     if (currentUser) {
@@ -313,6 +335,10 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       setOrders,
       workers,
       setWorkers,
+      machines,
+      setMachines,
+      workSessions,
+      setWorkSessions,
       timeEntries,
       setTimeEntries,
       currentUser,

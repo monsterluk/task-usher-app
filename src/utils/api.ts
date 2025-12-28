@@ -12,6 +12,21 @@ export const isDemoMode = () => {
          import.meta.env.VITE_DEMO_MODE === 'true';
 };
 
+// Błąd dla trybu demo - funkcje API zwrócą ten błąd
+class DemoModeError extends Error {
+  constructor() {
+    super('Demo mode - no API calls');
+    this.name = 'DemoModeError';
+  }
+}
+
+// Helper: sprawdź tryb demo przed wywołaniem API
+const checkDemoMode = () => {
+  if (isDemoMode()) {
+    throw new DemoModeError();
+  }
+};
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
@@ -46,14 +61,17 @@ api.interceptors.response.use(
 // Auth API
 export const authApi = {
   login: async (email: string, password: string) => {
+    checkDemoMode();
     const response = await api.post('/api/auth/login', { email, password });
     return response.data;
   },
   logout: async () => {
+    checkDemoMode();
     const response = await api.post('/api/auth/logout');
     return response.data;
   },
   me: async () => {
+    checkDemoMode();
     const response = await api.get('/api/auth/me');
     return response.data;
   },
@@ -62,10 +80,12 @@ export const authApi = {
 // Workers API
 export const workersApi = {
   getAll: async () => {
+    checkDemoMode();
     const response = await api.get('/api/workers');
     return response.data;
   },
   getById: async (id: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/workers/${id}`);
     return response.data;
   },
@@ -76,18 +96,22 @@ export const workersApi = {
     position: string;
     role: string;
   }) => {
+    checkDemoMode();
     const response = await api.post('/api/workers', data);
     return response.data;
   },
   update: async (id: number, data: Partial<{ name: string; email: string; hourly_rate: number; position: string; active: boolean }>) => {
+    checkDemoMode();
     const response = await api.put(`/api/workers/${id}`, data);
     return response.data;
   },
   delete: async (id: number) => {
+    checkDemoMode();
     const response = await api.delete(`/api/workers/${id}`);
     return response.data;
   },
   getAssignments: async (id: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/workers/${id}/assignments`);
     return response.data;
   },
@@ -96,10 +120,12 @@ export const workersApi = {
 // Orders API
 export const ordersApi = {
   getAll: async (params?: { status?: string; archived?: boolean; limit?: number; offset?: number }) => {
+    checkDemoMode();
     const response = await api.get('/api/orders', { params });
     return response.data;
   },
   getById: async (id: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/orders/${id}`);
     return response.data;
   },
@@ -120,6 +146,7 @@ export const ordersApi = {
     invoice_date?: string;
     created_by?: string;
   }) => {
+    checkDemoMode();
     const response = await api.post('/api/orders', data);
     return response.data;
   },
@@ -129,18 +156,22 @@ export const ordersApi = {
     archived: boolean;
     planned_completion_date: string;
   }>) => {
+    checkDemoMode();
     const response = await api.put(`/api/orders/${id}`, data);
     return response.data;
   },
   delete: async (id: number) => {
+    checkDemoMode();
     const response = await api.delete(`/api/orders/${id}`);
     return response.data;
   },
   archive: async (id: number) => {
+    checkDemoMode();
     const response = await api.post(`/api/orders/${id}/archive`);
     return response.data;
   },
   unarchive: async (id: number) => {
+    checkDemoMode();
     const response = await api.post(`/api/orders/${id}/unarchive`);
     return response.data;
   },
@@ -149,6 +180,7 @@ export const ordersApi = {
 // Stages API
 export const stagesApi = {
   getOrderStages: async (orderId: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/orders/${orderId}/stages`);
     return response.data;
   },
@@ -158,10 +190,12 @@ export const stagesApi = {
     is_required?: boolean;
     sequence_order: number;
   }) => {
+    checkDemoMode();
     const response = await api.post(`/api/orders/${orderId}/stages`, data);
     return response.data;
   },
   update: async (id: number, data: Partial<{ status: string; is_required: boolean }>) => {
+    checkDemoMode();
     const response = await api.put(`/api/stages/${id}`, data);
     return response.data;
   },
@@ -170,18 +204,22 @@ export const stagesApi = {
 // Assignments API
 export const assignmentsApi = {
   getById: async (id: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/assignments/${id}`);
     return response.data;
   },
   create: async (stageId: number, workerId: number) => {
+    checkDemoMode();
     const response = await api.post(`/api/stages/${stageId}/assignments`, { worker_id: workerId });
     return response.data;
   },
   start: async (id: number) => {
+    checkDemoMode();
     const response = await api.post(`/api/assignments/${id}/start`);
     return response.data;
   },
   stop: async (id: number) => {
+    checkDemoMode();
     const response = await api.post(`/api/assignments/${id}/stop`);
     return response.data;
   },
@@ -190,6 +228,7 @@ export const assignmentsApi = {
 // Shipments API
 export const shipmentsApi = {
   getOrderShipments: async (orderId: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/orders/${orderId}/shipments`);
     return response.data;
   },
@@ -202,14 +241,17 @@ export const shipmentsApi = {
     recipient_email?: string;
     recipient_phone?: string;
   }) => {
+    checkDemoMode();
     const response = await api.post(`/api/orders/${orderId}/shipments`, data);
     return response.data;
   },
   getById: async (id: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/shipments/${id}`);
     return response.data;
   },
   refreshStatus: async (id: number) => {
+    checkDemoMode();
     const response = await api.post(`/api/shipments/${id}/refresh-status`);
     return response.data;
   },
@@ -218,10 +260,12 @@ export const shipmentsApi = {
 // Reports API
 export const reportsApi = {
   getOrderReport: async (orderId: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/reports/order/${orderId}`);
     return response.data;
   },
   exportOrderReport: async (orderId: number, format: 'csv' | 'pdf' = 'csv') => {
+    checkDemoMode();
     const response = await api.get(`/api/reports/export/${orderId}`, {
       params: { format },
       responseType: 'blob',
@@ -229,10 +273,12 @@ export const reportsApi = {
     return response.data;
   },
   getWorkerReport: async (workerId: number) => {
+    checkDemoMode();
     const response = await api.get(`/api/reports/worker/${workerId}`);
     return response.data;
   },
   getSummaryReport: async () => {
+    checkDemoMode();
     const response = await api.get('/api/reports/summary');
     return response.data;
   },

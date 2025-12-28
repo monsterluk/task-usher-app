@@ -70,6 +70,8 @@ const Navigation = () => {
             {isAdmin ? (
               <>
                 <NavButton path="/admin" icon={Shield} label="Panel Admin" />
+                <NavButton path="/admin/workers" icon={Users} label="Pracownicy" />
+                <NavButton path="/admin/machines" icon={Cog} label="Maszyny" />
                 <NavButton path="/admin/settings" icon={Settings} label="Ustawienia" />
               </>
             ) : isManager ? (

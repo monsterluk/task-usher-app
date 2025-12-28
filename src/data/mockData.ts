@@ -1,4 +1,4 @@
-import { Worker, Order, Stage } from '@/types';
+import { Worker, Order, Stage, Machine } from '@/types';
 
 export const workers: Worker[] = [
   { id: 1, name: "Katarzyna Treder", email: "katarzyna@plexisystem.pl", position: "GRAFIK", hourly_rate: 43.27, role: "worker", active: true },
@@ -39,6 +39,17 @@ export const stages: Stage[] = [
   { id: 10, name: "WYSYŁKA" },
   { id: 11, name: "FAKTURA" },
   { id: 12, name: "ZAMKNIĘCIE" }
+];
+
+export const initialMachines: Machine[] = [
+  { id: 1, name: "Frezarka CNC 1", department: "FREZOWANIE", hourly_rate: 120.00, status: "available", description: "Główna frezarka CNC" },
+  { id: 2, name: "Frezarka CNC 2", department: "FREZOWANIE", hourly_rate: 100.00, status: "available", description: "Frezarka pomocnicza" },
+  { id: 3, name: "Laser CO2", department: "LASER", hourly_rate: 150.00, status: "available", description: "Laser do cięcia plexi" },
+  { id: 4, name: "Laser Fiber", department: "LASER", hourly_rate: 180.00, status: "maintenance", description: "Laser do metalu" },
+  { id: 5, name: "Giętarka plexi", department: "WYGINANIE", hourly_rate: 80.00, status: "available", description: "Giętarka do plexi" },
+  { id: 6, name: "Polerka automatyczna", department: "POLEROWANIE", hourly_rate: 60.00, status: "available", description: "Polerka do krawędzi" },
+  { id: 7, name: "Drukarka UV", department: "DRUKOWANIE", hourly_rate: 200.00, status: "available", description: "Drukarka UV do plexi" },
+  { id: 8, name: "Ploter tnący", department: "OKLEJANIE", hourly_rate: 50.00, status: "available", description: "Ploter do folii" },
 ];
 
 export const initialOrders: Order[] = [

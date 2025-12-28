@@ -110,3 +110,26 @@ export interface User {
   role: UserRole;
   email: string;
 }
+
+export interface Machine {
+  id: number;
+  name: string;
+  department: Position;
+  hourly_rate: number;
+  status: 'available' | 'in_use' | 'maintenance' | 'offline';
+  description?: string;
+}
+
+export interface WorkSession {
+  id: string;
+  workerId: number;
+  orderId: number;
+  stageId: number;
+  date: string;
+  startTime: string;
+  endTime: string | null;
+  breaks: { start: string; end: string | null }[];
+  quantityDone: number;
+  status: 'active' | 'paused' | 'completed';
+  notes?: string;
+}
