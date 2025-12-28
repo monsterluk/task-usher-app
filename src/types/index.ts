@@ -14,13 +14,15 @@ export type Position =
 
 export type StageStatus = 'pending' | 'in_progress' | 'completed' | 'delayed';
 
+export type UserRole = 'admin' | 'manager' | 'worker';
+
 export interface Worker {
   id: number;
   name: string;
   email: string;
   position: Position;
   hourly_rate: number;
-  role: 'manager' | 'worker';
+  role: UserRole;
   active: boolean;
 }
 
@@ -82,6 +84,6 @@ export interface TimeEntry {
 export interface User {
   id: number;
   name: string;
-  role: 'manager' | 'worker';
+  role: UserRole;
   email: string;
 }

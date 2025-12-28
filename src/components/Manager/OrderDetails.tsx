@@ -3,9 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { stages, workers, getStageStatusColor } from '@/data/mockData';
 import { OrderStage, TimeEntry } from '@/types';
-import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package } from 'lucide-react';
+import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import ApaczkaIntegration from './ApaczkaIntegration';
+import WorkOrderPDF from './WorkOrderPDF';
 import { ShipmentResponse } from '@/utils/apaczka';
 
 const OrderDetails = () => {
@@ -17,6 +18,7 @@ const OrderDetails = () => {
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
   const [stageWorkers, setStageWorkers] = useState<Record<number, number[]>>({});
   const [showApaczkaIntegration, setShowApaczkaIntegration] = useState(false);
+  const [showPrintCard, setShowPrintCard] = useState(false);
 
   useEffect(() => {
     if (order?.stages) {
@@ -165,9 +167,27 @@ const OrderDetails = () => {
 
       {/* Order Info */}
       <div className="card-industrial mb-6">
-        <h1 className="text-2xl md:text-3xl font-bold mb-4">
-          Zlecenie {order.order_number}
-        </h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
+          <h1 className="text-2xl md:text-3xl font-bold">
+            Zlecenie {order.order_number}
+          </h1>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowPrintCard(true)}
+              className="btn-secondary"
+            >
+              <Printer size={18} className="mr-2" />
+              Drukuj kartę
+            </button>
+            <button
+              onClick={() => navigate(`/manager/orders/${order.id}/edit`)}
+              className="btn-secondary"
+            >
+              <Edit size={18} className="mr-2" />
+              Edytuj
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-base">
           <div>
             <span className="text-muted-foreground text-sm">Klient:</span>
@@ -439,6 +459,19 @@ const OrderDetails = () => {
           )}
         </div>
       </div>
+
+      {/* Print Card Modal */}
+      {showPrintCard && (
+        <div className="fixed inset-0 bg-foreground/80 flex items-center justify-center z-50 p-4">
+          <div className="bg-background rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
+            <WorkOrderPDF
+              order={order}
+              workers={workers}
+              onClose={() => setShowPrintCard(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

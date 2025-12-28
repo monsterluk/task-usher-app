@@ -9,8 +9,10 @@ const Index = () => {
 
   useEffect(() => {
     if (currentUser) {
-      if (currentUser.role === 'manager') {
-        navigate('/manager/orders');
+      if (currentUser.role === 'admin') {
+        navigate('/admin');
+      } else if (currentUser.role === 'manager') {
+        navigate('/manager/dashboard');
       } else {
         navigate('/worker/stages');
       }

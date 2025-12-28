@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Order, TimeEntry, User, Worker } from '@/types';
+import { Order, TimeEntry, User, Worker, UserRole } from '@/types';
 import { initialOrders, initialTimeEntries, workers as initialWorkers } from '@/data/mockData';
 import { authApi, workersApi, ordersApi } from '@/utils/api';
 
@@ -12,7 +12,7 @@ interface AppContextType {
   setTimeEntries: React.Dispatch<React.SetStateAction<TimeEntry[]>>;
   currentUser: User | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
-  login: (email: string, password: string, role: 'manager' | 'worker') => Promise<boolean>;
+  login: (email: string, password: string, role: UserRole) => Promise<boolean>;
   logout: () => Promise<void>;
   loading: boolean;
   apiConnected: boolean;
@@ -63,7 +63,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             setCurrentUser({
               id: userData.user.id,
               name: userData.user.name,
-              role: userData.user.role.toLowerCase() as 'manager' | 'worker',
+              role: userData.user.role.toLowerCase() as UserRole,
               email: userData.user.email,
             });
             setApiConnected(true);
@@ -134,7 +134,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
-  const login = async (email: string, password: string, role: 'manager' | 'worker'): Promise<boolean> => {
+  const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
     if (!email || !password) return false;
 
     setLoading(true);
@@ -149,7 +149,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUser({
           id: response.user.id,
           name: response.user.name,
-          role: response.user.role.toLowerCase() as 'manager' | 'worker',
+          role: response.user.role.toLowerCase() as UserRole,
           email: response.user.email,
         });
         setApiConnected(true);
@@ -159,7 +159,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setLoading(false);
         return true;
       }
-      
+
+      // Demo fallback - admin
+      if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('wlasciciel')) {
+        setCurrentUser({
+          id: 0,
+          name: 'Administrator',
+          role: 'admin',
+          email: email
+        });
+        setLoading(false);
+        return true;
+      }
+
+      // Demo fallback - manager
+      if (email.toLowerCase().includes('kierownik') || email.toLowerCase().includes('manager')) {
+        setCurrentUser({
+          id: 1,
+          name: 'Kierownik Produkcji',
+          role: 'manager',
+          email: email
+        });
+        setLoading(false);
+        return true;
+      }
+
       // Fallback dla demo - szukaj w workers
       const matchedWorker = workers.find(w =>
         w.email.toLowerCase() === email.toLowerCase() && w.active
@@ -169,14 +193,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         setCurrentUser({
           id: matchedWorker.id,
           name: matchedWorker.name,
-          role: 'worker',
+          role: matchedWorker.role as UserRole,
           email: matchedWorker.email
         });
         setLoading(false);
         return true;
       }
 
-      // Demo fallback
+      // Demo fallback - worker
       const firstActiveWorker = workers.find(w => w.active && w.role === 'worker') || workers[0];
       if (firstActiveWorker) {
         setCurrentUser({

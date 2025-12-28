@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings } from 'lucide-react';
 
 const Navigation = () => {
   const { currentUser, logout } = useApp();
@@ -15,6 +15,7 @@ const Navigation = () => {
   };
 
   const isManager = currentUser.role === 'manager';
+  const isAdmin = currentUser.role === 'admin';
 
   const NavButton = ({ path, icon: Icon, label }: { path: string; icon: React.ElementType; label: string }) => {
     const isActive = location.pathname.includes(path);
@@ -66,7 +67,12 @@ const Navigation = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-2">
-            {isManager ? (
+            {isAdmin ? (
+              <>
+                <NavButton path="/admin" icon={Shield} label="Panel Admin" />
+                <NavButton path="/admin/settings" icon={Settings} label="Ustawienia" />
+              </>
+            ) : isManager ? (
               <>
                 <NavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
                 <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
@@ -100,7 +106,12 @@ const Navigation = () => {
 
         {/* Mobile Navigation */}
         <div className="md:hidden flex gap-1 pb-3 overflow-x-auto">
-          {isManager ? (
+          {isAdmin ? (
+            <>
+              <MobileNavButton path="/admin" icon={Shield} label="Panel Admin" />
+              <MobileNavButton path="/admin/settings" icon={Settings} label="Ustawienia" />
+            </>
+          ) : isManager ? (
             <>
               <MobileNavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
               <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
