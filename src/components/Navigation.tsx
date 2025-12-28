@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers } from 'lucide-react';
 
 const Navigation = () => {
   const { currentUser, logout } = useApp();
@@ -21,10 +21,10 @@ const Navigation = () => {
     return (
       <button
         onClick={() => navigate(path)}
-        className={`flex items-center gap-2 px-4 py-2 rounded-md transition-colors ${
+        className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-200 font-medium ${
           isActive 
-            ? 'bg-primary-foreground/20' 
-            : 'hover:bg-primary-foreground/10'
+            ? 'bg-white/20 text-white shadow-md' 
+            : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
       >
         <Icon size={18} />
@@ -38,29 +38,34 @@ const Navigation = () => {
     return (
       <button
         onClick={() => navigate(path)}
-        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-md transition-colors ${
+        className={`flex-1 flex flex-col items-center justify-center gap-1 px-3 py-2.5 rounded-lg transition-all duration-200 ${
           isActive 
-            ? 'bg-primary-foreground/20' 
-            : 'hover:bg-primary-foreground/10'
+            ? 'bg-white/20 text-white shadow-md' 
+            : 'text-white/80 hover:bg-white/10 hover:text-white'
         }`}
       >
-        <Icon size={18} />
-        <span className="text-sm">{label}</span>
+        <Icon size={20} />
+        <span className="text-xs font-medium">{label}</span>
       </button>
     );
   };
 
   return (
-    <nav className="bg-primary text-primary-foreground">
+    <nav className="bg-gradient-to-r from-primary to-primary/90 text-white shadow-lg sticky top-0 z-50">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
-          <div className="flex items-center gap-2">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="bg-white/20 p-2 rounded-lg">
+              <Layers size={24} className="text-white" />
+            </div>
             <div className="font-bold text-xl tracking-tight">
-              PLEXI<span className="font-normal">SYSTEM</span>
+              PLEXI<span className="font-light">SYSTEM</span>
             </div>
           </div>
 
-          <div className="hidden md:flex items-center gap-1">
+          {/* Desktop Navigation */}
+          <div className="hidden md:flex items-center gap-2">
             {isManager ? (
               <>
                 <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
@@ -72,22 +77,27 @@ const Navigation = () => {
             )}
           </div>
 
-          <div className="flex items-center gap-4">
-            <span className="hidden sm:block text-sm">
-              {currentUser.name}
-            </span>
+          {/* User Menu */}
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
+              <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm font-semibold">
+                {currentUser.name.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-sm font-medium">{currentUser.name}</span>
+            </div>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 rounded-md hover:bg-primary-foreground/10 transition-colors"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-all duration-200"
+              title="Wyloguj"
             >
               <LogOut size={18} />
-              <span className="hidden sm:inline">Wyloguj</span>
+              <span className="hidden sm:inline text-sm font-medium">Wyloguj</span>
             </button>
           </div>
         </div>
 
-        {/* Mobile navigation */}
-        <div className="md:hidden flex gap-2 pb-3 overflow-x-auto">
+        {/* Mobile Navigation */}
+        <div className="md:hidden flex gap-2 pb-3">
           {isManager ? (
             <>
               <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
