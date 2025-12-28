@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet } from 'lucide-react';
 import { getStageStatusColor } from '@/data/mockData';
 
 type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE';
@@ -146,24 +146,99 @@ const OrdersList = () => {
     </div>
   );
 
+  // Helper to escape CSV values
+  const escapeCSV = (value: string | number | undefined): string => {
+    if (value === undefined || value === null) return '';
+    const str = String(value);
+    // Escape quotes and wrap in quotes if contains comma, quote, or newline
+    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
   const exportToCSV = () => {
-    const headers = ['Nr zlecenia', 'Klient', 'Produkt', 'Ilość', 'Wartość', 'Termin', 'Status'];
+    const headers = ['Nr zlecenia', 'Nr klienta', 'Klient', 'Email', 'Telefon', 'Adres', 'Produkt', 'Ilość', 'Cena jedn.', 'Wartość', 'Termin', 'Status', 'Aktualny etap', 'Data utworzenia'];
     const rows = filteredOrders.map(o => [
-      o.order_number,
-      o.client_name,
-      o.product_name,
+      escapeCSV(o.order_number),
+      escapeCSV(o.client_order_number),
+      escapeCSV(o.client_name),
+      escapeCSV(o.client_email),
+      escapeCSV(o.client_phone),
+      escapeCSV([o.client_address, o.client_postal, o.client_city].filter(Boolean).join(', ')),
+      escapeCSV(o.product_name),
       o.quantity,
+      o.price_per_unit?.toFixed(2) || '0',
       o.price_total?.toFixed(2) || '0',
       o.planned_completion_date,
-      o.status
+      o.status === 'NOWE' ? 'Nowe' : o.status === 'W_TRAKCIE' ? 'W trakcie' : o.status === 'GOTOWE' ? 'Gotowe' : o.status,
+      escapeCSV(o.currentStage),
+      o.created_at ? new Date(o.created_at).toLocaleDateString('pl-PL') : ''
     ]);
-    const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
+
+    // Add BOM for Excel UTF-8 compatibility
+    const BOM = '\uFEFF';
+    const csv = BOM + [headers.join(';'), ...rows.map(r => r.join(';'))].join('\r\n');
+
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
     a.download = `plexisystem_zlecenia_${new Date().toISOString().split('T')[0]}.csv`;
     a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const exportToExcel = () => {
+    // Create XML-based Excel format for better compatibility
+    const headers = ['Nr zlecenia', 'Nr klienta', 'Klient', 'Email', 'Telefon', 'Adres', 'Produkt', 'Ilość', 'Cena jedn.', 'Wartość', 'Termin', 'Status', 'Aktualny etap', 'Data utworzenia'];
+
+    let xml = `<?xml version="1.0" encoding="UTF-8"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+  xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+  <Styles>
+    <Style ss:ID="header"><Font ss:Bold="1"/><Interior ss:Color="#4472C4" ss:Pattern="Solid"/><Font ss:Color="#FFFFFF"/></Style>
+    <Style ss:ID="money"><NumberFormat ss:Format="#,##0.00\ &quot;zł&quot;"/></Style>
+  </Styles>
+  <Worksheet ss:Name="Zlecenia">
+    <Table>
+      <Row ss:StyleID="header">
+        ${headers.map(h => `<Cell><Data ss:Type="String">${h}</Data></Cell>`).join('')}
+      </Row>`;
+
+    filteredOrders.forEach(o => {
+      xml += `
+      <Row>
+        <Cell><Data ss:Type="String">${o.order_number || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${o.client_order_number || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${(o.client_name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>
+        <Cell><Data ss:Type="String">${o.client_email || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${o.client_phone || ''}</Data></Cell>
+        <Cell><Data ss:Type="String">${[o.client_address, o.client_postal, o.client_city].filter(Boolean).join(', ').replace(/&/g, '&amp;')}</Data></Cell>
+        <Cell><Data ss:Type="String">${(o.product_name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;')}</Data></Cell>
+        <Cell><Data ss:Type="Number">${o.quantity || 0}</Data></Cell>
+        <Cell ss:StyleID="money"><Data ss:Type="Number">${o.price_per_unit || 0}</Data></Cell>
+        <Cell ss:StyleID="money"><Data ss:Type="Number">${o.price_total || 0}</Data></Cell>
+        <Cell><Data ss:Type="String">${o.planned_completion_date}</Data></Cell>
+        <Cell><Data ss:Type="String">${o.status === 'NOWE' ? 'Nowe' : o.status === 'W_TRAKCIE' ? 'W trakcie' : o.status === 'GOTOWE' ? 'Gotowe' : o.status}</Data></Cell>
+        <Cell><Data ss:Type="String">${(o.currentStage || '').replace(/&/g, '&amp;')}</Data></Cell>
+        <Cell><Data ss:Type="String">${o.created_at ? new Date(o.created_at).toLocaleDateString('pl-PL') : ''}</Data></Cell>
+      </Row>`;
+    });
+
+    xml += `
+    </Table>
+  </Worksheet>
+</Workbook>`;
+
+    const blob = new Blob([xml], { type: 'application/vnd.ms-excel' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `plexisystem_zlecenia_${new Date().toISOString().split('T')[0]}.xls`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Loading state
@@ -185,10 +260,14 @@ const OrdersList = () => {
             {orders.length} zleceń w systemie
           </p>
         </div>
-        <div className="flex gap-3">
-          <button onClick={exportToCSV} className="btn-secondary">
+        <div className="flex gap-2 flex-wrap">
+          <button onClick={exportToCSV} className="btn-secondary" title="Eksport do CSV">
             <Download size={18} className="mr-2" />
-            Eksport CSV
+            CSV
+          </button>
+          <button onClick={exportToExcel} className="btn-secondary" title="Eksport do Excel">
+            <FileSpreadsheet size={18} className="mr-2" />
+            Excel
           </button>
           <button className="btn-primary" onClick={() => navigate('/manager/orders/new')}>
             <Plus size={18} className="mr-2" />

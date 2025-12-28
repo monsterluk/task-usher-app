@@ -9,8 +9,25 @@ import {
   Package,
   CheckCircle,
   Loader2,
-  ArrowRight
+  ArrowRight,
+  BarChart3,
+  PieChart
 } from 'lucide-react';
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  ResponsiveContainer,
+  PieChart as RechartsPie,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  Legend
+} from 'recharts';
 
 const Dashboard = () => {
   const { orders, workers, timeEntries, loading } = useApp();
@@ -30,6 +47,61 @@ const Dashboard = () => {
     .filter(o => !o.archived)
     .sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime())
     .slice(0, 5);
+
+  // Chart data - Orders by month (last 6 months)
+  const getMonthlyData = () => {
+    const months: { [key: string]: { orders: number; revenue: number } } = {};
+    const now = new Date();
+
+    // Initialize last 6 months
+    for (let i = 5; i >= 0; i--) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = date.toLocaleDateString('pl-PL', { month: 'short', year: '2-digit' });
+      months[key] = { orders: 0, revenue: 0 };
+    }
+
+    orders.forEach(order => {
+      const created = new Date(order.created_at || 0);
+      const monthDiff = (now.getFullYear() - created.getFullYear()) * 12 + now.getMonth() - created.getMonth();
+      if (monthDiff >= 0 && monthDiff < 6) {
+        const key = created.toLocaleDateString('pl-PL', { month: 'short', year: '2-digit' });
+        if (months[key]) {
+          months[key].orders++;
+          months[key].revenue += order.price_total || 0;
+        }
+      }
+    });
+
+    return Object.entries(months).map(([name, data]) => ({
+      name,
+      zlecenia: data.orders,
+      przychod: Math.round(data.revenue / 1000) // w tysiącach
+    }));
+  };
+
+  // Pie chart data - Orders by status
+  const statusData = [
+    { name: 'Nowe', value: ordersNew, color: '#9ca3af' },
+    { name: 'W trakcie', value: ordersInProgress, color: '#3b82f6' },
+    { name: 'Gotowe', value: ordersCompleted, color: '#22c55e' },
+  ].filter(d => d.value > 0);
+
+  // Bar chart data - Orders by stage
+  const getStageData = () => {
+    const stages: { [key: string]: number } = {};
+    orders.forEach(order => {
+      if (order.currentStage && !order.archived) {
+        stages[order.currentStage] = (stages[order.currentStage] || 0) + 1;
+      }
+    });
+    return Object.entries(stages)
+      .map(([stage, count]) => ({ stage: stage.substring(0, 12), ilosc: count }))
+      .sort((a, b) => b.ilosc - a.ilosc)
+      .slice(0, 6);
+  };
+
+  const monthlyData = getMonthlyData();
+  const stageData = getStageData();
 
   // Orders due soon (next 3 days)
   const today = new Date();
@@ -133,9 +205,123 @@ const Dashboard = () => {
         />
       </div>
 
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+        {/* Line Chart - Monthly Trend */}
+        <div className="card-industrial lg:col-span-2">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <BarChart3 size={20} />
+            Zlecenia i przychody (6 miesięcy)
+          </h2>
+          <div className="h-64">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                <XAxis dataKey="name" fontSize={12} />
+                <YAxis yAxisId="left" fontSize={12} />
+                <YAxis yAxisId="right" orientation="right" fontSize={12} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                  formatter={(value: number, name: string) => [
+                    name === 'przychod' ? `${value} tys. zł` : value,
+                    name === 'przychod' ? 'Przychód' : 'Zlecenia'
+                  ]}
+                />
+                <Legend />
+                <Line
+                  yAxisId="left"
+                  type="monotone"
+                  dataKey="zlecenia"
+                  stroke="#3b82f6"
+                  strokeWidth={2}
+                  dot={{ fill: '#3b82f6' }}
+                  name="Zlecenia"
+                />
+                <Line
+                  yAxisId="right"
+                  type="monotone"
+                  dataKey="przychod"
+                  stroke="#22c55e"
+                  strokeWidth={2}
+                  dot={{ fill: '#22c55e' }}
+                  name="Przychód (tys. zł)"
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Pie Chart - Status Distribution */}
+        <div className="card-industrial">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <PieChart size={20} />
+            Status zleceń
+          </h2>
+          <div className="h-64">
+            {statusData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <RechartsPie>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={40}
+                    outerRadius={80}
+                    paddingAngle={5}
+                    dataKey="value"
+                    label={({ name, value }) => `${name}: ${value}`}
+                    labelLine={false}
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </RechartsPie>
+              </ResponsiveContainer>
+            ) : (
+              <div className="flex items-center justify-center h-full text-muted-foreground">
+                Brak danych
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Bar Chart - Orders by Stage */}
+      {stageData.length > 0 && (
+        <div className="card-industrial mb-8">
+          <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
+            <BarChart3 size={20} />
+            Zlecenia wg etapu produkcji
+          </h2>
+          <div className="h-48">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={stageData} layout="vertical">
+                <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
+                <XAxis type="number" fontSize={12} />
+                <YAxis dataKey="stage" type="category" fontSize={11} width={100} />
+                <Tooltip
+                  contentStyle={{
+                    backgroundColor: 'hsl(var(--card))',
+                    border: '1px solid hsl(var(--border))',
+                    borderRadius: '8px'
+                  }}
+                />
+                <Bar dataKey="ilosc" fill="#8b5cf6" radius={[0, 4, 4, 0]} name="Ilość zleceń" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+      )}
+
       {/* Main Content */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Orders by Status */}
+        {/* Orders by Status - Progress bars */}
         <div className="card-industrial">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-bold">Zlecenia wg statusu</h2>

@@ -53,6 +53,9 @@ export interface Order {
   created_at?: string;
   archived?: boolean;
   stages?: OrderStage[];
+  currentStage?: string;
+  comments?: OrderComment[];
+  history?: OrderHistory[];
 }
 
 export interface Stage {
@@ -79,6 +82,26 @@ export interface TimeEntry {
   endTime: string | null;
   totalSeconds: number;
   status: 'pending' | 'in_progress' | 'completed';
+}
+
+export interface OrderComment {
+  id: string;
+  orderId: number;
+  authorId: number;
+  authorName: string;
+  content: string;
+  createdAt: string;
+  type: 'comment' | 'system'; // system for automatic notes like status changes
+}
+
+export interface OrderHistory {
+  id: string;
+  orderId: number;
+  userId: number;
+  userName: string;
+  action: string;
+  details: string;
+  timestamp: string;
 }
 
 export interface User {

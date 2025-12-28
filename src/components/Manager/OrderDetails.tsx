@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { stages, workers, getStageStatusColor } from '@/data/mockData';
-import { OrderStage, TimeEntry } from '@/types';
-import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit } from 'lucide-react';
+import { OrderStage, TimeEntry, OrderComment, OrderHistory } from '@/types';
+import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit, MessageSquare, Send, Clock, History } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
@@ -12,13 +12,15 @@ import { ShipmentResponse } from '@/utils/apaczka';
 const OrderDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { orders, setOrders, setTimeEntries, timeEntries } = useApp();
-  
+  const { orders, setOrders, setTimeEntries, timeEntries, currentUser } = useApp();
+
   const order = orders.find(o => o.id === Number(id));
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
   const [stageWorkers, setStageWorkers] = useState<Record<number, number[]>>({});
   const [showApaczkaIntegration, setShowApaczkaIntegration] = useState(false);
   const [showPrintCard, setShowPrintCard] = useState(false);
+  const [newComment, setNewComment] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (order?.stages) {
@@ -150,9 +152,59 @@ const OrderDetails = () => {
   };
 
   const updateShipmentStatus = (status: 'OCZEKUJE' | 'ZAMÓWIONA' | 'W_DRODZE' | 'DOSTARCZONO') => {
-    setOrders(prev => prev.map(o => 
+    setOrders(prev => prev.map(o =>
       o.id === order.id ? { ...o, shipment_status: status } : o
     ));
+  };
+
+  // Add comment
+  const addComment = () => {
+    if (!newComment.trim() || !currentUser) return;
+
+    const comment: OrderComment = {
+      id: `comment_${Date.now()}`,
+      orderId: order.id,
+      authorId: currentUser.id,
+      authorName: currentUser.name,
+      content: newComment.trim(),
+      createdAt: new Date().toISOString(),
+      type: 'comment'
+    };
+
+    const historyEntry: OrderHistory = {
+      id: `history_${Date.now()}`,
+      orderId: order.id,
+      userId: currentUser.id,
+      userName: currentUser.name,
+      action: 'Dodano komentarz',
+      details: newComment.trim().substring(0, 50) + (newComment.length > 50 ? '...' : ''),
+      timestamp: new Date().toISOString()
+    };
+
+    setOrders(prev => prev.map(o =>
+      o.id === order.id
+        ? {
+            ...o,
+            comments: [...(o.comments || []), comment],
+            history: [...(o.history || []), historyEntry]
+          }
+        : o
+    ));
+
+    setNewComment('');
+    toast({ title: "Komentarz dodany" });
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('pl-PL', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
   };
 
   return (
@@ -458,6 +510,111 @@ const OrderDetails = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Comments Section */}
+      <div className="card-industrial mt-6">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <MessageSquare size={24} />
+          Komentarze ({order.comments?.length || 0})
+        </h2>
+
+        {/* Add Comment */}
+        <div className="flex gap-2 mb-4">
+          <textarea
+            value={newComment}
+            onChange={(e) => setNewComment(e.target.value)}
+            placeholder="Dodaj komentarz lub notatkę..."
+            className="input-industrial flex-1 min-h-[80px] resize-none"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && e.ctrlKey) addComment();
+            }}
+          />
+          <button
+            onClick={addComment}
+            disabled={!newComment.trim()}
+            className="btn-primary self-end disabled:opacity-50"
+            title="Wyślij (Ctrl+Enter)"
+          >
+            <Send size={18} />
+          </button>
+        </div>
+
+        {/* Comments List */}
+        <div className="space-y-3 max-h-[400px] overflow-y-auto">
+          {order.comments && order.comments.length > 0 ? (
+            [...order.comments].reverse().map((comment) => (
+              <div
+                key={comment.id}
+                className={`p-3 rounded-lg ${
+                  comment.type === 'system'
+                    ? 'bg-muted/50 border-l-4 border-primary'
+                    : 'bg-muted/30'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span className="font-medium text-sm">{comment.authorName}</span>
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock size={12} />
+                    {formatDate(comment.createdAt)}
+                  </span>
+                </div>
+                <p className="text-sm whitespace-pre-wrap">{comment.content}</p>
+              </div>
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground py-4">
+              Brak komentarzy. Dodaj pierwszy komentarz powyżej.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* History Section */}
+      <div className="card-industrial mt-6">
+        <button
+          onClick={() => setShowHistory(!showHistory)}
+          className="w-full flex items-center justify-between"
+        >
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <History size={24} />
+            Historia zmian ({order.history?.length || 0})
+          </h2>
+          <ChevronRight
+            size={20}
+            className={`transition-transform ${showHistory ? 'rotate-90' : ''}`}
+          />
+        </button>
+
+        {showHistory && (
+          <div className="mt-4 space-y-2 max-h-[300px] overflow-y-auto">
+            {order.history && order.history.length > 0 ? (
+              [...order.history].reverse().map((entry) => (
+                <div key={entry.id} className="flex items-start gap-3 p-2 bg-muted/30 rounded">
+                  <div className="w-2 h-2 rounded-full bg-primary mt-2 flex-shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium text-sm">{entry.action}</span>
+                      <span className="text-xs text-muted-foreground">
+                        przez {entry.userName}
+                      </span>
+                    </div>
+                    {entry.details && (
+                      <p className="text-xs text-muted-foreground truncate">{entry.details}</p>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
+                    {formatDate(entry.timestamp)}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <p className="text-center text-muted-foreground py-4">
+                Brak historii zmian.
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Print Card Modal */}
