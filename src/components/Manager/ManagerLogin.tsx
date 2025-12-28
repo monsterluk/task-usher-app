@@ -1,16 +1,16 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { User, Lock } from 'lucide-react';
+import { User, Lock, Loader2 } from 'lucide-react';
 
 const ManagerLogin = () => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const { login } = useApp();
+  const { login, loading } = useApp();
   const navigate = useNavigate();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -19,7 +19,8 @@ const ManagerLogin = () => {
       return;
     }
 
-    if (login(email, password, 'manager')) {
+    const success = await login(email, password, 'manager');
+    if (success) {
       navigate('/manager/orders');
     } else {
       setError('Nieprawidłowe dane logowania');
@@ -48,6 +49,7 @@ const ManagerLogin = () => {
                   onChange={(e) => setEmail(e.target.value)}
                   className="input-industrial pl-10"
                   placeholder="kierownik@plexisystem.pl"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -62,6 +64,7 @@ const ManagerLogin = () => {
                   onChange={(e) => setPassword(e.target.value)}
                   className="input-industrial pl-10"
                   placeholder="••••••••"
+                  disabled={loading}
                 />
               </div>
             </div>
@@ -70,8 +73,15 @@ const ManagerLogin = () => {
               <p className="text-destructive text-sm">{error}</p>
             )}
 
-            <button type="submit" className="btn-primary w-full">
-              Zaloguj się
+            <button type="submit" className="btn-primary w-full" disabled={loading}>
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <Loader2 className="animate-spin" size={20} />
+                  Logowanie...
+                </span>
+              ) : (
+                'Zaloguj się'
+              )}
             </button>
           </form>
 
