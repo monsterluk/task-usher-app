@@ -2,11 +2,22 @@ import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'https://beata254.mikrus.xyz:20254';
 
+// Sprawdź czy jesteśmy w trybie demo (bez backendu)
+export const isDemoMode = () => {
+  // Lovable preview lub localhost bez backendu
+  const hostname = window.location.hostname;
+  return hostname.includes('lovable') ||
+         hostname.includes('lovableproject') ||
+         hostname.includes('webcontainer') ||
+         import.meta.env.VITE_DEMO_MODE === 'true';
+};
+
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 5000, // 5 sekund timeout - szybko przełącz na demo jeśli brak API
 });
 
 // Dodaj token do każdego żądania

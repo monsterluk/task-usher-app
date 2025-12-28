@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Order, TimeEntry, User, Worker, UserRole } from '@/types';
 import { initialOrders, initialTimeEntries, workers as initialWorkers } from '@/data/mockData';
-import { authApi, workersApi, ordersApi } from '@/utils/api';
+import { authApi, workersApi, ordersApi, isDemoMode } from '@/utils/api';
 
 interface AppContextType {
   orders: Order[];
@@ -54,6 +54,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Sprawdź czy API jest dostępne i odśwież dane
   useEffect(() => {
     const checkApiAndRefresh = async () => {
+      // W trybie demo nie próbuj łączyć z API
+      if (isDemoMode()) {
+        console.log('Tryb demo aktywny - pomijam sprawdzanie API');
+        setApiConnected(false);
+        setLoading(false);
+        return;
+      }
+
       const token = localStorage.getItem('plexisystem_token');
       if (token) {
         try {
@@ -134,11 +142,70 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Funkcja pomocnicza dla logowania demo
+  const loginDemoUser = (email: string): boolean => {
+    // Admin
+    if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('wlasciciel')) {
+      setCurrentUser({
+        id: 0,
+        name: 'Administrator',
+        role: 'admin',
+        email: email
+      });
+      setLoading(false);
+      return true;
+    }
+
+    // Manager
+    if (email.toLowerCase().includes('kierownik') || email.toLowerCase().includes('manager')) {
+      setCurrentUser({
+        id: 1,
+        name: 'Kierownik Produkcji',
+        role: 'manager',
+        email: email
+      });
+      setLoading(false);
+      return true;
+    }
+
+    // Szukaj w workers
+    const matchedWorker = workers.find(w =>
+      w.email.toLowerCase() === email.toLowerCase() && w.active
+    );
+
+    if (matchedWorker) {
+      setCurrentUser({
+        id: matchedWorker.id,
+        name: matchedWorker.name,
+        role: matchedWorker.role as UserRole,
+        email: matchedWorker.email
+      });
+      setLoading(false);
+      return true;
+    }
+
+    // Domyślnie - worker
+    setCurrentUser({
+      id: 99,
+      name: 'Pracownik Demo',
+      role: 'worker',
+      email: email
+    });
+    setLoading(false);
+    return true;
+  };
+
   const login = async (email: string, password: string, role: UserRole): Promise<boolean> => {
     if (!email || !password) return false;
 
     setLoading(true);
     clearError();
+
+    // W trybie demo - natychmiast użyj fallback bez próby łączenia z API
+    if (isDemoMode()) {
+      console.log('Tryb demo - logowanie bez API');
+      return loginDemoUser(email);
+    }
 
     try {
       // Spróbuj zalogować przez API
@@ -219,40 +286,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       
     } catch (err: any) {
       console.log('API niedostępne, używam trybu demo');
-
-      // Demo fallback - admin
-      if (email.toLowerCase().includes('admin') || email.toLowerCase().includes('wlasciciel')) {
-        setCurrentUser({
-          id: 0,
-          name: 'Administrator',
-          role: 'admin',
-          email: email
-        });
-        setLoading(false);
-        return true;
-      }
-
-      // Demo fallback - manager
-      if (email.toLowerCase().includes('kierownik') || email.toLowerCase().includes('manager')) {
-        setCurrentUser({
-          id: 1,
-          name: 'Kierownik Produkcji',
-          role: 'manager',
-          email: email
-        });
-        setLoading(false);
-        return true;
-      }
-
-      // Demo fallback - worker (domyślnie)
-      setCurrentUser({
-        id: 99,
-        name: 'Pracownik Demo',
-        role: 'worker',
-        email: email
-      });
-      setLoading(false);
-      return true;
+      return loginDemoUser(email);
     }
   };
 
