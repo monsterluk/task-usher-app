@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users, Layers } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog } from 'lucide-react';
 
 const Navigation = () => {
   const { currentUser, logout } = useApp();
@@ -68,7 +68,9 @@ const Navigation = () => {
           <div className="hidden md:flex items-center gap-2">
             {isManager ? (
               <>
+                <NavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
                 <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+                <NavButton path="/manager/machines" icon={Cog} label="Maszyny" />
                 <NavButton path="/manager/workers" icon={Users} label="Pracownicy" />
                 <NavButton path="/manager/reports" icon={FileText} label="Raporty" />
               </>
@@ -97,10 +99,12 @@ const Navigation = () => {
         </div>
 
         {/* Mobile Navigation */}
-        <div className="md:hidden flex gap-2 pb-3">
+        <div className="md:hidden flex gap-1 pb-3 overflow-x-auto">
           {isManager ? (
             <>
+              <MobileNavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
               <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+              <MobileNavButton path="/manager/machines" icon={Cog} label="Maszyny" />
               <MobileNavButton path="/manager/workers" icon={Users} label="Pracownicy" />
               <MobileNavButton path="/manager/reports" icon={FileText} label="Raporty" />
             </>
