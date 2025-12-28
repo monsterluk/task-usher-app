@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Eye, Archive, RotateCcw, Loader2 } from 'lucide-react';
+import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
 import { getStageStatusColor } from '@/data/mockData';
 
 type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE';
@@ -11,6 +11,9 @@ const OrdersList = () => {
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterType>('AKTYWNE');
   const [localLoading, setLocalLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 15;
 
   // Ładuj zlecenia z API przy mount
   useEffect(() => {
@@ -22,11 +25,34 @@ const OrdersList = () => {
     loadOrders();
   }, [refreshOrders]);
 
+  // Reset page when filter or search changes
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [filter, searchQuery]);
+
+  // Filter and search orders
   const filteredOrders = orders.filter(order => {
-    if (filter === 'AKTYWNE') return !order.archived && order.status !== 'GOTOWE';
-    if (filter === 'ARCHIWUM') return order.archived || order.status === 'GOTOWE';
+    // Status filter
+    if (filter === 'AKTYWNE' && (order.archived || order.status === 'GOTOWE')) return false;
+    if (filter === 'ARCHIWUM' && !order.archived && order.status !== 'GOTOWE') return false;
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      return (
+        order.order_number.toLowerCase().includes(query) ||
+        order.client_name.toLowerCase().includes(query) ||
+        order.product_name.toLowerCase().includes(query) ||
+        (order.client_order_number?.toLowerCase().includes(query) || false)
+      );
+    }
     return true;
   });
+
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredOrders.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const paginatedOrders = filteredOrders.slice(startIndex, startIndex + itemsPerPage);
 
   // Oblicz dni do terminu
   const getDaysUntilDeadline = (deadline: string) => {
@@ -128,24 +154,46 @@ const OrdersList = () => {
         </div>
       </div>
 
-      {/* Filters */}
-      <div className="flex gap-2 mb-4">
-        {(['AKTYWNE', 'ARCHIWUM', 'WSZYSTKIE'] as FilterType[]).map(f => (
-          <button
-            key={f}
-            onClick={() => setFilter(f)}
-            className={`px-4 py-2 rounded-md transition-colors ${
-              filter === f
-                ? 'bg-primary text-primary-foreground'
-                : 'bg-muted hover:bg-muted/80'
-            }`}
-          >
-            {f} ({f === 'AKTYWNE' ? orders.filter(o => !o.archived && o.status !== 'GOTOWE').length :
-                f === 'ARCHIWUM' ? orders.filter(o => o.archived || o.status === 'GOTOWE').length :
-                orders.length})
-          </button>
-        ))}
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+        {/* Search Input */}
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" size={18} />
+          <input
+            type="text"
+            placeholder="Szukaj po nr zlecenia, kliencie, produkcie..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            className="input-industrial w-full pl-10"
+          />
+        </div>
+
+        {/* Status Filters */}
+        <div className="flex gap-2">
+          {(['AKTYWNE', 'ARCHIWUM', 'WSZYSTKIE'] as FilterType[]).map(f => (
+            <button
+              key={f}
+              onClick={() => setFilter(f)}
+              className={`px-4 py-2 rounded-md transition-colors ${
+                filter === f
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted hover:bg-muted/80'
+              }`}
+            >
+              {f} ({f === 'AKTYWNE' ? orders.filter(o => !o.archived && o.status !== 'GOTOWE').length :
+                  f === 'ARCHIWUM' ? orders.filter(o => o.archived || o.status === 'GOTOWE').length :
+                  orders.length})
+            </button>
+          ))}
+        </div>
       </div>
+
+      {/* Results info */}
+      {searchQuery && (
+        <p className="text-sm text-muted-foreground mb-4">
+          Znaleziono {filteredOrders.length} zleceń dla "{searchQuery}"
+        </p>
+      )}
 
       {/* Desktop Table */}
       <div className="hidden md:block card-industrial overflow-hidden p-0">
@@ -165,14 +213,14 @@ const OrdersList = () => {
             </tr>
           </thead>
           <tbody>
-            {filteredOrders.length === 0 ? (
+            {paginatedOrders.length === 0 ? (
               <tr>
                 <td colSpan={10} className="text-center py-8 text-muted-foreground">
-                  Brak zleceń do wyświetlenia
+                  {searchQuery ? 'Brak wyników wyszukiwania' : 'Brak zleceń do wyświetlenia'}
                 </td>
               </tr>
             ) : (
-              filteredOrders.map((order) => {
+              paginatedOrders.map((order) => {
                 const days = getDaysUntilDeadline(order.planned_completion_date);
                 return (
                   <tr key={order.id} className={order.archived ? 'opacity-60' : ''}>
@@ -207,12 +255,12 @@ const OrdersList = () => {
 
       {/* Mobile Cards */}
       <div className="md:hidden space-y-4">
-        {filteredOrders.length === 0 ? (
+        {paginatedOrders.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
-            Brak zleceń do wyświetlenia
+            {searchQuery ? 'Brak wyników wyszukiwania' : 'Brak zleceń do wyświetlenia'}
           </div>
         ) : (
-          filteredOrders.map((order) => {
+          paginatedOrders.map((order) => {
             const days = getDaysUntilDeadline(order.planned_completion_date);
             return (
               <div key={order.id} className={`card-industrial ${order.archived ? 'opacity-60' : ''}`}>
@@ -241,6 +289,58 @@ const OrdersList = () => {
           })
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between mt-6 px-4">
+          <p className="text-sm text-muted-foreground">
+            Wyświetlono {startIndex + 1}-{Math.min(startIndex + itemsPerPage, filteredOrders.length)} z {filteredOrders.length}
+          </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              disabled={currentPage === 1}
+              className="btn-secondary py-2 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronLeft size={18} />
+            </button>
+            <div className="flex gap-1">
+              {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) {
+                  pageNum = i + 1;
+                } else if (currentPage <= 3) {
+                  pageNum = i + 1;
+                } else if (currentPage >= totalPages - 2) {
+                  pageNum = totalPages - 4 + i;
+                } else {
+                  pageNum = currentPage - 2 + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`w-10 h-10 rounded-md transition-colors ${
+                      currentPage === pageNum
+                        ? 'bg-primary text-primary-foreground'
+                        : 'bg-muted hover:bg-muted/80'
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              disabled={currentPage === totalPages}
+              className="btn-secondary py-2 px-3 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

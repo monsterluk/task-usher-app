@@ -19,6 +19,9 @@ const OrderForm = () => {
     client_name: '',
     client_email: '',
     client_phone: '',
+    client_address: '',
+    client_postal: '',
+    client_city: '',
     product_name: '',
     quantity: 1,
     price_per_unit: 0,
@@ -212,6 +215,36 @@ const OrderForm = () => {
                   onChange={e => updateField('client_phone', e.target.value)}
                   className="input-industrial"
                   placeholder="+48 123 456 789"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Adres (ulica, nr domu)</label>
+                <input
+                  type="text"
+                  value={formData.client_address || ''}
+                  onChange={e => updateField('client_address', e.target.value)}
+                  className="input-industrial"
+                  placeholder="ul. Przykładowa 10/2"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Kod pocztowy</label>
+                <input
+                  type="text"
+                  value={formData.client_postal || ''}
+                  onChange={e => updateField('client_postal', e.target.value)}
+                  className="input-industrial"
+                  placeholder="00-000"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Miasto</label>
+                <input
+                  type="text"
+                  value={formData.client_city || ''}
+                  onChange={e => updateField('client_city', e.target.value)}
+                  className="input-industrial"
+                  placeholder="Warszawa"
                 />
               </div>
               <div>

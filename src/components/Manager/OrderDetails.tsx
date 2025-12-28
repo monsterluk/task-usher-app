@@ -5,6 +5,8 @@ import { stages, workers, getStageStatusColor } from '@/data/mockData';
 import { OrderStage, TimeEntry } from '@/types';
 import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import ApaczkaIntegration from './ApaczkaIntegration';
+import { ShipmentResponse } from '@/utils/apaczka';
 
 const OrderDetails = () => {
   const { id } = useParams();
@@ -14,13 +16,7 @@ const OrderDetails = () => {
   const order = orders.find(o => o.id === Number(id));
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
   const [stageWorkers, setStageWorkers] = useState<Record<number, number[]>>({});
-  const [showShipmentForm, setShowShipmentForm] = useState(false);
-  const [shipmentData, setShipmentData] = useState({
-    weight: '',
-    dimensions: '',
-    package_type: 'PACZKA',
-    service: 'STANDARD'
-  });
+  const [showApaczkaIntegration, setShowApaczkaIntegration] = useState(false);
 
   useEffect(() => {
     if (order?.stages) {
@@ -131,24 +127,19 @@ const OrderDetails = () => {
     toast({ title: "Etap uruchomiony", description: `Etap ${stage?.name} jest teraz w trakcie realizacji.` });
   };
 
-  const handleOrderCourier = () => {
-    // Mock API call - in production this would call Apaczka API
-    const mockShipmentNumber = `APK-${Date.now().toString().slice(-9)}`;
-    const mockTrackingUrl = `https://apaczka.pl/track/${mockShipmentNumber}`;
-
-    setOrders(prev => prev.map(o => 
-      o.id === order.id 
-        ? { 
-            ...o, 
-            shipment_number: mockShipmentNumber,
+  const handleShipmentCreated = (shipment: ShipmentResponse) => {
+    setOrders(prev => prev.map(o =>
+      o.id === order.id
+        ? {
+            ...o,
+            shipment_number: shipment.trackingNumber,
             shipment_status: 'ZAMÓWIONA' as const,
-            shipment_tracking_url: mockTrackingUrl
+            shipment_tracking_url: shipment.trackingUrl || `https://apaczka.pl/track/${shipment.trackingNumber}`
           }
         : o
     ));
-
-    setShowShipmentForm(false);
-    toast({ title: "Kurier zamówiony", description: `Nr przesyłki: ${mockShipmentNumber}` });
+    setShowApaczkaIntegration(false);
+    toast({ title: "Kurier zamówiony", description: `Nr przesyłki: ${shipment.trackingNumber}` });
   };
 
   const copyToClipboard = (text: string) => {
@@ -183,6 +174,11 @@ const OrderDetails = () => {
             <p className="font-semibold">{order.client_name}</p>
             {order.client_email && <p className="text-sm text-muted-foreground">{order.client_email}</p>}
             {order.client_phone && <p className="text-sm text-muted-foreground">{order.client_phone}</p>}
+            {order.client_address && (
+              <p className="text-sm text-muted-foreground">
+                {order.client_address}, {order.client_postal} {order.client_city}
+              </p>
+            )}
           </div>
           <div>
             <span className="text-muted-foreground text-sm">Produkt:</span>
@@ -409,9 +405,9 @@ const OrderDetails = () => {
           )}
 
           {/* Order Courier Button */}
-          {!order.shipment_number && !showShipmentForm && (
+          {!order.shipment_number && !showApaczkaIntegration && (
             <button
-              onClick={() => setShowShipmentForm(true)}
+              onClick={() => setShowApaczkaIntegration(true)}
               className="btn-primary w-full sm:w-auto"
             >
               <Package size={18} className="mr-2" />
@@ -419,83 +415,26 @@ const OrderDetails = () => {
             </button>
           )}
 
-          {/* Courier Order Form */}
-          {showShipmentForm && (
-            <div className="p-4 border border-border rounded-md space-y-4 bg-muted/10">
-              <h3 className="font-semibold flex items-center gap-2">
-                <Package size={18} />
-                Formularz Apaczka
-              </h3>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">Waga (kg)</label>
-                  <input
-                    type="text"
-                    value={shipmentData.weight}
-                    onChange={(e) => setShipmentData(prev => ({ ...prev, weight: e.target.value }))}
-                    placeholder="np. 2.5"
-                    className="input-industrial w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">Wymiary (cm)</label>
-                  <input
-                    type="text"
-                    value={shipmentData.dimensions}
-                    onChange={(e) => setShipmentData(prev => ({ ...prev, dimensions: e.target.value }))}
-                    placeholder="np. 30x20x10"
-                    className="input-industrial w-full"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">Typ paczki</label>
-                  <select
-                    value={shipmentData.package_type}
-                    onChange={(e) => setShipmentData(prev => ({ ...prev, package_type: e.target.value }))}
-                    className="input-industrial w-full"
-                  >
-                    <option value="PACZKA">PACZKA</option>
-                    <option value="PALETA">PALETA</option>
-                    <option value="KOPERTA">KOPERTA</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm text-muted-foreground mb-1">Usługa</label>
-                  <select
-                    value={shipmentData.service}
-                    onChange={(e) => setShipmentData(prev => ({ ...prev, service: e.target.value }))}
-                    className="input-industrial w-full"
-                  >
-                    <option value="STANDARD">STANDARD</option>
-                    <option value="EXPRESS">EXPRESS</option>
-                    <option value="EKONOMICZNA">EKONOMICZNA</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="p-3 bg-muted/30 rounded-md">
-                <p className="text-sm text-muted-foreground mb-1">Adres odbiorcy:</p>
-                <p className="font-medium">{order.client_name}</p>
-                {order.client_email && <p className="text-sm">{order.client_email}</p>}
-                {order.client_phone && <p className="text-sm">{order.client_phone}</p>}
-              </div>
-
-              <div className="flex flex-col sm:flex-row gap-2">
-                <button
-                  onClick={handleOrderCourier}
-                  className="btn-success flex-1 sm:flex-none"
-                >
-                  <Truck size={18} className="mr-2" />
-                  Wyślij do Apaczki
-                </button>
-                <button
-                  onClick={() => setShowShipmentForm(false)}
-                  className="btn-secondary"
-                >
-                  Anuluj
-                </button>
-              </div>
+          {/* Apaczka Integration Component */}
+          {showApaczkaIntegration && (
+            <div className="space-y-4">
+              <ApaczkaIntegration
+                orderId={order.id}
+                orderNumber={order.order_number}
+                clientName={order.client_name}
+                clientPhone={order.client_phone}
+                clientEmail={order.client_email}
+                clientAddress={order.client_address}
+                clientPostal={order.client_postal}
+                clientCity={order.client_city}
+                onShipmentCreated={handleShipmentCreated}
+              />
+              <button
+                onClick={() => setShowApaczkaIntegration(false)}
+                className="btn-secondary w-full"
+              >
+                Anuluj
+              </button>
             </div>
           )}
         </div>

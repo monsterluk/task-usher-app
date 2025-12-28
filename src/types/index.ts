@@ -31,6 +31,9 @@ export interface Order {
   client_name: string;
   client_email?: string;
   client_phone?: string;
+  client_address?: string;
+  client_postal?: string;
+  client_city?: string;
   product_name: string;
   quantity: number;
   price_total?: number;
