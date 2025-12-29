@@ -22,7 +22,9 @@ import {
   BarChart3,
   Key,
   Shield,
-  Wrench
+  Wrench,
+  ArrowLeft,
+  Home
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
@@ -37,6 +39,7 @@ const AVAILABLE_ROLES: UserRole[] = ['ADMIN', 'GRAFIK', 'HANDLOWIEC', 'KIEROWNIK
 // ==================== WORKERS MANAGEMENT ====================
 const WorkersManagement = () => {
   const { workers, setWorkers, currentUser } = useApp();
+  const navigate = useNavigate();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState<Partial<Worker>>({
@@ -152,6 +155,15 @@ const WorkersManagement = () => {
 
   return (
     <div className="p-4 md:p-6">
+      {/* Back button */}
+      <button
+        onClick={() => navigate('/admin')}
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4 transition-colors"
+      >
+        <ArrowLeft size={18} />
+        <span>Powrót do panelu</span>
+      </button>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -402,6 +414,7 @@ const WorkersManagement = () => {
 // ==================== MACHINES MANAGEMENT ====================
 const MachinesManagement = () => {
   const { machines, setMachines } = useApp();
+  const navigate = useNavigate();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState<Partial<Machine>>({
@@ -474,6 +487,15 @@ const MachinesManagement = () => {
 
   return (
     <div className="p-4 md:p-6">
+      {/* Back button */}
+      <button
+        onClick={() => navigate('/admin')}
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4 transition-colors"
+      >
+        <ArrowLeft size={18} />
+        <span>Powrót do panelu</span>
+      </button>
+
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
@@ -723,8 +745,12 @@ const AdminSettings = () => {
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
-      <button onClick={() => navigate('/admin')} className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-6">
-        ← Wróć do panelu
+      <button
+        onClick={() => navigate('/admin')}
+        className="flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4 transition-colors"
+      >
+        <ArrowLeft size={18} />
+        <span>Powrót do panelu</span>
       </button>
       <h1 className="text-2xl md:text-3xl font-bold mb-6">Ustawienia systemu</h1>
 
