@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { ordersApi } from '@/utils/api';
+import { ordersApi, isDemoMode } from '@/utils/api';
 import { Order } from '@/types';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 const OrderForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { currentUser, refreshOrders, workers } = useApp();
+  const { currentUser, refreshOrders, workers, orders, setOrders } = useApp();
   const isEdit = Boolean(id);
   
   const [loading, setLoading] = useState(false);
@@ -42,20 +42,37 @@ const OrderForm = () => {
     const loadOrder = async () => {
       if (isEdit && id) {
         setLoading(true);
+
+        // W trybie demo - pobierz z lokalnego stanu
+        if (isDemoMode()) {
+          const existingOrder = orders.find(o => o.id === Number(id));
+          if (existingOrder) {
+            setFormData(existingOrder);
+          }
+          setLoading(false);
+          return;
+        }
+
         try {
           const response = await ordersApi.getById(Number(id));
           if (response.success && response.data?.order) {
             setFormData(response.data.order);
           }
         } catch (error) {
-          toast.error('Nie udało się pobrać zlecenia');
+          // Fallback do lokalnego stanu
+          const existingOrder = orders.find(o => o.id === Number(id));
+          if (existingOrder) {
+            setFormData(existingOrder);
+          } else {
+            toast.error('Nie udało się pobrać zlecenia');
+          }
         } finally {
           setLoading(false);
         }
       }
     };
     loadOrder();
-  }, [isEdit, id]);
+  }, [isEdit, id, orders]);
 
   // Auto-calculate total price
   useEffect(() => {
@@ -74,6 +91,48 @@ const OrderForm = () => {
     }
 
     setLoading(true);
+
+    // W trybie demo - zapisz lokalnie
+    if (isDemoMode()) {
+      if (isEdit && id) {
+        setOrders(prev => prev.map(o =>
+          o.id === Number(id) ? { ...o, ...formData } as Order : o
+        ));
+        toast.success('Zlecenie zaktualizowane');
+      } else {
+        const newOrder: Order = {
+          id: Math.max(0, ...orders.map(o => o.id)) + 1,
+          order_number: formData.order_number!,
+          client_order_number: formData.client_order_number,
+          client_name: formData.client_name!,
+          client_email: formData.client_email,
+          client_phone: formData.client_phone,
+          client_address: formData.client_address,
+          client_postal: formData.client_postal,
+          client_city: formData.client_city,
+          product_name: formData.product_name!,
+          quantity: formData.quantity || 1,
+          price_total: formData.price_total,
+          price_per_unit: formData.price_per_unit,
+          status: 'NOWE',
+          planned_completion_date: formData.planned_completion_date || new Date().toISOString().split('T')[0],
+          notes: formData.notes,
+          folder_path: formData.folder_path,
+          invoice_number: formData.invoice_number,
+          created_by: currentUser?.name,
+          created_at: new Date().toISOString(),
+          archived: false,
+          stages: []
+        };
+        setOrders(prev => [...prev, newOrder]);
+        toast.success('Zlecenie utworzone pomyślnie!');
+      }
+      setLoading(false);
+      navigate('/manager/orders');
+      return;
+    }
+
+    // Tryb z API
     try {
       if (isEdit && id) {
         const response = await ordersApi.update(Number(id), formData);
@@ -85,7 +144,7 @@ const OrderForm = () => {
           toast.error(response.error || 'Błąd aktualizacji');
         }
       } else {
-        const response = await ordersApi.create(formData);
+        const response = await ordersApi.create(formData as any);
         if (response.success) {
           toast.success('Zlecenie utworzone pomyślnie!');
           await refreshOrders();
@@ -95,7 +154,32 @@ const OrderForm = () => {
         }
       }
     } catch (error) {
-      toast.error('Wystąpił błąd podczas zapisywania');
+      // Fallback do lokalnego zapisu w przypadku błędu
+      if (isEdit && id) {
+        setOrders(prev => prev.map(o =>
+          o.id === Number(id) ? { ...o, ...formData } as Order : o
+        ));
+        toast.success('Zlecenie zaktualizowane (lokalnie)');
+      } else {
+        const newOrder: Order = {
+          id: Math.max(0, ...orders.map(o => o.id)) + 1,
+          order_number: formData.order_number!,
+          client_name: formData.client_name!,
+          product_name: formData.product_name!,
+          quantity: formData.quantity || 1,
+          price_total: formData.price_total,
+          status: 'NOWE',
+          planned_completion_date: formData.planned_completion_date || new Date().toISOString().split('T')[0],
+          notes: formData.notes,
+          created_by: currentUser?.name,
+          created_at: new Date().toISOString(),
+          archived: false,
+          stages: []
+        };
+        setOrders(prev => [...prev, newOrder]);
+        toast.success('Zlecenie utworzone (lokalnie)');
+      }
+      navigate('/manager/orders');
     } finally {
       setLoading(false);
     }
