@@ -14,13 +14,16 @@ const ManagerDashboard = () => {
   const { currentUser } = useApp();
   const navigate = useNavigate();
 
+  // Allow KIEROWNIK and ADMIN to access this dashboard
+  const hasAccess = currentUser && (currentUser.role === 'KIEROWNIK' || currentUser.role === 'ADMIN');
+
   useEffect(() => {
-    if (!currentUser || currentUser.role !== 'manager') {
+    if (!hasAccess) {
       navigate('/');
     }
-  }, [currentUser, navigate]);
+  }, [hasAccess, navigate]);
 
-  if (!currentUser || currentUser.role !== 'manager') {
+  if (!hasAccess) {
     return null;
   }
 

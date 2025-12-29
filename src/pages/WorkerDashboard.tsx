@@ -8,13 +8,16 @@ const WorkerDashboard = () => {
   const { currentUser } = useApp();
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (!currentUser || currentUser.role !== 'worker') {
-      navigate('/worker/login');
-    }
-  }, [currentUser, navigate]);
+  // Allow PRACOWNIK and ADMIN to access this dashboard
+  const hasAccess = currentUser && (currentUser.role === 'PRACOWNIK' || currentUser.role === 'ADMIN');
 
-  if (!currentUser || currentUser.role !== 'worker') {
+  useEffect(() => {
+    if (!hasAccess) {
+      navigate('/login');
+    }
+  }, [hasAccess, navigate]);
+
+  if (!hasAccess) {
     return null;
   }
 

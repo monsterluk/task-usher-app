@@ -74,9 +74,10 @@ const Navigation = () => {
             {isAdmin && (
               <>
                 <NavButton path="/admin" icon={Shield} label="Panel Admin" />
+                <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+                <NavButton path="/handlowiec/new" icon={Briefcase} label="Nowe Zlecenie" />
                 <NavButton path="/admin/workers" icon={Users} label="Pracownicy" />
                 <NavButton path="/admin/machines" icon={Cog} label="Maszyny" />
-                <NavButton path="/admin/settings" icon={Settings} label="Ustawienia" />
               </>
             )}
             {isKierownik && (
@@ -127,6 +128,8 @@ const Navigation = () => {
           {isAdmin && (
             <>
               <MobileNavButton path="/admin" icon={Shield} label="Admin" />
+              <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+              <MobileNavButton path="/handlowiec/new" icon={Briefcase} label="Nowe" />
               <MobileNavButton path="/admin/workers" icon={Users} label="Pracownicy" />
               <MobileNavButton path="/admin/machines" icon={Cog} label="Maszyny" />
             </>

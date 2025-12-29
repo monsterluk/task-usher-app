@@ -1,0 +1,28 @@
+{
+  "name": "PlexiSystem - System Produkcji",
+  "short_name": "PlexiSystem",
+  "description": "System zarządzania zleceniami i produkcją",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1e3a5f",
+  "theme_color": "#1e3a5f",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ],
+  "categories": ["business", "productivity"],
+  "lang": "pl-PL",
+  "dir": "ltr",
+  "scope": "/",
+  "prefer_related_applications": false
+}

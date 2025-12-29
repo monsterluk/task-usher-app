@@ -4,11 +4,13 @@ const API_URL = import.meta.env.VITE_API_URL || 'https://beata254.mikrus.xyz:202
 
 // Sprawdź czy jesteśmy w trybie demo (bez backendu)
 export const isDemoMode = () => {
-  // Lovable preview lub localhost bez backendu
+  // Lovable preview, localhost lub gdy wymuszono tryb demo
   const hostname = window.location.hostname;
   return hostname.includes('lovable') ||
          hostname.includes('lovableproject') ||
          hostname.includes('webcontainer') ||
+         hostname === 'localhost' ||
+         hostname === '127.0.0.1' ||
          import.meta.env.VITE_DEMO_MODE === 'true';
 };
 
