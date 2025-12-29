@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Navigation from '@/components/Navigation';
-import { Worker, Machine, Position } from '@/types';
+import { Worker, Machine, Position, UserRole, ROLE_LABELS, ROLES_WITH_PRICE_ACCESS } from '@/types';
 import { positions } from '@/data/mockData';
 import {
   Users,
@@ -19,31 +19,48 @@ import {
   TrendingUp,
   Package,
   AlertTriangle,
-  BarChart3
+  BarChart3,
+  Key,
+  Shield,
+  Wrench
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 
+// Umiejętności/etapy produkcyjne do przypisania
+const AVAILABLE_SKILLS: Position[] = [
+  'GRAFIK', 'FREZOWANIE', 'LASER', 'POLEROWANIE', 'WYGINANIE',
+  'KLEJENIE', 'DRUKOWANIE', 'OKLEJANIE', 'PAKOWANIE', 'WYSYŁKA'
+];
+
+const AVAILABLE_ROLES: UserRole[] = ['ADMIN', 'GRAFIK', 'HANDLOWIEC', 'KIEROWNIK', 'PRACOWNIK'];
+
 // ==================== WORKERS MANAGEMENT ====================
 const WorkersManagement = () => {
-  const { workers, setWorkers } = useApp();
+  const { workers, setWorkers, currentUser } = useApp();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [formData, setFormData] = useState<Partial<Worker>>({
     name: '',
     email: '',
+    pin: '',
     position: 'INNE',
     hourly_rate: 43.27,
-    role: 'worker',
+    role: 'PRACOWNIK',
+    skills: [],
     active: true
   });
+
+  const canViewPrices = currentUser && ROLES_WITH_PRICE_ACCESS.includes(currentUser.role);
 
   const resetForm = () => {
     setFormData({
       name: '',
       email: '',
+      pin: '',
       position: 'INNE',
       hourly_rate: 43.27,
-      role: 'worker',
+      role: 'PRACOWNIK',
+      skills: [],
       active: true
     });
     setEditingId(null);
@@ -51,14 +68,33 @@ const WorkersManagement = () => {
   };
 
   const startEdit = (worker: Worker) => {
-    setFormData(worker);
+    setFormData({ ...worker, skills: worker.skills || [] });
     setEditingId(worker.id);
     setShowAddForm(false);
+  };
+
+  const validatePin = (pin: string): boolean => {
+    if (!pin) return true; // PIN is optional
+    if (!/^\d{4,6}$/.test(pin)) {
+      toast({ title: "Błąd", description: "PIN musi mieć 4-6 cyfr", variant: "destructive" });
+      return false;
+    }
+    // Check if PIN is unique
+    const existingWorker = workers.find(w => w.pin === pin && w.id !== editingId);
+    if (existingWorker) {
+      toast({ title: "Błąd", description: `PIN jest już używany przez: ${existingWorker.name}`, variant: "destructive" });
+      return false;
+    }
+    return true;
   };
 
   const saveWorker = () => {
     if (!formData.name || !formData.email) {
       toast({ title: "Błąd", description: "Wypełnij wszystkie wymagane pola", variant: "destructive" });
+      return;
+    }
+
+    if (formData.pin && !validatePin(formData.pin)) {
       return;
     }
 
@@ -70,9 +106,11 @@ const WorkersManagement = () => {
         id: Math.max(0, ...workers.map(w => w.id)) + 1,
         name: formData.name!,
         email: formData.email!,
+        pin: formData.pin || undefined,
         position: formData.position as Position,
         hourly_rate: formData.hourly_rate || 43.27,
-        role: formData.role || 'worker',
+        role: formData.role as UserRole || 'PRACOWNIK',
+        skills: formData.skills || [],
         active: formData.active ?? true
       };
       setWorkers(prev => [...prev, newWorker]);
@@ -90,6 +128,26 @@ const WorkersManagement = () => {
 
   const toggleActive = (id: number) => {
     setWorkers(prev => prev.map(w => w.id === id ? { ...w, active: !w.active } : w));
+  };
+
+  const toggleSkill = (skill: string) => {
+    setFormData(prev => ({
+      ...prev,
+      skills: prev.skills?.includes(skill)
+        ? prev.skills.filter(s => s !== skill)
+        : [...(prev.skills || []), skill]
+    }));
+  };
+
+  const getRoleBadgeColor = (role: UserRole) => {
+    switch (role) {
+      case 'ADMIN': return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
+      case 'KIEROWNIK': return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
+      case 'GRAFIK': return 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200';
+      case 'HANDLOWIEC': return 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200';
+      case 'PRACOWNIK': return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
+      default: return 'bg-gray-100 text-gray-800';
+    }
   };
 
   return (
@@ -138,6 +196,24 @@ const WorkersManagement = () => {
               />
             </div>
             <div>
+              <label className="block text-sm font-medium mb-1 flex items-center gap-1">
+                <Key size={14} /> PIN (4-6 cyfr)
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                value={formData.pin || ''}
+                onChange={e => {
+                  const val = e.target.value.replace(/\D/g, '').slice(0, 6);
+                  setFormData(prev => ({ ...prev, pin: val }));
+                }}
+                className="input-industrial w-full font-mono text-lg tracking-widest"
+                placeholder="1234"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Używany do logowania</p>
+            </div>
+            <div>
               <label className="block text-sm font-medium mb-1">Stanowisko</label>
               <select
                 value={formData.position || 'INNE'}
@@ -150,27 +226,31 @@ const WorkersManagement = () => {
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Stawka godzinowa (zł)</label>
-              <input
-                type="number"
-                step="0.01"
-                value={formData.hourly_rate || 43.27}
-                onChange={e => setFormData(prev => ({ ...prev, hourly_rate: parseFloat(e.target.value) }))}
-                className="input-industrial w-full"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-1">Rola</label>
+              <label className="block text-sm font-medium mb-1 flex items-center gap-1">
+                <Shield size={14} /> Rola w systemie
+              </label>
               <select
-                value={formData.role || 'worker'}
-                onChange={e => setFormData(prev => ({ ...prev, role: e.target.value as any }))}
+                value={formData.role || 'PRACOWNIK'}
+                onChange={e => setFormData(prev => ({ ...prev, role: e.target.value as UserRole }))}
                 className="input-industrial w-full"
               >
-                <option value="worker">Pracownik</option>
-                <option value="manager">Kierownik</option>
-                <option value="admin">Administrator</option>
+                {AVAILABLE_ROLES.map(role => (
+                  <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+                ))}
               </select>
             </div>
+            {canViewPrices && (
+              <div>
+                <label className="block text-sm font-medium mb-1">Stawka godzinowa (zł)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={formData.hourly_rate || 43.27}
+                  onChange={e => setFormData(prev => ({ ...prev, hourly_rate: parseFloat(e.target.value) }))}
+                  className="input-industrial w-full"
+                />
+              </div>
+            )}
             <div className="flex items-end gap-2">
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -183,7 +263,40 @@ const WorkersManagement = () => {
               </label>
             </div>
           </div>
-          <div className="flex gap-2 mt-4">
+
+          {/* Skills Section */}
+          <div className="mt-6 pt-4 border-t border-border">
+            <label className="block text-sm font-medium mb-3 flex items-center gap-2">
+              <Wrench size={16} /> Umiejętności (etapy produkcyjne)
+            </label>
+            <p className="text-xs text-muted-foreground mb-3">
+              Zaznacz etapy, które ten pracownik może wykonywać
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {AVAILABLE_SKILLS.map(skill => (
+                <button
+                  key={skill}
+                  type="button"
+                  onClick={() => toggleSkill(skill)}
+                  className={`px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+                    formData.skills?.includes(skill)
+                      ? 'bg-primary text-primary-foreground'
+                      : 'bg-muted hover:bg-muted/80 text-muted-foreground'
+                  }`}
+                >
+                  {formData.skills?.includes(skill) && <CheckCircle size={14} className="inline mr-1" />}
+                  {skill}
+                </button>
+              ))}
+            </div>
+            {formData.skills && formData.skills.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Wybrano: {formData.skills.length} umiejętności
+              </p>
+            )}
+          </div>
+
+          <div className="flex gap-2 mt-6">
             <button onClick={saveWorker} className="btn-primary">
               <Save size={18} className="mr-2" />
               Zapisz
@@ -198,57 +311,84 @@ const WorkersManagement = () => {
 
       {/* Workers Table */}
       <div className="card-industrial overflow-hidden p-0">
-        <table className="table-industrial">
-          <thead>
-            <tr>
-              <th>Pracownik</th>
-              <th>Email</th>
-              <th>Stanowisko</th>
-              <th>Stawka/h</th>
-              <th>Rola</th>
-              <th>Status</th>
-              <th>Akcje</th>
-            </tr>
-          </thead>
-          <tbody>
-            {workers.map(worker => (
-              <tr key={worker.id} className={!worker.active ? 'opacity-50' : ''}>
-                <td className="font-semibold">{worker.name}</td>
-                <td className="text-sm">{worker.email}</td>
-                <td>
-                  <span className="px-2 py-1 bg-primary/10 rounded text-sm">{worker.position}</span>
-                </td>
-                <td className="font-mono">{worker.hourly_rate.toFixed(2)} zł</td>
-                <td>
-                  <span className={`px-2 py-1 rounded text-xs ${
-                    worker.role === 'admin' ? 'bg-red-100 text-red-800' :
-                    worker.role === 'manager' ? 'bg-blue-100 text-blue-800' :
-                    'bg-gray-100 text-gray-800'
-                  }`}>
-                    {worker.role === 'admin' ? 'Admin' : worker.role === 'manager' ? 'Kierownik' : 'Pracownik'}
-                  </span>
-                </td>
-                <td>
-                  <button onClick={() => toggleActive(worker.id)} className="flex items-center gap-1">
-                    {worker.active ? (
-                      <><CheckCircle size={16} className="text-green-600" /> Aktywny</>
-                    ) : (
-                      <><XCircle size={16} className="text-red-600" /> Nieaktywny</>
-                    )}
-                  </button>
-                </td>
-                <td className="flex gap-2">
-                  <button onClick={() => startEdit(worker)} className="btn-secondary py-1 px-2">
-                    <Edit2 size={14} />
-                  </button>
-                  <button onClick={() => deleteWorker(worker.id)} className="btn-secondary py-1 px-2 text-red-600 hover:bg-red-50">
-                    <Trash2 size={14} />
-                  </button>
-                </td>
+        <div className="overflow-x-auto">
+          <table className="table-industrial">
+            <thead>
+              <tr>
+                <th>Pracownik</th>
+                <th>PIN</th>
+                <th>Rola</th>
+                <th>Umiejętności</th>
+                {canViewPrices && <th>Stawka/h</th>}
+                <th>Status</th>
+                <th>Akcje</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {workers.map(worker => (
+                <tr key={worker.id} className={!worker.active ? 'opacity-50' : ''}>
+                  <td>
+                    <div>
+                      <p className="font-semibold">{worker.name}</p>
+                      <p className="text-xs text-muted-foreground">{worker.email}</p>
+                      <p className="text-xs text-muted-foreground">{worker.position}</p>
+                    </div>
+                  </td>
+                  <td>
+                    {worker.pin ? (
+                      <span className="font-mono text-lg bg-muted px-2 py-1 rounded">{worker.pin}</span>
+                    ) : (
+                      <span className="text-xs text-muted-foreground">Brak</span>
+                    )}
+                  </td>
+                  <td>
+                    <span className={`px-2 py-1 rounded text-xs font-medium ${getRoleBadgeColor(worker.role)}`}>
+                      {ROLE_LABELS[worker.role] || worker.role}
+                    </span>
+                  </td>
+                  <td>
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                      {worker.skills && worker.skills.length > 0 ? (
+                        worker.skills.slice(0, 3).map(skill => (
+                          <span key={skill} className="px-1.5 py-0.5 bg-primary/10 rounded text-xs">
+                            {skill}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-muted-foreground">Brak</span>
+                      )}
+                      {worker.skills && worker.skills.length > 3 && (
+                        <span className="px-1.5 py-0.5 bg-muted rounded text-xs">
+                          +{worker.skills.length - 3}
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  {canViewPrices && (
+                    <td className="font-mono">{worker.hourly_rate?.toFixed(2) || '0.00'} zł</td>
+                  )}
+                  <td>
+                    <button onClick={() => toggleActive(worker.id)} className="flex items-center gap-1">
+                      {worker.active ? (
+                        <><CheckCircle size={16} className="text-green-600" /> Aktywny</>
+                      ) : (
+                        <><XCircle size={16} className="text-red-600" /> Nieaktywny</>
+                      )}
+                    </button>
+                  </td>
+                  <td className="flex gap-2">
+                    <button onClick={() => startEdit(worker)} className="btn-secondary py-1 px-2">
+                      <Edit2 size={14} />
+                    </button>
+                    <button onClick={() => deleteWorker(worker.id)} className="btn-secondary py-1 px-2 text-red-600 hover:bg-red-50">
+                      <Trash2 size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );
@@ -624,12 +764,12 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (!currentUser || currentUser.role !== 'admin') {
+    if (!currentUser || currentUser.role !== 'ADMIN') {
       navigate('/');
     }
   }, [currentUser, navigate]);
 
-  if (!currentUser || currentUser.role !== 'admin') {
+  if (!currentUser || currentUser.role !== 'ADMIN') {
     return null;
   }
 
