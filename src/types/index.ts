@@ -58,9 +58,13 @@ export interface Order {
   history?: OrderHistory[];
 }
 
+export type StageCategory = 'preparation' | 'production' | 'administrative';
+
 export interface Stage {
   id: number;
   name: string;
+  category: StageCategory;
+  description?: string;
 }
 
 export interface OrderStage {

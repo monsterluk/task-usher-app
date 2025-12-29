@@ -26,20 +26,46 @@ export const positions = [
   'INNE'
 ] as const;
 
+// Etapy podzielone na kategorie:
+// - preparation: przygotowawcze (GRAFIK przygotowuje pliki)
+// - production: produkcyjne (kierownik przypisuje pracowników)
+// - administrative: administracyjne (wysyłka, faktura - obsługiwane osobno)
 export const stages: Stage[] = [
-  { id: 1, name: "HANDLOWIEC" },
-  { id: 2, name: "GRAFIK" },
-  { id: 3, name: "FREZOWANIE/LASER" },
-  { id: 4, name: "POLEROWANIE" },
-  { id: 5, name: "WYGINANIE" },
-  { id: 6, name: "KLEJENIE" },
-  { id: 7, name: "DRUKOWANIE" },
-  { id: 8, name: "OKLEJANIE" },
-  { id: 9, name: "PAKOWANIE" },
-  { id: 10, name: "WYSYŁKA" },
-  { id: 11, name: "FAKTURA" },
-  { id: 12, name: "ZAMKNIĘCIE" }
+  // Etapy przygotowawcze
+  { id: 1, name: "GRAFIK", category: "preparation", description: "Przygotowanie plików produkcyjnych" },
+
+  // Etapy PRODUKCYJNE - kierownik przypisuje pracowników
+  { id: 2, name: "FREZOWANIE", category: "production", description: "Frezowanie CNC" },
+  { id: 3, name: "LASER", category: "production", description: "Cięcie laserowe" },
+  { id: 4, name: "POLEROWANIE", category: "production", description: "Polerowanie krawędzi" },
+  { id: 5, name: "WYGINANIE", category: "production", description: "Gięcie termiczne" },
+  { id: 6, name: "KLEJENIE", category: "production", description: "Klejenie elementów" },
+  { id: 7, name: "DRUKOWANIE", category: "production", description: "Druk UV / solwentowy" },
+  { id: 8, name: "OKLEJANIE", category: "production", description: "Oklejanie folią" },
+  { id: 9, name: "PAKOWANIE", category: "production", description: "Pakowanie produktu" },
+
+  // Etapy administracyjne - nie przypisuje się pracowników
+  { id: 10, name: "WYSYŁKA", category: "administrative", description: "Wysyłka do klienta" },
+  { id: 11, name: "FAKTURA", category: "administrative", description: "Wystawienie faktury" },
+  { id: 12, name: "ZAMKNIĘCIE", category: "administrative", description: "Zamknięcie zlecenia" }
 ];
+
+// Helper: tylko etapy produkcyjne (do przypisywania pracowników)
+export const productionStages = stages.filter(s => s.category === 'production');
+
+// Helper: generowanie numeru zlecenia
+export const generateOrderNumber = (existingOrders: { order_number: string }[]): string => {
+  const year = new Date().getFullYear();
+  const yearSuffix = `/${year}`;
+
+  // Znajdź najwyższy numer w tym roku
+  const thisYearOrders = existingOrders
+    .filter(o => o.order_number?.endsWith(yearSuffix))
+    .map(o => parseInt(o.order_number.split('/')[0]) || 0);
+
+  const maxNumber = thisYearOrders.length > 0 ? Math.max(...thisYearOrders) : 1000;
+  return `${maxNumber + 1}/${year}`;
+};
 
 export const initialMachines: Machine[] = [
   { id: 1, name: "Frezarka CNC 1", department: "FREZOWANIE", hourly_rate: 120.00, status: "available", description: "Główna frezarka CNC" },
@@ -71,7 +97,9 @@ export const initialOrders: Order[] = [
     created_by: "Łukasz Sikorra",
     created_at: "2025-12-27T10:00:00Z",
     archived: false,
-    stages: []
+    stages: [
+      { stageId: 1, stageName: "GRAFIK", assignedWorkers: [], status: 'pending' },
+    ]
   },
   {
     id: 2,
@@ -95,8 +123,9 @@ export const initialOrders: Order[] = [
     created_at: "2025-12-18T08:00:00Z",
     archived: false,
     stages: [
-      { stageId: 1, stageName: "HANDLOWIEC", assignedWorkers: [1, 2], status: 'completed' },
-      { stageId: 2, stageName: "GRAFIK", assignedWorkers: [3], status: 'completed' },
+      { stageId: 1, stageName: "GRAFIK", assignedWorkers: [1], status: 'completed' },
+      { stageId: 2, stageName: "FREZOWANIE", assignedWorkers: [6], status: 'completed' },
+      { stageId: 9, stageName: "PAKOWANIE", assignedWorkers: [4], status: 'completed' },
     ]
   },
   {
@@ -118,9 +147,10 @@ export const initialOrders: Order[] = [
     created_at: "2025-12-15T08:00:00Z",
     archived: true,
     stages: [
-      { stageId: 1, stageName: "HANDLOWIEC", assignedWorkers: [1], status: 'completed' },
-      { stageId: 2, stageName: "GRAFIK", assignedWorkers: [2, 3], status: 'completed' },
-      { stageId: 3, stageName: "FREZOWANIE/LASER", assignedWorkers: [6], status: 'completed' },
+      { stageId: 1, stageName: "GRAFIK", assignedWorkers: [2], status: 'completed' },
+      { stageId: 2, stageName: "FREZOWANIE", assignedWorkers: [6], status: 'completed' },
+      { stageId: 4, stageName: "POLEROWANIE", assignedWorkers: [3], status: 'completed' },
+      { stageId: 9, stageName: "PAKOWANIE", assignedWorkers: [4], status: 'completed' },
     ]
   }
 ];
@@ -129,53 +159,53 @@ export const initialTimeEntries = [
   {
     id: "te1",
     orderId: 2,
-    stageId: 1,
-    stageName: "HANDLOWIEC",
-    workerId: 1,
-    workerName: "Katarzyna Treder",
-    hourlyRate: 43.27,
+    stageId: 2,
+    stageName: "FREZOWANIE",
+    workerId: 6,
+    workerName: "Łukasz Baranowski",
+    hourlyRate: 52.88,
     startTime: "2025-12-20T08:00:00",
-    endTime: "2025-12-20T08:30:00",
-    totalSeconds: 1800,
+    endTime: "2025-12-20T10:30:00",
+    totalSeconds: 9000,
     status: 'completed' as const
   },
   {
     id: "te2",
     orderId: 2,
-    stageId: 1,
-    stageName: "HANDLOWIEC",
-    workerId: 2,
-    workerName: "Nikola Treder",
+    stageId: 9,
+    stageName: "PAKOWANIE",
+    workerId: 4,
+    workerName: "Millena Milewska",
     hourlyRate: 43.27,
-    startTime: "2025-12-20T08:00:00",
-    endTime: "2025-12-20T08:45:00",
+    startTime: "2025-12-20T11:00:00",
+    endTime: "2025-12-20T11:45:00",
     totalSeconds: 2700,
     status: 'completed' as const
   },
   {
     id: "te3",
-    orderId: 2,
+    orderId: 3,
     stageId: 2,
-    stageName: "GRAFIK",
-    workerId: 3,
-    workerName: "Monika Pyzdrowska",
-    hourlyRate: 43.27,
-    startTime: "2025-12-20T09:00:00",
-    endTime: "2025-12-20T11:15:00",
-    totalSeconds: 8100,
+    stageName: "FREZOWANIE",
+    workerId: 6,
+    workerName: "Łukasz Baranowski",
+    hourlyRate: 52.88,
+    startTime: "2025-12-15T08:00:00",
+    endTime: "2025-12-15T09:30:00",
+    totalSeconds: 5400,
     status: 'completed' as const
   },
   {
     id: "te4",
     orderId: 3,
-    stageId: 3,
-    stageName: "FREZOWANIE/LASER",
-    workerId: 6,
-    workerName: "Łukasz Baranowski",
-    hourlyRate: 52.88,
-    startTime: "2025-12-21T08:00:00",
-    endTime: "2025-12-21T09:30:00",
-    totalSeconds: 5400,
+    stageId: 4,
+    stageName: "POLEROWANIE",
+    workerId: 3,
+    workerName: "Monika Pyzdrowska",
+    hourlyRate: 43.27,
+    startTime: "2025-12-15T10:00:00",
+    endTime: "2025-12-15T11:00:00",
+    totalSeconds: 3600,
     status: 'completed' as const
   }
 ];

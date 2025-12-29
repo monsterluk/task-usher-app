@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { stages, workers, getStageStatusColor } from '@/data/mockData';
+import { stages, productionStages, workers, getStageStatusColor } from '@/data/mockData';
 import { OrderStage, TimeEntry, OrderComment, OrderHistory } from '@/types';
-import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit, MessageSquare, Send, Clock, History } from 'lucide-react';
+import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit, MessageSquare, Send, Clock, History, FileCheck, Palette } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
@@ -294,12 +294,75 @@ const OrderDetails = () => {
         )}
       </div>
 
-      {/* Stages with Colors */}
+      {/* Przygotowanie - GRAFIK */}
+      <div className="card-industrial mb-6">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <Palette size={24} />
+          Przygotowanie Produkcji
+        </h2>
+
+        {(() => {
+          const grafikStage = stages.find(s => s.name === 'GRAFIK');
+          const grafikOrderStage = order.stages?.find(s => s.stageName === 'GRAFIK');
+          const isGrafikReady = grafikOrderStage?.status === 'completed';
+
+          return (
+            <div className={`p-4 rounded-lg border-2 ${isGrafikReady ? 'border-green-500 bg-green-50' : 'border-yellow-500 bg-yellow-50'}`}>
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isGrafikReady}
+                  onChange={() => {
+                    const newStatus = isGrafikReady ? 'pending' : 'completed';
+                    const updatedStages = order.stages?.map(s =>
+                      s.stageName === 'GRAFIK' ? { ...s, status: newStatus } : s
+                    ) || [];
+
+                    // Dodaj etap GRAFIK jeśli nie istnieje
+                    if (!order.stages?.find(s => s.stageName === 'GRAFIK')) {
+                      updatedStages.push({
+                        stageId: grafikStage?.id || 1,
+                        stageName: 'GRAFIK',
+                        assignedWorkers: [],
+                        status: newStatus as any
+                      });
+                    }
+
+                    setOrders(prev => prev.map(o =>
+                      o.id === order.id ? { ...o, stages: updatedStages } : o
+                    ));
+                    toast({
+                      title: newStatus === 'completed' ? "Pliki gotowe" : "Pliki w przygotowaniu",
+                      description: newStatus === 'completed'
+                        ? "Zlecenie gotowe do produkcji"
+                        : "Grafik musi przygotować pliki"
+                    });
+                  }}
+                  className="w-6 h-6 rounded accent-green-600"
+                />
+                <div>
+                  <p className="font-semibold text-lg">
+                    {isGrafikReady ? '✓ Pliki produkcyjne gotowe' : '⏳ Oczekuje na pliki od grafika'}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    Grafik przygotowuje: rysunki techniczne, pliki CNC, projekty do druku
+                  </p>
+                </div>
+              </label>
+            </div>
+          );
+        })()}
+      </div>
+
+      {/* Etapy PRODUKCYJNE - tylko te kierownik przypisuje */}
       <div className="card-industrial mb-6">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           <Check size={24} />
-          Etapy Zlecenia
+          Etapy Produkcyjne
         </h2>
+        <p className="text-sm text-muted-foreground mb-4">
+          Wybierz etapy potrzebne do realizacji tego zlecenia i przypisz pracowników
+        </p>
 
         {/* Legend */}
         <div className="flex flex-wrap gap-4 mb-6 p-3 bg-muted/30 rounded-md">
@@ -320,9 +383,9 @@ const OrderDetails = () => {
             <span className="text-sm">OPÓŹNIONY</span>
           </div>
         </div>
-        
+
         <div className="space-y-4">
-          {stages.map((stage) => {
+          {productionStages.map((stage) => {
             const isSelected = selectedStages.includes(stage.id);
             const assignedWorkers = stageWorkers[stage.id] || [];
             const orderStage = order.stages?.find(s => s.stageId === stage.id);
@@ -330,10 +393,10 @@ const OrderDetails = () => {
             const stageColor = getStageStatusColor(stageStatus, order.planned_completion_date);
             const stageTime = getStageWorkerTime(stage.id);
             const assignedWorkerNames = assignedWorkers.map(wId => workers.find(w => w.id === wId)?.name).filter(Boolean);
-            
+
             return (
-              <div 
-                key={stage.id} 
+              <div
+                key={stage.id}
                 className="border rounded-md transition-colors overflow-hidden"
                 style={{ borderLeftWidth: '4px', borderLeftColor: stageColor }}
               >
@@ -347,14 +410,14 @@ const OrderDetails = () => {
                     />
                     <div className="flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <div 
-                          className="w-4 h-4 rounded flex-shrink-0" 
+                        <div
+                          className="w-4 h-4 rounded flex-shrink-0"
                           style={{ backgroundColor: stageColor }}
                         />
                         <span className="font-semibold text-lg">{stage.name}</span>
-                        <span 
+                        <span
                           className="text-xs px-2 py-1 rounded font-medium"
-                          style={{ 
+                          style={{
                             backgroundColor: stageColor,
                             color: stageStatus === 'pending' ? 'hsl(var(--foreground))' : 'white'
                           }}
@@ -365,6 +428,9 @@ const OrderDetails = () => {
                           <span className="text-sm text-muted-foreground">({stageTime})</span>
                         )}
                       </div>
+                      {stage.description && (
+                        <p className="text-xs text-muted-foreground">{stage.description}</p>
+                      )}
                       {assignedWorkerNames.length > 0 && (
                         <p className="text-sm text-muted-foreground mt-1">
                           Pracownicy: {assignedWorkerNames.join(', ')}
@@ -380,7 +446,7 @@ const OrderDetails = () => {
                       <Users size={18} />
                       <span className="font-medium">Przydziel pracowników:</span>
                     </div>
-                    
+
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
                       {workers.filter(w => w.active).map((worker) => (
                         <label
@@ -411,7 +477,7 @@ const OrderDetails = () => {
                         className="btn-success w-full sm:w-auto"
                       >
                         <ChevronRight size={18} className="mr-2" />
-                        Przejdź do następnego etapu
+                        Uruchom etap
                       </button>
                     )}
                   </div>

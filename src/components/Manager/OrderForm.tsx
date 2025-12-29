@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { ordersApi, isDemoMode } from '@/utils/api';
 import { Order } from '@/types';
+import { generateOrderNumber } from '@/data/mockData';
 import { ArrowLeft, Save, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -13,8 +14,12 @@ const OrderForm = () => {
   const isEdit = Boolean(id);
   
   const [loading, setLoading] = useState(false);
+
+  // Automatyczne generowanie numeru zlecenia dla nowych zleceń
+  const autoOrderNumber = !isEdit ? generateOrderNumber(orders) : '';
+
   const [formData, setFormData] = useState<Partial<Order>>({
-    order_number: '',
+    order_number: autoOrderNumber,
     client_order_number: '',
     client_name: '',
     client_email: '',
@@ -36,6 +41,13 @@ const OrderForm = () => {
     packaging_info: '',     // Info o pakowaniu
     status: 'NOWE',
   });
+
+  // Zaktualizuj numer przy zmianie isEdit lub orders
+  useEffect(() => {
+    if (!isEdit && !formData.order_number) {
+      setFormData(prev => ({ ...prev, order_number: generateOrderNumber(orders) }));
+    }
+  }, [isEdit, orders]);
 
   // Load existing order data if editing
   useEffect(() => {
@@ -189,9 +201,6 @@ const OrderForm = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  // Get sales workers (HANDLOWIEC position)
-  const salesWorkers = workers.filter(w => w.position === 'HANDLOWIEC' && w.active);
-
   if (loading && isEdit) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -231,19 +240,6 @@ const OrderForm = () => {
                   placeholder="1450/2025"
                   disabled={isEdit}
                 />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Handlowiec Prowadzący</label>
-                <select
-                  value={formData.salesperson_id || ''}
-                  onChange={e => updateField('salesperson_id', e.target.value ? Number(e.target.value) : null)}
-                  className="input-industrial"
-                >
-                  <option value="">Wybierz handlowca...</option>
-                  {salesWorkers.map(w => (
-                    <option key={w.id} value={w.id}>{w.name}</option>
-                  ))}
-                </select>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Nr Zamówienia Klienta</label>
