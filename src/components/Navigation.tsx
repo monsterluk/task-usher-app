@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette } from 'lucide-react';
 
 const Navigation = () => {
   const { currentUser, logout } = useApp();
@@ -9,13 +9,17 @@ const Navigation = () => {
 
   if (!currentUser) return null;
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
+  const handleLogout = async () => {
+    await logout();
+    navigate('/login');  // Explicitly go to PIN login
   };
 
-  const isManager = currentUser.role === 'manager';
-  const isAdmin = currentUser.role === 'admin';
+  // New role system: ADMIN, KIEROWNIK, GRAFIK, HANDLOWIEC, PRACOWNIK
+  const isAdmin = currentUser.role === 'ADMIN';
+  const isKierownik = currentUser.role === 'KIEROWNIK';
+  const isGrafik = currentUser.role === 'GRAFIK';
+  const isHandlowiec = currentUser.role === 'HANDLOWIEC';
+  const isPracownik = currentUser.role === 'PRACOWNIK';
 
   const NavButton = ({ path, icon: Icon, label }: { path: string; icon: React.ElementType; label: string }) => {
     const isActive = location.pathname.includes(path);
@@ -67,22 +71,34 @@ const Navigation = () => {
 
           {/* Desktop Navigation */}
           <div className="hidden md:flex items-center gap-2">
-            {isAdmin ? (
+            {isAdmin && (
               <>
                 <NavButton path="/admin" icon={Shield} label="Panel Admin" />
                 <NavButton path="/admin/workers" icon={Users} label="Pracownicy" />
                 <NavButton path="/admin/machines" icon={Cog} label="Maszyny" />
                 <NavButton path="/admin/settings" icon={Settings} label="Ustawienia" />
               </>
-            ) : isManager ? (
+            )}
+            {isKierownik && (
               <>
                 <NavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
                 <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
                 <NavButton path="/manager/machines" icon={Cog} label="Maszyny" />
                 <NavButton path="/manager/workers" icon={Users} label="Pracownicy" />
-                <NavButton path="/manager/reports" icon={FileText} label="Raporty" />
               </>
-            ) : (
+            )}
+            {isGrafik && (
+              <>
+                <NavButton path="/grafik" icon={Palette} label="Panel Grafika" />
+              </>
+            )}
+            {isHandlowiec && (
+              <>
+                <NavButton path="/handlowiec" icon={Briefcase} label="Moje Zlecenia" />
+                <NavButton path="/handlowiec/new" icon={ClipboardList} label="Nowe Zlecenie" />
+              </>
+            )}
+            {isPracownik && (
               <NavButton path="/worker/stages" icon={Clock} label="Moje Etapy" />
             )}
           </div>
@@ -108,21 +124,31 @@ const Navigation = () => {
 
         {/* Mobile Navigation */}
         <div className="md:hidden flex gap-1 pb-3 overflow-x-auto">
-          {isAdmin ? (
+          {isAdmin && (
             <>
-              <MobileNavButton path="/admin" icon={Shield} label="Panel Admin" />
-              <MobileNavButton path="/admin/settings" icon={Settings} label="Ustawienia" />
+              <MobileNavButton path="/admin" icon={Shield} label="Admin" />
+              <MobileNavButton path="/admin/workers" icon={Users} label="Pracownicy" />
+              <MobileNavButton path="/admin/machines" icon={Cog} label="Maszyny" />
             </>
-          ) : isManager ? (
+          )}
+          {isKierownik && (
             <>
-              <MobileNavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
               <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
               <MobileNavButton path="/manager/machines" icon={Cog} label="Maszyny" />
               <MobileNavButton path="/manager/workers" icon={Users} label="Pracownicy" />
-              <MobileNavButton path="/manager/reports" icon={FileText} label="Raporty" />
             </>
-          ) : (
-            <MobileNavButton path="/worker/stages" icon={Clock} label="Moje Etapy" />
+          )}
+          {isGrafik && (
+            <MobileNavButton path="/grafik" icon={Palette} label="Grafika" />
+          )}
+          {isHandlowiec && (
+            <>
+              <MobileNavButton path="/handlowiec" icon={Briefcase} label="Zlecenia" />
+              <MobileNavButton path="/handlowiec/new" icon={ClipboardList} label="Nowe" />
+            </>
+          )}
+          {isPracownik && (
+            <MobileNavButton path="/worker/stages" icon={Clock} label="Etapy" />
           )}
         </div>
       </div>

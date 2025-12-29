@@ -268,9 +268,14 @@ const WorkersManagement = () => {
           <div className="mt-6 pt-4 border-t border-border">
             <label className="block text-sm font-medium mb-3 flex items-center gap-2">
               <Wrench size={16} /> Umiejętności (etapy produkcyjne)
+              {(formData.role === 'HANDLOWIEC' || formData.role === 'ADMIN') && (
+                <span className="text-xs font-normal text-muted-foreground ml-2">(opcjonalne)</span>
+              )}
             </label>
             <p className="text-xs text-muted-foreground mb-3">
-              Zaznacz etapy, które ten pracownik może wykonywać
+              {formData.role === 'PRACOWNIK' || formData.role === 'GRAFIK' || formData.role === 'KIEROWNIK'
+                ? 'Zaznacz etapy, które ten pracownik może wykonywać'
+                : 'Dla tej roli umiejętności produkcyjne są opcjonalne'}
             </p>
             <div className="flex flex-wrap gap-2">
               {AVAILABLE_SKILLS.map(skill => (
