@@ -98,15 +98,28 @@ export const workersApi = {
   create: async (data: {
     name: string;
     email: string;
-    hourly_rate: number;
+    pin?: string;
+    password?: string;
+    hourly_rate?: number;
     position: string;
-    role: string;
+    role?: string;
+    skills?: string[];
   }) => {
     checkDemoMode();
     const response = await api.post('/api/workers', data);
     return response.data;
   },
-  update: async (id: number, data: Partial<{ name: string; email: string; hourly_rate: number; position: string; active: boolean }>) => {
+  update: async (id: number, data: Partial<{
+    name: string;
+    email: string;
+    pin: string | null;
+    password: string;
+    hourly_rate: number;
+    position: string;
+    role: string;
+    skills: string[];
+    active: boolean;
+  }>) => {
     checkDemoMode();
     const response = await api.put(`/api/workers/${id}`, data);
     return response.data;

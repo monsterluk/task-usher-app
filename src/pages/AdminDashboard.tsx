@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Navigation from '@/components/Navigation';
 import { Worker, Machine, Position, UserRole, ROLE_LABELS, ROLES_WITH_PRICE_ACCESS } from '@/types';
 import { positions } from '@/data/mockData';
+import { workersApi, isDemoMode } from '@/utils/api';
 import {
   Users,
   Cog,
@@ -42,6 +43,8 @@ const WorkersManagement = () => {
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [formData, setFormData] = useState<Partial<Worker>>({
     name: '',
     email: '',
@@ -54,6 +57,32 @@ const WorkersManagement = () => {
   });
 
   const canViewPrices = currentUser && ROLES_WITH_PRICE_ACCESS.includes(currentUser.role);
+  const demoMode = isDemoMode();
+
+  // Load workers from API on mount
+  const loadWorkersFromApi = useCallback(async () => {
+    if (demoMode) return;
+    setIsLoading(true);
+    try {
+      const response = await workersApi.getAll();
+      if (response.success && response.data?.workers) {
+        setWorkers(response.data.workers);
+      }
+    } catch (error: any) {
+      console.error('Failed to load workers from API:', error);
+      toast({
+        title: "Błąd ładowania",
+        description: error.message || "Nie udało się pobrać danych pracowników z serwera",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  }, [demoMode, setWorkers]);
+
+  useEffect(() => {
+    loadWorkersFromApi();
+  }, [loadWorkersFromApi]);
 
   const resetForm = () => {
     setFormData({
@@ -91,7 +120,7 @@ const WorkersManagement = () => {
     return true;
   };
 
-  const saveWorker = () => {
+  const saveWorker = async () => {
     if (!formData.name || !formData.email) {
       toast({ title: "Błąd", description: "Wypełnij wszystkie wymagane pola", variant: "destructive" });
       return;
@@ -101,36 +130,124 @@ const WorkersManagement = () => {
       return;
     }
 
-    if (editingId) {
-      setWorkers(prev => prev.map(w => w.id === editingId ? { ...w, ...formData } as Worker : w));
-      toast({ title: "Zapisano", description: "Dane pracownika zaktualizowane" });
-    } else {
-      const newWorker: Worker = {
-        id: Math.max(0, ...workers.map(w => w.id)) + 1,
-        name: formData.name!,
-        email: formData.email!,
-        pin: formData.pin || undefined,
-        position: formData.position as Position,
-        hourly_rate: formData.hourly_rate || 43.27,
-        role: formData.role as UserRole || 'PRACOWNIK',
-        skills: formData.skills || [],
-        active: formData.active ?? true
-      };
-      setWorkers(prev => [...prev, newWorker]);
-      toast({ title: "Dodano", description: "Nowy pracownik dodany" });
+    setIsSaving(true);
+
+    try {
+      if (demoMode) {
+        // Demo mode - local state only
+        if (editingId) {
+          setWorkers(prev => prev.map(w => w.id === editingId ? { ...w, ...formData } as Worker : w));
+          toast({ title: "Zapisano", description: "Dane pracownika zaktualizowane (tryb demo)" });
+        } else {
+          const newWorker: Worker = {
+            id: Math.max(0, ...workers.map(w => w.id)) + 1,
+            name: formData.name!,
+            email: formData.email!,
+            pin: formData.pin || undefined,
+            position: formData.position as Position,
+            hourly_rate: formData.hourly_rate || 43.27,
+            role: formData.role as UserRole || 'PRACOWNIK',
+            skills: formData.skills || [],
+            active: formData.active ?? true
+          };
+          setWorkers(prev => [...prev, newWorker]);
+          toast({ title: "Dodano", description: "Nowy pracownik dodany (tryb demo)" });
+        }
+      } else {
+        // Production mode - call API
+        if (editingId) {
+          const response = await workersApi.update(editingId, {
+            name: formData.name,
+            email: formData.email,
+            pin: formData.pin || null,
+            position: formData.position,
+            role: formData.role,
+            hourly_rate: formData.hourly_rate,
+            skills: formData.skills,
+            active: formData.active
+          });
+          if (response.success && response.data?.worker) {
+            setWorkers(prev => prev.map(w => w.id === editingId ? response.data.worker : w));
+            toast({ title: "Zapisano", description: "Dane pracownika zaktualizowane w bazie danych" });
+          }
+        } else {
+          const response = await workersApi.create({
+            name: formData.name!,
+            email: formData.email!,
+            pin: formData.pin || undefined,
+            position: formData.position || 'INNE',
+            role: formData.role || 'PRACOWNIK',
+            hourly_rate: formData.hourly_rate,
+            skills: formData.skills
+          });
+          if (response.success && response.data?.worker) {
+            setWorkers(prev => [...prev, response.data.worker]);
+            toast({ title: "Dodano", description: "Nowy pracownik zapisany w bazie danych" });
+          }
+        }
+      }
+      resetForm();
+    } catch (error: any) {
+      console.error('Failed to save worker:', error);
+      toast({
+        title: "Błąd zapisu",
+        description: error.response?.data?.message || error.message || "Nie udało się zapisać pracownika",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSaving(false);
     }
-    resetForm();
   };
 
-  const deleteWorker = (id: number) => {
-    if (confirm('Czy na pewno chcesz usunąć tego pracownika?')) {
-      setWorkers(prev => prev.filter(w => w.id !== id));
-      toast({ title: "Usunięto", description: "Pracownik usunięty" });
+  const deleteWorker = async (id: number) => {
+    if (!confirm('Czy na pewno chcesz usunąć tego pracownika?')) {
+      return;
+    }
+
+    try {
+      if (demoMode) {
+        setWorkers(prev => prev.filter(w => w.id !== id));
+        toast({ title: "Usunięto", description: "Pracownik usunięty (tryb demo)" });
+      } else {
+        const response = await workersApi.delete(id);
+        if (response.success) {
+          setWorkers(prev => prev.filter(w => w.id !== id));
+          toast({ title: "Usunięto", description: response.message || "Pracownik usunięty z bazy danych" });
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to delete worker:', error);
+      toast({
+        title: "Błąd usuwania",
+        description: error.response?.data?.message || error.message || "Nie udało się usunąć pracownika",
+        variant: "destructive"
+      });
     }
   };
 
-  const toggleActive = (id: number) => {
-    setWorkers(prev => prev.map(w => w.id === id ? { ...w, active: !w.active } : w));
+  const toggleActive = async (id: number) => {
+    const worker = workers.find(w => w.id === id);
+    if (!worker) return;
+
+    const newActive = !worker.active;
+
+    try {
+      if (demoMode) {
+        setWorkers(prev => prev.map(w => w.id === id ? { ...w, active: newActive } : w));
+      } else {
+        const response = await workersApi.update(id, { active: newActive });
+        if (response.success && response.data?.worker) {
+          setWorkers(prev => prev.map(w => w.id === id ? response.data.worker : w));
+        }
+      }
+    } catch (error: any) {
+      console.error('Failed to toggle worker active status:', error);
+      toast({
+        title: "Błąd",
+        description: "Nie udało się zmienić statusu pracownika",
+        variant: "destructive"
+      });
+    }
   };
 
   const toggleSkill = (skill: string) => {
@@ -173,12 +290,24 @@ const WorkersManagement = () => {
           <p className="text-sm text-muted-foreground">
             {workers.filter(w => w.active).length} aktywnych / {workers.length} wszystkich
           </p>
+          {/* Data source indicator */}
+          <p className={`text-xs mt-1 ${demoMode ? 'text-orange-600' : 'text-green-600'}`}>
+            {demoMode ? '⚠️ Tryb demo (dane lokalne)' : '✓ Połączono z bazą danych'}
+          </p>
         </div>
-        <button onClick={() => { setShowAddForm(true); setEditingId(null); }} className="btn-primary">
+        <button onClick={() => { setShowAddForm(true); setEditingId(null); }} className="btn-primary" disabled={isLoading}>
           <Plus size={18} className="mr-2" />
           Dodaj Pracownika
         </button>
       </div>
+
+      {/* Loading indicator */}
+      {isLoading && (
+        <div className="card-industrial mb-6 text-center py-8">
+          <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+          <p className="text-muted-foreground">Ładowanie danych z bazy...</p>
+        </div>
+      )}
 
       {/* Add/Edit Form */}
       {(showAddForm || editingId) && (
@@ -314,11 +443,11 @@ const WorkersManagement = () => {
           </div>
 
           <div className="flex gap-2 mt-6">
-            <button onClick={saveWorker} className="btn-primary">
+            <button onClick={saveWorker} className="btn-primary" disabled={isSaving}>
               <Save size={18} className="mr-2" />
-              Zapisz
+              {isSaving ? 'Zapisywanie...' : 'Zapisz'}
             </button>
-            <button onClick={resetForm} className="btn-secondary">
+            <button onClick={resetForm} className="btn-secondary" disabled={isSaving}>
               <X size={18} className="mr-2" />
               Anuluj
             </button>

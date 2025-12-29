@@ -10,7 +10,7 @@ export const getAllWorkers = asyncHandler(async (req: Request, res: Response) =>
   const { active, position, role } = req.query;
 
   let sql = `
-    SELECT id, name, email, position, role, hourly_rate, active, created_at, updated_at
+    SELECT id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at
     FROM workers
     WHERE 1=1
   `;
@@ -52,7 +52,7 @@ export const getWorkerById = asyncHandler(async (req: Request, res: Response) =>
   const { id } = req.params;
 
   const result = await query(
-    `SELECT id, name, email, position, role, hourly_rate, active, created_at, updated_at
+    `SELECT id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at
      FROM workers WHERE id = $1`,
     [id]
   );
@@ -71,10 +71,10 @@ export const getWorkerById = asyncHandler(async (req: Request, res: Response) =>
 
 // POST /api/workers
 export const createWorker = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { name, email, password, position, role, hourly_rate } = req.body;
+  const { name, email, password, pin, position, role, hourly_rate, skills } = req.body;
 
-  if (!name || !email || !position || !hourly_rate) {
-    throw new AppError('Name, email, position, and hourly_rate are required', 400);
+  if (!name || !email || !position) {
+    throw new AppError('Name, email, and position are required', 400);
   }
 
   // Check if email already exists
@@ -86,6 +86,17 @@ export const createWorker = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Worker with this email already exists', 400);
   }
 
+  // Check if PIN already exists (if provided)
+  if (pin) {
+    if (!/^\d{4,6}$/.test(pin)) {
+      throw new AppError('PIN must be 4-6 digits', 400);
+    }
+    const existingPin = await query('SELECT id FROM workers WHERE pin = $1', [pin]);
+    if (existingPin.rows.length > 0) {
+      throw new AppError('This PIN is already in use', 400);
+    }
+  }
+
   // Hash password if provided
   let passwordHash = null;
   if (password) {
@@ -93,10 +104,10 @@ export const createWorker = asyncHandler(async (req: AuthRequest, res: Response)
   }
 
   const result = await query(
-    `INSERT INTO workers (name, email, password_hash, position, role, hourly_rate, active)
-     VALUES ($1, $2, $3, $4, $5, $6, true)
-     RETURNING id, name, email, position, role, hourly_rate, active, created_at, updated_at`,
-    [name, email.toLowerCase(), passwordHash, position, role || 'WORKER', hourly_rate]
+    `INSERT INTO workers (name, email, password_hash, pin, position, role, hourly_rate, skills, active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+     RETURNING id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at`,
+    [name, email.toLowerCase(), passwordHash, pin || null, position, role || 'PRACOWNIK', hourly_rate || 43.27, skills || []]
   );
 
   logger.info(`Worker created: ${email}`);
@@ -112,7 +123,7 @@ export const createWorker = asyncHandler(async (req: AuthRequest, res: Response)
 // PUT /api/workers/:id
 export const updateWorker = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const { name, email, position, role, hourly_rate, active, password } = req.body;
+  const { name, email, pin, position, role, hourly_rate, skills, active, password } = req.body;
 
   // Check if worker exists
   const existingResult = await query('SELECT * FROM workers WHERE id = $1', [id]);
@@ -135,6 +146,22 @@ export const updateWorker = asyncHandler(async (req: AuthRequest, res: Response)
     }
   }
 
+  // If PIN is being changed, validate and check for duplicates
+  if (pin !== undefined && pin !== existingWorker.pin) {
+    if (pin && !/^\d{4,6}$/.test(pin)) {
+      throw new AppError('PIN must be 4-6 digits', 400);
+    }
+    if (pin) {
+      const duplicatePinCheck = await query(
+        'SELECT id FROM workers WHERE pin = $1 AND id != $2',
+        [pin, id]
+      );
+      if (duplicatePinCheck.rows.length > 0) {
+        throw new AppError('This PIN is already in use', 400);
+      }
+    }
+  }
+
   // Prepare update fields
   const updates: string[] = [];
   const params: any[] = [];
@@ -149,6 +176,12 @@ export const updateWorker = asyncHandler(async (req: AuthRequest, res: Response)
   if (email !== undefined) {
     updates.push(`email = $${paramIndex}`);
     params.push(email.toLowerCase());
+    paramIndex++;
+  }
+
+  if (pin !== undefined) {
+    updates.push(`pin = $${paramIndex}`);
+    params.push(pin || null);
     paramIndex++;
   }
 
@@ -167,6 +200,12 @@ export const updateWorker = asyncHandler(async (req: AuthRequest, res: Response)
   if (hourly_rate !== undefined) {
     updates.push(`hourly_rate = $${paramIndex}`);
     params.push(hourly_rate);
+    paramIndex++;
+  }
+
+  if (skills !== undefined) {
+    updates.push(`skills = $${paramIndex}`);
+    params.push(skills);
     paramIndex++;
   }
 
@@ -194,7 +233,7 @@ export const updateWorker = asyncHandler(async (req: AuthRequest, res: Response)
     UPDATE workers
     SET ${updates.join(', ')}
     WHERE id = $${paramIndex}
-    RETURNING id, name, email, position, role, hourly_rate, active, created_at, updated_at
+    RETURNING id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at
   `;
 
   const result = await query(sql, params);
