@@ -6,7 +6,7 @@ import { AuthRequest, Worker, JwtPayload } from '../types';
 import { logger } from '../utils/logger';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 
-// POST /api/auth/login
+// POST /api/auth/login (email + password)
 export const login = asyncHandler(async (req: Request, res: Response) => {
   const { email, password } = req.body;
 
@@ -58,7 +58,69 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
         email: worker.email,
         role: worker.role,
         position: worker.position,
+        skills: worker.skills || [],
       },
+    },
+  });
+});
+
+// POST /api/auth/pin - Logowanie PIN-em
+export const loginWithPin = asyncHandler(async (req: Request, res: Response) => {
+  const { pin } = req.body;
+
+  if (!pin) {
+    throw new AppError('PIN is required', 400);
+  }
+
+  // Walidacja formatu PIN (4-6 cyfr)
+  if (!/^\d{4,6}$/.test(pin)) {
+    throw new AppError('PIN must be 4-6 digits', 400);
+  }
+
+  // Find user by PIN
+  const result = await query(
+    'SELECT * FROM workers WHERE pin = $1 AND active = true',
+    [pin]
+  );
+
+  if (result.rows.length === 0) {
+    throw new AppError('Invalid PIN', 401);
+  }
+
+  const worker: Worker = result.rows[0];
+
+  // Generate JWT token
+  const payload: JwtPayload = {
+    id: worker.id,
+    email: worker.email,
+    role: worker.role,
+  };
+
+  const token = generateToken(payload);
+
+  logger.info(`User logged in with PIN: ${worker.name} (${worker.role})`);
+
+  // Filtruj dane w zależności od roli
+  // PRACOWNIK nie widzi hourly_rate ani innych wrażliwych danych
+  const userData: any = {
+    id: worker.id,
+    name: worker.name,
+    email: worker.email,
+    role: worker.role,
+    position: worker.position,
+    skills: worker.skills || [],
+  };
+
+  // Tylko non-PRACOWNIK widzi stawkę godzinową
+  if (worker.role !== 'PRACOWNIK') {
+    userData.hourly_rate = worker.hourly_rate;
+  }
+
+  res.json({
+    success: true,
+    data: {
+      token,
+      user: userData,
     },
   });
 });
@@ -82,7 +144,7 @@ export const me = asyncHandler(async (req: AuthRequest, res: Response) => {
   }
 
   const result = await query(
-    'SELECT id, name, email, position, role, hourly_rate, active, created_at FROM workers WHERE id = $1',
+    'SELECT id, name, email, position, role, hourly_rate, skills, active, created_at FROM workers WHERE id = $1',
     [req.user.id]
   );
 
@@ -92,29 +154,42 @@ export const me = asyncHandler(async (req: AuthRequest, res: Response) => {
 
   const worker = result.rows[0];
 
+  // Filtruj dane w zależności od roli
+  const userData: any = {
+    id: worker.id,
+    name: worker.name,
+    email: worker.email,
+    role: worker.role,
+    position: worker.position,
+    skills: worker.skills || [],
+    active: worker.active,
+    created_at: worker.created_at,
+  };
+
+  // Tylko non-PRACOWNIK widzi stawkę godzinową
+  if (worker.role !== 'PRACOWNIK') {
+    userData.hourly_rate = worker.hourly_rate;
+  }
+
   res.json({
     success: true,
     data: {
-      user: {
-        id: worker.id,
-        name: worker.name,
-        email: worker.email,
-        role: worker.role,
-        position: worker.position,
-        hourly_rate: worker.hourly_rate,
-        active: worker.active,
-        created_at: worker.created_at,
-      },
+      user: userData,
     },
   });
 });
 
-// POST /api/auth/register (Manager only - create new user)
+// POST /api/auth/register (Admin/Kierownik only - create new user)
 export const register = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { name, email, password, position, role, hourly_rate } = req.body;
+  const { name, email, pin, password, position, role, hourly_rate, skills } = req.body;
 
   if (!name || !email || !position || !hourly_rate) {
     throw new AppError('Name, email, position, and hourly_rate are required', 400);
+  }
+
+  // Walidacja PIN jeśli podany
+  if (pin && !/^\d{4,6}$/.test(pin)) {
+    throw new AppError('PIN must be 4-6 digits', 400);
   }
 
   // Check if email already exists
@@ -126,6 +201,14 @@ export const register = asyncHandler(async (req: AuthRequest, res: Response) => 
     throw new AppError('Email already registered', 400);
   }
 
+  // Check if PIN already exists (if provided)
+  if (pin) {
+    const existingPin = await query('SELECT id FROM workers WHERE pin = $1', [pin]);
+    if (existingPin.rows.length > 0) {
+      throw new AppError('PIN already in use', 400);
+    }
+  }
+
   // Hash password if provided
   let passwordHash = null;
   if (password) {
@@ -134,22 +217,24 @@ export const register = asyncHandler(async (req: AuthRequest, res: Response) => 
 
   // Insert new worker
   const result = await query(
-    `INSERT INTO workers (name, email, password_hash, position, role, hourly_rate, active)
-     VALUES ($1, $2, $3, $4, $5, $6, true)
-     RETURNING id, name, email, position, role, hourly_rate, active, created_at`,
+    `INSERT INTO workers (name, email, pin, password_hash, position, role, hourly_rate, skills, active)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
+     RETURNING id, name, email, pin, position, role, hourly_rate, skills, active, created_at`,
     [
       name,
       email.toLowerCase(),
+      pin || null,
       passwordHash,
       position,
-      role || 'WORKER',
+      role || 'PRACOWNIK',
       hourly_rate,
+      skills || [],
     ]
   );
 
   const newWorker = result.rows[0];
 
-  logger.info(`New user registered: ${email}`);
+  logger.info(`New user registered: ${email} (PIN: ${pin || 'none'}, Role: ${role || 'PRACOWNIK'})`);
 
   res.status(201).json({
     success: true,

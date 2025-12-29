@@ -4,15 +4,16 @@ import * as authController from '../controllers/authController';
 
 const router = Router();
 
-// Public routes
-router.post('/login', authController.login);
+// Public routes - logowanie
+router.post('/login', authController.login);  // email + password
+router.post('/pin', authController.loginWithPin);  // PIN (główny sposób logowania)
 
 // Protected routes
 router.post('/logout', authenticate, authController.logout);
 router.get('/me', authenticate, authController.me);
 router.put('/change-password', authenticate, authController.changePassword);
 
-// Manager only - register new users
-router.post('/register', authenticate, requireRole('MANAGER'), authController.register);
+// Admin/Kierownik only - register new users
+router.post('/register', authenticate, requireRole('ADMIN', 'KIEROWNIK'), authController.register);
 
 export default router;

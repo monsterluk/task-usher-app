@@ -15,7 +15,19 @@ export type Position =
   | 'HANDLOWIEC'
   | 'INNE';
 
-export type Role = 'WORKER' | 'MANAGER';
+// Nowy system ról:
+// ADMIN - właściciel, pełne uprawnienia (może być też grafikiem)
+// GRAFIK - przygotowuje pliki produkcyjne
+// HANDLOWIEC - zakłada zlecenia, obserwuje etapy
+// KIEROWNIK - zarządza zleceniami, przypisuje pracowników
+// PRACOWNIK - wykonuje zadania produkcyjne (NIE widzi cen)
+export type Role = 'ADMIN' | 'GRAFIK' | 'HANDLOWIEC' | 'KIEROWNIK' | 'PRACOWNIK';
+
+// Mapowanie starych ról do nowych (dla kompatybilności)
+export const ROLE_MAPPING: Record<string, Role> = {
+  'WORKER': 'PRACOWNIK',
+  'MANAGER': 'KIEROWNIK',
+};
 
 export type OrderStatus = 'NOWE' | 'W_TRAKCIE' | 'GOTOWE';
 
@@ -30,10 +42,12 @@ export interface Worker {
   id: number;
   name: string;
   email: string;
-  password_hash?: string;
+  pin?: string;  // 4-6 cyfrowy PIN do logowania
+  password_hash?: string;  // opcjonalne hasło dla adminów
   hourly_rate: number;
   position: Position;
   role: Role;
+  skills: string[];  // umiejętności: etapy które pracownik może wykonywać
   active: boolean;
   created_at: Date;
   updated_at: Date;

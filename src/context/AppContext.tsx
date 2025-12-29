@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Order, TimeEntry, User, Worker, UserRole, Machine, WorkSession } from '@/types';
+import { Order, TimeEntry, User, Worker, UserRole, Machine, WorkSession, ROLES_WITH_PRICE_ACCESS } from '@/types';
 import { initialOrders, initialTimeEntries, workers as initialWorkers, initialMachines } from '@/data/mockData';
 import { authApi, workersApi, ordersApi, isDemoMode } from '@/utils/api';
 
@@ -17,6 +17,7 @@ interface AppContextType {
   currentUser: User | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
+  loginWithPin: (pin: string) => Promise<boolean>;  // Nowa funkcja logowania PIN-em
   logout: () => Promise<void>;
   loading: boolean;
   apiConnected: boolean;
@@ -24,6 +25,7 @@ interface AppContextType {
   refreshWorkers: () => Promise<void>;
   error: string | null;
   clearError: () => void;
+  canViewPrices: () => boolean;  // Czy użytkownik może widzieć ceny
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -312,6 +314,94 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
   };
 
+  // Logowanie PIN-em (główna metoda logowania)
+  const loginWithPin = async (pin: string): Promise<boolean> => {
+    if (!pin || !/^\d{4,6}$/.test(pin)) {
+      setError('PIN musi składać się z 4-6 cyfr');
+      return false;
+    }
+
+    setLoading(true);
+    clearError();
+
+    // Tryb demo - szukaj w lokalnych danych
+    if (isDemoMode()) {
+      const matchedWorker = workers.find(w => w.pin === pin && w.active);
+
+      if (matchedWorker) {
+        setCurrentUser({
+          id: matchedWorker.id,
+          name: matchedWorker.name,
+          role: matchedWorker.role as UserRole,
+          email: matchedWorker.email,
+          position: matchedWorker.position,
+          skills: matchedWorker.skills,
+          // hourly_rate tylko dla nie-PRACOWNIK
+          ...(matchedWorker.role !== 'PRACOWNIK' && { hourly_rate: matchedWorker.hourly_rate })
+        });
+        setLoading(false);
+        return true;
+      }
+
+      setError('Nieprawidłowy PIN');
+      setLoading(false);
+      return false;
+    }
+
+    // Tryb produkcyjny - logowanie przez API
+    try {
+      const response = await authApi.loginWithPin(pin);
+
+      if (response.token && response.user) {
+        localStorage.setItem('plexisystem_token', response.token);
+        setCurrentUser({
+          id: response.user.id,
+          name: response.user.name,
+          role: response.user.role as UserRole,
+          email: response.user.email,
+          position: response.user.position,
+          skills: response.user.skills || [],
+          hourly_rate: response.user.hourly_rate,
+        });
+        setApiConnected(true);
+        await refreshOrders();
+        await refreshWorkers();
+        setLoading(false);
+        return true;
+      }
+
+      setError('Nieprawidłowy PIN');
+      setLoading(false);
+      return false;
+    } catch (err: any) {
+      console.log('API niedostępne, używam trybu demo');
+      // Fallback do trybu demo
+      const matchedWorker = workers.find(w => w.pin === pin && w.active);
+      if (matchedWorker) {
+        setCurrentUser({
+          id: matchedWorker.id,
+          name: matchedWorker.name,
+          role: matchedWorker.role as UserRole,
+          email: matchedWorker.email,
+          position: matchedWorker.position,
+          skills: matchedWorker.skills,
+          ...(matchedWorker.role !== 'PRACOWNIK' && { hourly_rate: matchedWorker.hourly_rate })
+        });
+        setLoading(false);
+        return true;
+      }
+      setError('Nieprawidłowy PIN');
+      setLoading(false);
+      return false;
+    }
+  };
+
+  // Czy użytkownik może widzieć ceny
+  const canViewPrices = (): boolean => {
+    if (!currentUser) return false;
+    return ROLES_WITH_PRICE_ACCESS.includes(currentUser.role);
+  };
+
   const logout = async () => {
     setLoading(true);
 
@@ -344,6 +434,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       currentUser,
       setCurrentUser,
       login,
+      loginWithPin,
       logout,
       loading,
       apiConnected,
@@ -351,6 +442,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       refreshWorkers,
       error,
       clearError,
+      canViewPrices,
     }}>
       {children}
     </AppContext.Provider>

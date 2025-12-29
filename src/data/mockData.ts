@@ -1,14 +1,116 @@
 import { Worker, Order, Stage, Machine } from '@/types';
 
+// Nowy system ról:
+// ADMIN - właściciel, pełne uprawnienia (może być też grafikiem)
+// GRAFIK - przygotowuje pliki produkcyjne
+// HANDLOWIEC - zakłada zlecenia, obserwuje etapy
+// KIEROWNIK - zarządza zleceniami, przypisuje pracowników
+// PRACOWNIK - wykonuje zadania produkcyjne (NIE widzi cen)
+
 export const workers: Worker[] = [
-  { id: 1, name: "Katarzyna Treder", email: "katarzyna@plexisystem.pl", position: "GRAFIK", hourly_rate: 43.27, role: "worker", active: true },
-  { id: 2, name: "Nikola Treder", email: "nikola@plexisystem.pl", position: "GRAFIK", hourly_rate: 43.27, role: "worker", active: true },
-  { id: 3, name: "Monika Pyzdrowska", email: "monika@plexisystem.pl", position: "OKLEJANIE", hourly_rate: 43.27, role: "worker", active: true },
-  { id: 4, name: "Millena Milewska", email: "millena@plexisystem.pl", position: "PAKOWANIE", hourly_rate: 43.27, role: "worker", active: true },
-  { id: 5, name: "Małgorzata Czepczyńska", email: "malgorzata@plexisystem.pl", position: "KLEJENIE", hourly_rate: 43.27, role: "worker", active: true },
-  { id: 6, name: "Łukasz Baranowski", email: "lukasz@plexisystem.pl", position: "FREZOWANIE", hourly_rate: 52.88, role: "worker", active: true },
-  { id: 7, name: "Sławomir Sikorra", email: "slawomir@plexisystem.pl", position: "WYSYŁKA", hourly_rate: 52.88, role: "worker", active: true },
-  { id: 8, name: "Daniel Treder", email: "daniel@plexisystem.pl", position: "FREZOWANIE", hourly_rate: 62.50, role: "manager", active: true }
+  // ADMIN/Właściciel - także grafik
+  {
+    id: 1,
+    name: "Łukasz Sikorra",
+    email: "lukasz.sikorra@plexisystem.pl",
+    pin: "1234",
+    position: "GRAFIK",
+    hourly_rate: 62.50,
+    role: "ADMIN",
+    skills: ['GRAFIK', 'FREZOWANIE', 'LASER', 'POLEROWANIE', 'WYGINANIE', 'KLEJENIE', 'DRUKOWANIE', 'OKLEJANIE', 'PAKOWANIE'],
+    active: true
+  },
+  // KIEROWNIK produkcji
+  {
+    id: 2,
+    name: "Daniel Treder",
+    email: "daniel@plexisystem.pl",
+    pin: "5678",
+    position: "FREZOWANIE",
+    hourly_rate: 62.50,
+    role: "KIEROWNIK",
+    skills: ['FREZOWANIE', 'LASER', 'POLEROWANIE'],
+    active: true
+  },
+  // GRAFICY
+  {
+    id: 3,
+    name: "Katarzyna Treder",
+    email: "katarzyna@plexisystem.pl",
+    pin: "1111",
+    position: "GRAFIK",
+    hourly_rate: 43.27,
+    role: "GRAFIK",
+    skills: ['GRAFIK'],
+    active: true
+  },
+  {
+    id: 4,
+    name: "Nikola Treder",
+    email: "nikola@plexisystem.pl",
+    pin: "2222",
+    position: "GRAFIK",
+    hourly_rate: 43.27,
+    role: "GRAFIK",
+    skills: ['GRAFIK'],
+    active: true
+  },
+  // PRACOWNICY produkcyjni
+  {
+    id: 5,
+    name: "Monika Pyzdrowska",
+    email: "monika@plexisystem.pl",
+    pin: "3333",
+    position: "OKLEJANIE",
+    hourly_rate: 43.27,
+    role: "PRACOWNIK",
+    skills: ['OKLEJANIE', 'DRUKOWANIE'],
+    active: true
+  },
+  {
+    id: 6,
+    name: "Millena Milewska",
+    email: "millena@plexisystem.pl",
+    pin: "4444",
+    position: "PAKOWANIE",
+    hourly_rate: 43.27,
+    role: "PRACOWNIK",
+    skills: ['PAKOWANIE'],
+    active: true
+  },
+  {
+    id: 7,
+    name: "Małgorzata Czepczyńska",
+    email: "malgorzata@plexisystem.pl",
+    pin: "5555",
+    position: "KLEJENIE",
+    hourly_rate: 43.27,
+    role: "PRACOWNIK",
+    skills: ['KLEJENIE', 'WYGINANIE'],
+    active: true
+  },
+  {
+    id: 8,
+    name: "Łukasz Baranowski",
+    email: "lukasz@plexisystem.pl",
+    pin: "6666",
+    position: "FREZOWANIE",
+    hourly_rate: 52.88,
+    role: "PRACOWNIK",
+    skills: ['FREZOWANIE', 'LASER'],
+    active: true
+  },
+  {
+    id: 9,
+    name: "Sławomir Sikorra",
+    email: "slawomir@plexisystem.pl",
+    pin: "7777",
+    position: "WYSYŁKA",
+    hourly_rate: 52.88,
+    role: "PRACOWNIK",
+    skills: ['PAKOWANIE', 'WYSYŁKA'],
+    active: true
+  }
 ];
 
 export const positions = [

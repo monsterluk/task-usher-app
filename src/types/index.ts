@@ -14,15 +14,35 @@ export type Position =
 
 export type StageStatus = 'pending' | 'in_progress' | 'completed' | 'delayed';
 
-export type UserRole = 'admin' | 'manager' | 'worker';
+// Nowy system ról:
+// ADMIN - właściciel, pełne uprawnienia (może być też grafikiem)
+// GRAFIK - przygotowuje pliki produkcyjne
+// HANDLOWIEC - zakłada zlecenia, obserwuje etapy
+// KIEROWNIK - zarządza zleceniami, przypisuje pracowników
+// PRACOWNIK - wykonuje zadania produkcyjne (NIE widzi cen)
+export type UserRole = 'ADMIN' | 'GRAFIK' | 'HANDLOWIEC' | 'KIEROWNIK' | 'PRACOWNIK';
+
+// Mapowanie starych ról (dla kompatybilności)
+export const ROLE_LABELS: Record<UserRole, string> = {
+  'ADMIN': 'Administrator',
+  'GRAFIK': 'Grafik',
+  'HANDLOWIEC': 'Handlowiec',
+  'KIEROWNIK': 'Kierownik',
+  'PRACOWNIK': 'Pracownik',
+};
+
+// Role które mogą widzieć ceny
+export const ROLES_WITH_PRICE_ACCESS: UserRole[] = ['ADMIN', 'KIEROWNIK', 'HANDLOWIEC'];
 
 export interface Worker {
   id: number;
   name: string;
   email: string;
+  pin?: string;  // 4-6 cyfrowy PIN do logowania
   position: Position;
-  hourly_rate: number;
+  hourly_rate?: number;  // opcjonalne - PRACOWNIK nie widzi
   role: UserRole;
+  skills: string[];  // umiejętności: etapy które pracownik może wykonywać
   active: boolean;
 }
 
@@ -111,8 +131,11 @@ export interface OrderHistory {
 export interface User {
   id: number;
   name: string;
-  role: UserRole;
   email: string;
+  role: UserRole;
+  position?: Position;
+  skills?: string[];
+  hourly_rate?: number;  // tylko dla non-PRACOWNIK
 }
 
 export interface Machine {

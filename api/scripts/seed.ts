@@ -7,16 +7,99 @@ dotenv.config();
 
 const DEFAULT_PASSWORD = 'plexisystem123';
 
+// Nowy system ról:
+// ADMIN - właściciel, pełne uprawnienia (może być też grafikiem)
+// GRAFIK - przygotowuje pliki produkcyjne
+// HANDLOWIEC - zakłada zlecenia, obserwuje etapy
+// KIEROWNIK - zarządza zleceniami, przypisuje pracowników
+// PRACOWNIK - wykonuje zadania produkcyjne (NIE widzi cen)
+
 const workers = [
-  { name: 'Katarzyna Treder', email: 'katarzyna@plexisystem.pl', position: 'GRAFIK', hourly_rate: 43.27, role: 'WORKER' },
-  { name: 'Nikola Treder', email: 'nikola@plexisystem.pl', position: 'GRAFIK', hourly_rate: 43.27, role: 'WORKER' },
-  { name: 'Monika Pyzdrowska', email: 'monika@plexisystem.pl', position: 'OKLEJANIE', hourly_rate: 43.27, role: 'WORKER' },
-  { name: 'Millena Milewska', email: 'millena@plexisystem.pl', position: 'PAKOWANIE', hourly_rate: 43.27, role: 'WORKER' },
-  { name: 'Małgorzata Czepczyńska', email: 'malgorzata@plexisystem.pl', position: 'KLEJENIE', hourly_rate: 43.27, role: 'WORKER' },
-  { name: 'Łukasz Baranowski', email: 'lukasz@plexisystem.pl', position: 'FREZOWANIE', hourly_rate: 52.88, role: 'WORKER' },
-  { name: 'Sławomir Sikorra', email: 'slawomir@plexisystem.pl', position: 'WYSYŁKA', hourly_rate: 52.88, role: 'WORKER' },
-  { name: 'Daniel Treder', email: 'daniel@plexisystem.pl', position: 'FREZOWANIE', hourly_rate: 62.50, role: 'MANAGER' },
-  { name: 'Łukasz Sikorra', email: 'lukasz.sikorra@plexisystem.pl', position: 'HANDLOWIEC', hourly_rate: 62.50, role: 'MANAGER' },
+  // ADMIN/Właściciel - także grafik
+  {
+    name: 'Łukasz Sikorra',
+    email: 'lukasz.sikorra@plexisystem.pl',
+    pin: '1234',
+    position: 'GRAFIK',
+    hourly_rate: 62.50,
+    role: 'ADMIN',
+    skills: ['GRAFIK', 'FREZOWANIE', 'LASER', 'POLEROWANIE', 'WYGINANIE', 'KLEJENIE', 'DRUKOWANIE', 'OKLEJANIE', 'PAKOWANIE']
+  },
+  // KIEROWNIK produkcji
+  {
+    name: 'Daniel Treder',
+    email: 'daniel@plexisystem.pl',
+    pin: '5678',
+    position: 'FREZOWANIE',
+    hourly_rate: 62.50,
+    role: 'KIEROWNIK',
+    skills: ['FREZOWANIE', 'LASER', 'POLEROWANIE']
+  },
+  // GRAFICY
+  {
+    name: 'Katarzyna Treder',
+    email: 'katarzyna@plexisystem.pl',
+    pin: '1111',
+    position: 'GRAFIK',
+    hourly_rate: 43.27,
+    role: 'GRAFIK',
+    skills: ['GRAFIK']
+  },
+  {
+    name: 'Nikola Treder',
+    email: 'nikola@plexisystem.pl',
+    pin: '2222',
+    position: 'GRAFIK',
+    hourly_rate: 43.27,
+    role: 'GRAFIK',
+    skills: ['GRAFIK']
+  },
+  // PRACOWNICY produkcyjni
+  {
+    name: 'Monika Pyzdrowska',
+    email: 'monika@plexisystem.pl',
+    pin: '3333',
+    position: 'OKLEJANIE',
+    hourly_rate: 43.27,
+    role: 'PRACOWNIK',
+    skills: ['OKLEJANIE', 'DRUKOWANIE']
+  },
+  {
+    name: 'Millena Milewska',
+    email: 'millena@plexisystem.pl',
+    pin: '4444',
+    position: 'PAKOWANIE',
+    hourly_rate: 43.27,
+    role: 'PRACOWNIK',
+    skills: ['PAKOWANIE']
+  },
+  {
+    name: 'Małgorzata Czepczyńska',
+    email: 'malgorzata@plexisystem.pl',
+    pin: '5555',
+    position: 'KLEJENIE',
+    hourly_rate: 43.27,
+    role: 'PRACOWNIK',
+    skills: ['KLEJENIE', 'WYGINANIE']
+  },
+  {
+    name: 'Łukasz Baranowski',
+    email: 'lukasz@plexisystem.pl',
+    pin: '6666',
+    position: 'FREZOWANIE',
+    hourly_rate: 52.88,
+    role: 'PRACOWNIK',
+    skills: ['FREZOWANIE', 'LASER']
+  },
+  {
+    name: 'Sławomir Sikorra',
+    email: 'slawomir@plexisystem.pl',
+    pin: '7777',
+    position: 'WYSYŁKA',
+    hourly_rate: 52.88,
+    role: 'PRACOWNIK',
+    skills: ['PAKOWANIE', 'WYSYŁKA']
+  },
 ];
 
 const stages = [
@@ -92,16 +175,27 @@ const seedWorkers = async () => {
   for (const worker of workers) {
     try {
       await query(
-        `INSERT INTO workers (name, email, password_hash, position, hourly_rate, role, active)
-         VALUES ($1, $2, $3, $4, $5, $6, true)
+        `INSERT INTO workers (name, email, pin, password_hash, position, hourly_rate, role, skills, active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)
          ON CONFLICT (email) DO UPDATE SET
            name = EXCLUDED.name,
+           pin = EXCLUDED.pin,
            position = EXCLUDED.position,
            hourly_rate = EXCLUDED.hourly_rate,
-           role = EXCLUDED.role`,
-        [worker.name, worker.email, passwordHash, worker.position, worker.hourly_rate, worker.role]
+           role = EXCLUDED.role,
+           skills = EXCLUDED.skills`,
+        [
+          worker.name,
+          worker.email,
+          worker.pin,
+          passwordHash,
+          worker.position,
+          worker.hourly_rate,
+          worker.role,
+          worker.skills
+        ]
       );
-      logger.info(`  ✓ Worker: ${worker.name} (${worker.email})`);
+      logger.info(`  ✓ Worker: ${worker.name} (PIN: ${worker.pin}, Role: ${worker.role})`);
     } catch (error) {
       logger.error(`  ✗ Failed to seed worker ${worker.name}:`, error);
     }
@@ -240,11 +334,26 @@ const runSeed = async () => {
 
     logger.info('✅ Seeding completed successfully');
     logger.info('');
-    logger.info('=== Login Credentials ===');
-    logger.info('Manager: daniel@plexisystem.pl / plexisystem123');
-    logger.info('Manager: lukasz.sikorra@plexisystem.pl / plexisystem123');
-    logger.info('Worker:  katarzyna@plexisystem.pl / plexisystem123');
-    logger.info('=========================');
+    logger.info('========== DANE LOGOWANIA (PIN) ==========');
+    logger.info('');
+    logger.info('ADMIN:');
+    logger.info('  Łukasz Sikorra - PIN: 1234');
+    logger.info('');
+    logger.info('KIEROWNIK:');
+    logger.info('  Daniel Treder - PIN: 5678');
+    logger.info('');
+    logger.info('GRAFICY:');
+    logger.info('  Katarzyna Treder - PIN: 1111');
+    logger.info('  Nikola Treder - PIN: 2222');
+    logger.info('');
+    logger.info('PRACOWNICY:');
+    logger.info('  Monika Pyzdrowska - PIN: 3333');
+    logger.info('  Millena Milewska - PIN: 4444');
+    logger.info('  Małgorzata Czepczyńska - PIN: 5555');
+    logger.info('  Łukasz Baranowski - PIN: 6666');
+    logger.info('  Sławomir Sikorra - PIN: 7777');
+    logger.info('');
+    logger.info('==========================================');
   } catch (error) {
     logger.error('❌ Seeding failed:', error);
     process.exit(1);

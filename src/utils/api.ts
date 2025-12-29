@@ -65,6 +65,12 @@ export const authApi = {
     const response = await api.post('/api/auth/login', { email, password });
     return response.data;
   },
+  // Logowanie PIN-em - główna metoda logowania
+  loginWithPin: async (pin: string) => {
+    checkDemoMode();
+    const response = await api.post('/api/auth/pin', { pin });
+    return response.data;
+  },
   logout: async () => {
     checkDemoMode();
     const response = await api.post('/api/auth/logout');

@@ -15,14 +15,17 @@ const createTables = async () => {
     DROP TABLE IF EXISTS workers CASCADE;
 
     -- Workers (Pracownicy)
+    -- Role: ADMIN (właściciel), HANDLOWIEC, KIEROWNIK, GRAFIK, PRACOWNIK
     CREATE TABLE workers (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
       email VARCHAR(255) UNIQUE NOT NULL,
-      password_hash VARCHAR(255),
+      pin VARCHAR(6) UNIQUE,  -- 4-6 cyfrowy PIN do logowania
+      password_hash VARCHAR(255),  -- opcjonalne hasło dla adminów
       hourly_rate DECIMAL(10,2) NOT NULL,
       position VARCHAR(100) NOT NULL,
-      role VARCHAR(50) DEFAULT 'WORKER',
+      role VARCHAR(50) DEFAULT 'PRACOWNIK',
+      skills TEXT[] DEFAULT '{}',  -- umiejętności: etapy które pracownik może wykonywać
       active BOOLEAN DEFAULT true,
       created_at TIMESTAMP DEFAULT NOW(),
       updated_at TIMESTAMP DEFAULT NOW()
@@ -121,7 +124,9 @@ const createTables = async () => {
     CREATE INDEX idx_work_sessions_start_time ON work_sessions(start_time);
     CREATE INDEX idx_shipments_order_id ON shipments(order_id);
     CREATE INDEX idx_workers_email ON workers(email);
+    CREATE INDEX idx_workers_pin ON workers(pin);
     CREATE INDEX idx_workers_active ON workers(active);
+    CREATE INDEX idx_workers_role ON workers(role);
   `;
 
   try {
