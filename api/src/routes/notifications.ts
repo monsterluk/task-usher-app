@@ -15,6 +15,10 @@ router.get('/', notificationsController.getNotifications);
 // Mark notifications as read
 router.post('/mark-read', notificationsController.markAsRead);
 
+// Notification settings (email/push preferences)
+router.get('/settings', notificationsController.getNotificationSettings);
+router.put('/settings', notificationsController.updateNotificationSettings);
+
 // Delete notification
 router.delete('/:id', validateParams(idParamSchema), notificationsController.deleteNotification);
 

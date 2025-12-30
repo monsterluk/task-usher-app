@@ -19,6 +19,7 @@ import CostCalculator from '@/components/Manager/Costs/CostCalculator';
 import ProductionCalendar from '@/components/Manager/Calendar/ProductionCalendar';
 import DataExport from '@/components/Manager/Export/DataExport';
 import KPIDashboard from '@/components/Manager/KPI/KPIDashboard';
+import NotificationSettings from '@/components/Manager/Notifications/NotificationSettings';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -60,6 +61,7 @@ const ManagerDashboard = () => {
           <Route path="calendar" element={<ProductionCalendar />} />
           <Route path="export" element={<DataExport />} />
           <Route path="kpi" element={<KPIDashboard />} />
+          <Route path="notifications" element={<NotificationSettings />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>

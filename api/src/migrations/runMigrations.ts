@@ -334,6 +334,40 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_google_tokens_user_id ON google_calendar_tokens(user_id);
     `,
   },
+  {
+    name: '007_create_notification_settings',
+    up: `
+      -- User notification preferences
+      CREATE TABLE IF NOT EXISTS notification_settings (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        email_enabled BOOLEAN DEFAULT true,
+        push_enabled BOOLEAN DEFAULT false,
+        order_updates BOOLEAN DEFAULT true,
+        deadline_reminders BOOLEAN DEFAULT true,
+        daily_summary BOOLEAN DEFAULT false,
+        reminder_hours_before INTEGER DEFAULT 24,
+        email VARCHAR(255),
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      );
+
+      -- Push notification subscriptions
+      CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        subscription JSONB NOT NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id, subscription)
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_notification_settings_user_id ON notification_settings(user_id);
+      CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+    `,
+  },
 ];
 
 // Create migrations tracking table
