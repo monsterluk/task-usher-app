@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import { Order, TimeEntry, User, Worker, UserRole, Machine, WorkSession, ROLES_WITH_PRICE_ACCESS } from '@/types';
 import { initialOrders, initialTimeEntries, workers as initialWorkers, initialMachines } from '@/data/mockData';
-import { authApi, workersApi, ordersApi, isDemoMode } from '@/utils/api';
+import { authApi, workersApi, ordersApi, machinesApi, isDemoMode } from '@/utils/api';
 
 interface AppContextType {
   orders: Order[];
@@ -17,15 +17,18 @@ interface AppContextType {
   currentUser: User | null;
   setCurrentUser: React.Dispatch<React.SetStateAction<User | null>>;
   login: (email: string, password: string, role: UserRole) => Promise<boolean>;
-  loginWithPin: (pin: string) => Promise<boolean>;  // Nowa funkcja logowania PIN-em
+  loginWithPin: (pin: string) => Promise<boolean>;
   logout: () => Promise<void>;
   loading: boolean;
   apiConnected: boolean;
+  demoMode: boolean;  // Czy aktywny tryb demo
   refreshOrders: () => Promise<void>;
   refreshWorkers: () => Promise<void>;
+  refreshMachines: () => Promise<void>;
+  refreshAll: () => Promise<void>;  // Odśwież wszystkie dane
   error: string | null;
   clearError: () => void;
-  canViewPrices: () => boolean;  // Czy użytkownik może widzieć ceny
+  canViewPrices: () => boolean;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -63,6 +66,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   const [loading, setLoading] = useState(false);
   const [apiConnected, setApiConnected] = useState(false);
+  const [demoMode, setDemoMode] = useState(isDemoMode());
   const [error, setError] = useState<string | null>(null);
 
   const clearError = () => setError(null);
@@ -70,10 +74,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Sprawdź czy API jest dostępne i odśwież dane
   useEffect(() => {
     const checkApiAndRefresh = async () => {
-      // W trybie demo nie próbuj łączyć z API
+      // W trybie demo (Lovable) nie próbuj łączyć z API
       if (isDemoMode()) {
         console.log('Tryb demo aktywny - pomijam sprawdzanie API');
         setApiConnected(false);
+        setDemoMode(true);
         setLoading(false);
         return;
       }
@@ -83,23 +88,35 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         try {
           setLoading(true);
           const userData = await authApi.me();
-          if (userData.user) {
+          const user = userData.data?.user || userData.user;
+          if (user) {
             setCurrentUser({
-              id: userData.user.id,
-              name: userData.user.name,
-              role: userData.user.role.toLowerCase() as UserRole,
-              email: userData.user.email,
+              id: user.id,
+              name: user.name,
+              role: user.role as UserRole,
+              email: user.email,
+              position: user.position,
+              skills: user.skills || [],
             });
             setApiConnected(true);
+            setDemoMode(false);
             // Odśwież dane z API
-            await refreshOrders();
-            await refreshWorkers();
+            await refreshAll();
           }
         } catch (err) {
-          console.log('API niedostępne, używam localStorage');
+          console.log('API niedostępne, używam localStorage jako fallback');
           setApiConnected(false);
+          setDemoMode(true);
         } finally {
           setLoading(false);
+        }
+      } else {
+        // Bez tokena - spróbuj połączyć się z API (health check)
+        try {
+          // Próba pobrania danych publicznych (bez autoryzacji)
+          setDemoMode(false);
+        } catch {
+          setDemoMode(true);
         }
       }
     };
@@ -137,33 +154,51 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }, [currentUser]);
 
   const refreshOrders = async () => {
+    if (isDemoMode()) return;
     try {
       const response = await ordersApi.getAll();
-      // API zwraca: { success: true, data: { orders: [...] } }
-      // Lub: { success: true, orders: [...] } - stary format
       const ordersData = response.data?.orders || response.orders;
       if (ordersData) {
         setOrders(ordersData);
       }
     } catch (err) {
       console.log('Nie można pobrać zleceń z API');
-      setError('Nie udało się pobrać zleceń z serwera');
     }
   };
 
   const refreshWorkers = async () => {
+    if (isDemoMode()) return;
     try {
       const response = await workersApi.getAll();
-      // API zwraca: { success: true, data: { workers: [...] } }
-      // Lub: { success: true, workers: [...] } - stary format
       const workersData = response.data?.workers || response.workers;
       if (workersData) {
         setWorkers(workersData);
       }
     } catch (err) {
       console.log('Nie można pobrać pracowników z API');
-      setError('Nie udało się pobrać pracowników z serwera');
     }
+  };
+
+  const refreshMachines = async () => {
+    if (isDemoMode()) return;
+    try {
+      const response = await machinesApi.getAll();
+      const machinesData = response.data?.machines || response.machines;
+      if (machinesData) {
+        setMachines(machinesData);
+      }
+    } catch (err) {
+      console.log('Nie można pobrać maszyn z API');
+    }
+  };
+
+  const refreshAll = async () => {
+    if (isDemoMode()) return;
+    await Promise.all([
+      refreshOrders(),
+      refreshWorkers(),
+      refreshMachines(),
+    ]);
   };
 
   // Funkcja pomocnicza dla logowania demo
@@ -444,8 +479,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       logout,
       loading,
       apiConnected,
+      demoMode,
       refreshOrders,
       refreshWorkers,
+      refreshMachines,
+      refreshAll,
       error,
       clearError,
       canViewPrices,

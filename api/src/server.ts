@@ -31,6 +31,7 @@ import documentsRoutes from './routes/documents';
 import calendarRoutes from './routes/calendar';
 import announcementsRoutes from './routes/announcements';
 import adminRoutes from './routes/admin';
+import auditRoutes from './routes/audit';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -88,6 +89,7 @@ app.use('/api/documents', documentsRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/audit', auditRoutes);
 
 // Error handling
 app.use(notFoundHandler);

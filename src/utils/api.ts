@@ -3,15 +3,29 @@ import axios from 'axios';
 const API_URL = import.meta.env.VITE_API_URL || 'https://beata254.mikrus.xyz:20254';
 
 // Sprawdź czy jesteśmy w trybie demo (bez backendu)
+// UWAGA: Domyślnie próbujemy połączyć z API, demo tylko gdy jawnie włączony
 export const isDemoMode = () => {
-  // Lovable preview, localhost lub gdy wymuszono tryb demo
+  // Wymuś tryb API (production)
+  if (import.meta.env.VITE_FORCE_API === 'true') {
+    return false;
+  }
+
+  // Wymuś tryb demo
+  if (import.meta.env.VITE_DEMO_MODE === 'true') {
+    return true;
+  }
+
+  // Lovable preview i webcontainer - zawsze demo
   const hostname = window.location.hostname;
-  return hostname.includes('lovable') ||
-         hostname.includes('lovableproject') ||
-         hostname.includes('webcontainer') ||
-         hostname === 'localhost' ||
-         hostname === '127.0.0.1' ||
-         import.meta.env.VITE_DEMO_MODE === 'true';
+  if (hostname.includes('lovable') ||
+      hostname.includes('lovableproject') ||
+      hostname.includes('webcontainer')) {
+    return true;
+  }
+
+  // Localhost i 127.0.0.1 - próbuj API (nie blokuj!)
+  // API samo wykryje czy jest dostępne
+  return false;
 };
 
 // Błąd dla trybu demo - funkcje API zwrócą ten błąd

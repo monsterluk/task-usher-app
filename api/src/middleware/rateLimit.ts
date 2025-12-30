@@ -17,7 +17,7 @@ export const generalLimiter = rateLimit({
 
 /**
  * Strict rate limiter for authentication endpoints
- * Limits each IP to 5 login attempts per 15 minutes
+ * Limits each IP to 10 login attempts per 15 minutes
  */
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -29,6 +29,23 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests against the limit
+});
+
+/**
+ * Extra strict rate limiter for PIN login (brute force protection)
+ * PIN has only 4-6 digits so it's more vulnerable
+ * Limits each IP to 5 failed attempts per 30 minutes
+ */
+export const pinLimiter = rateLimit({
+  windowMs: 30 * 60 * 1000, // 30 minutes
+  max: 5, // limit each IP to 5 PIN attempts per 30 min
+  message: {
+    success: false,
+    error: 'Zbyt wiele błędnych prób logowania PIN. Spróbuj ponownie za 30 minut.',
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: true, // Only count failed attempts
 });
 
 /**
