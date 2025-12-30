@@ -181,11 +181,28 @@ export interface WorkSession {
   workerId: number;
   orderId: number;
   stageId: number;
+  machineId?: number;  // Powiązanie z maszyną (dla OEE)
   date: string;
   startTime: string;
   endTime: string | null;
   breaks: { start: string; end: string | null }[];
-  quantityDone: number;
+  quantityDone: number;       // Ilość wyprodukowanych sztuk
+  quantityDefective: number;  // Ilość wadliwych sztuk (dla OEE Quality)
   status: 'active' | 'paused' | 'completed';
   notes?: string;
+}
+
+// OEE (Overall Equipment Effectiveness) types
+export interface OEEData {
+  machineId: number;
+  machineName: string;
+  department: string;
+  availability: number;    // % (Running Time / Planned Time)
+  performance: number;     // % (Actual Output / Theoretical Output)
+  quality: number;         // % (Good Units / Total Units)
+  oee: number;             // % (Availability × Performance × Quality)
+  runningMinutes: number;
+  plannedMinutes: number;
+  producedQuantity: number;
+  defectiveQuantity: number;
 }

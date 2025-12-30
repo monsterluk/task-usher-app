@@ -77,26 +77,33 @@ const QuantityModal = ({
   onSubmit,
   title,
   maxQuantity,
-  currentDone
+  currentDone,
+  currentDefective = 0
 }: {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (qty: number) => void;
+  onSubmit: (qty: number, defective: number) => void;
   title: string;
   maxQuantity: number;
   currentDone: number;
+  currentDefective?: number;
 }) => {
   const [quantity, setQuantity] = useState(currentDone);
+  const [defective, setDefective] = useState(currentDefective);
 
   if (!isOpen) return null;
 
+  const qualityPercent = quantity > 0 ? ((quantity - defective) / quantity * 100).toFixed(1) : '100.0';
+
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm">
+      <div className="bg-white dark:bg-card rounded-lg shadow-xl p-6 w-full max-w-sm">
         <h3 className="text-lg font-bold mb-4">{title}</h3>
+
+        {/* Produced quantity */}
         <div className="mb-4">
           <label className="block text-sm font-medium mb-2">
-            Ile sztuk zrobiłeś/aś? (max: {maxQuantity})
+            Ile sztuk wyprodukowano? (max: {maxQuantity})
           </label>
           <input
             type="number"
@@ -118,11 +125,49 @@ const QuantityModal = ({
             ))}
           </div>
         </div>
+
+        {/* Defective quantity */}
+        <div className="mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+          <label className="block text-sm font-medium mb-2 text-red-700 dark:text-red-300">
+            Ile sztuk było WADLIWYCH?
+          </label>
+          <input
+            type="number"
+            min="0"
+            max={quantity}
+            value={defective}
+            onChange={(e) => setDefective(Math.min(quantity, Math.max(0, parseInt(e.target.value) || 0)))}
+            className="input-industrial w-full text-xl text-center border-red-300"
+          />
+          <div className="flex gap-2 mt-2">
+            {[0, 1, 5].map(n => (
+              <button
+                key={n}
+                onClick={() => setDefective(n)}
+                className={`flex-1 py-1 text-sm rounded ${defective === n ? 'bg-red-500 text-white' : 'bg-red-100 text-red-700'}`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Quality indicator */}
+        <div className="mb-4 p-3 bg-muted rounded-lg text-center">
+          <p className="text-sm text-muted-foreground">Jakość produkcji</p>
+          <p className={`text-2xl font-bold ${parseFloat(qualityPercent) >= 95 ? 'text-green-600' : parseFloat(qualityPercent) >= 85 ? 'text-yellow-600' : 'text-red-600'}`}>
+            {qualityPercent}%
+          </p>
+          <p className="text-xs text-muted-foreground">
+            {quantity - defective} dobrych z {quantity} wyprodukowanych
+          </p>
+        </div>
+
         <div className="flex gap-2">
           <button onClick={onClose} className="btn-secondary flex-1">
             Anuluj
           </button>
-          <button onClick={() => onSubmit(quantity)} className="btn-primary flex-1">
+          <button onClick={() => onSubmit(quantity, defective)} className="btn-primary flex-1">
             Zapisz
           </button>
         </div>
@@ -133,7 +178,7 @@ const QuantityModal = ({
 
 // ===================== MAIN COMPONENT =====================
 const MyStages = () => {
-  const { currentUser, orders, workSessions, setWorkSessions, workers } = useApp();
+  const { currentUser, orders, workSessions, setWorkSessions, workers, machines } = useApp();
   const [quantityModal, setQuantityModal] = useState<{
     isOpen: boolean;
     sessionId: string;
@@ -141,6 +186,7 @@ const MyStages = () => {
     orderId: number;
     maxQuantity: number;
     currentDone: number;
+    currentDefective: number;
   } | null>(null);
 
   if (!currentUser) return null;
@@ -172,28 +218,56 @@ const MyStages = () => {
 
   const myAssignedStages = getMyAssignedStages();
 
+  // Get machine for stage based on department/position
+  const getMachineForStage = (stageName: string): number | undefined => {
+    // Map stage names to machine departments
+    const stageToMachine: Record<string, string> = {
+      'Frezowanie': 'FREZOWANIE',
+      'Frezowanie CNC': 'FREZOWANIE',
+      'Cięcie': 'LASER',
+      'Cięcie laserowe': 'LASER',
+      'Laser': 'LASER',
+      'Gięcie': 'WYGINANIE',
+      'Polerowanie': 'POLEROWANIE',
+    };
+
+    const department = stageToMachine[stageName];
+    if (department && machines) {
+      const machine = machines.find(m => m.department === department && m.status !== 'offline');
+      return machine?.id;
+    }
+    return undefined;
+  };
+
   // Start work on a stage
-  const startWork = (orderId: number, stageId: number) => {
+  const startWork = (orderId: number, stageId: number, stageName?: string) => {
     if (activeSession) {
       toast({ title: "Uwaga", description: "Najpierw zakończ aktualną pracę", variant: "destructive" });
       return;
     }
+
+    const machineId = stageName ? getMachineForStage(stageName) : undefined;
 
     const newSession: WorkSession = {
       id: `ws_${Date.now()}`,
       workerId: currentUser.id,
       orderId,
       stageId,
+      machineId,  // Powiązanie z maszyną dla OEE
       date: new Date().toISOString().split('T')[0],
       startTime: new Date().toISOString(),
       endTime: null,
       breaks: [],
       quantityDone: 0,
+      quantityDefective: 0,  // Domyślnie 0 wadliwych
       status: 'active'
     };
 
     setWorkSessions(prev => [...prev, newSession]);
-    toast({ title: "Start pracy", description: "Rozpoczęto sesję pracy" });
+    toast({
+      title: "Start pracy",
+      description: machineId ? `Rozpoczęto pracę na maszynie #${machineId}` : "Rozpoczęto sesję pracy"
+    });
   };
 
   // Start break
@@ -243,12 +317,13 @@ const MyStages = () => {
       action,
       orderId,
       maxQuantity: order?.quantity || 1000,
-      currentDone: session?.quantityDone || 0
+      currentDone: session?.quantityDone || 0,
+      currentDefective: session?.quantityDefective || 0
     });
   };
 
   // End day (save progress but can continue tomorrow)
-  const endDay = (sessionId: string, quantity: number) => {
+  const endDay = (sessionId: string, quantity: number, defective: number) => {
     setWorkSessions(prev => prev.map(ws => {
       if (ws.id === sessionId) {
         // End any ongoing break
@@ -263,38 +338,43 @@ const MyStages = () => {
           endTime: new Date().toISOString(),
           breaks: updatedBreaks,
           quantityDone: quantity,
+          quantityDefective: defective,
           status: 'completed'
         };
       }
       return ws;
     }));
     setQuantityModal(null);
-    toast({ title: "Koniec dnia", description: `Zapisano postęp: ${quantity} szt.` });
+    const quality = quantity > 0 ? ((quantity - defective) / quantity * 100).toFixed(1) : '100';
+    toast({
+      title: "Koniec dnia",
+      description: `Zapisano: ${quantity} szt. (${defective} wadliwych, jakość ${quality}%)`
+    });
   };
 
   // Complete stage
-  const completeStage = (sessionId: string, quantity: number, orderId: number, stageId: number) => {
+  const completeStage = (sessionId: string, quantity: number, defective: number, orderId: number, stageId: number) => {
     // End the session
-    endDay(sessionId, quantity);
+    endDay(sessionId, quantity, defective);
 
     // Mark stage as completed in order
-    // This would typically be done through AppContext, but for now we'll just show a message
+    const quality = quantity > 0 ? ((quantity - defective) / quantity * 100).toFixed(1) : '100';
     toast({
       title: "Etap zakończony",
-      description: `Ukończono etap. Zrobiono: ${quantity} szt.`
+      description: `Ukończono etap. Zrobiono: ${quantity} szt., wadliwych: ${defective}, jakość: ${quality}%`
     });
   };
 
   // Handle modal submit
-  const handleQuantitySubmit = (quantity: number) => {
+  const handleQuantitySubmit = (quantity: number, defective: number) => {
     if (!quantityModal) return;
 
     if (quantityModal.action === 'end' || quantityModal.action === 'pause') {
-      endDay(quantityModal.sessionId, quantity);
+      endDay(quantityModal.sessionId, quantity, defective);
     } else if (quantityModal.action === 'complete') {
       const session = workSessions.find(ws => ws.id === quantityModal.sessionId);
       if (session) {
-        completeStage(quantityModal.sessionId, quantity, session.orderId, session.stageId);
+        completeStage(quantityModal.sessionId, quantity, defective, session.orderId, session.stageId);
       }
     }
   };
@@ -307,6 +387,7 @@ const MyStages = () => {
     let totalSeconds = 0;
     let totalBreakSeconds = 0;
     let totalQuantity = 0;
+    let totalDefective = 0;
 
     todaySessions.forEach(sess => {
       if (!sess.startTime) return;
@@ -325,9 +406,19 @@ const MyStages = () => {
 
       totalSeconds += Math.floor(workTime / 1000);
       totalQuantity += sess.quantityDone;
+      totalDefective += sess.quantityDefective || 0;
     });
 
-    return { totalSeconds: Math.max(0, totalSeconds), totalBreakSeconds, totalQuantity, sessionsCount: todaySessions.length };
+    const qualityPercent = totalQuantity > 0 ? ((totalQuantity - totalDefective) / totalQuantity * 100) : 100;
+
+    return {
+      totalSeconds: Math.max(0, totalSeconds),
+      totalBreakSeconds,
+      totalQuantity,
+      totalDefective,
+      qualityPercent,
+      sessionsCount: todaySessions.length
+    };
   };
 
   const formatDuration = (seconds: number) => {
@@ -353,7 +444,7 @@ const MyStages = () => {
       </h1>
 
       {/* Today's Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mb-6">
         <div className="card-industrial p-3">
           <p className="text-sm text-muted-foreground">Przepracowano</p>
           <p className="text-xl font-bold text-primary">{formatDuration(todayStats.totalSeconds)}</p>
@@ -363,11 +454,22 @@ const MyStages = () => {
           <p className="text-xl font-bold text-warning">{formatDuration(todayStats.totalBreakSeconds)}</p>
         </div>
         <div className="card-industrial p-3">
-          <p className="text-sm text-muted-foreground">Zrobiono</p>
+          <p className="text-sm text-muted-foreground">Wyprodukowano</p>
           <p className="text-xl font-bold text-success">{todayStats.totalQuantity} szt.</p>
+          {todayStats.totalDefective > 0 && (
+            <p className="text-xs text-red-500">({todayStats.totalDefective} wadliwych)</p>
+          )}
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        <div className="card-industrial p-3">
+          <p className="text-sm text-muted-foreground">Jakość produkcji</p>
+          <p className={`text-xl font-bold ${todayStats.qualityPercent >= 95 ? 'text-green-600' : todayStats.qualityPercent >= 85 ? 'text-yellow-600' : 'text-red-600'}`}>
+            {todayStats.qualityPercent.toFixed(1)}%
+          </p>
         </div>
         <div className="card-industrial p-3">
-          <p className="text-sm text-muted-foreground">Sesji</p>
+          <p className="text-sm text-muted-foreground">Sesji pracy</p>
           <p className="text-xl font-bold">{todayStats.sessionsCount}</p>
         </div>
       </div>
@@ -451,7 +553,7 @@ const MyStages = () => {
                       </p>
                     </div>
                     <button
-                      onClick={() => startWork(order.id, stageId)}
+                      onClick={() => startWork(order.id, stageId, stageName)}
                       className="btn-success whitespace-nowrap"
                     >
                       <Play size={18} className="mr-2" /> Zaczynam pracę
@@ -510,6 +612,7 @@ const MyStages = () => {
           title={quantityModal.action === 'complete' ? 'Zakończ etap' : 'Koniec dnia pracy'}
           maxQuantity={quantityModal.maxQuantity}
           currentDone={quantityModal.currentDone}
+          currentDefective={quantityModal.currentDefective}
         />
       )}
     </div>

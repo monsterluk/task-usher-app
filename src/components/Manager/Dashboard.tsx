@@ -205,7 +205,7 @@ const Dashboard = () => {
           value={overdueOrders.length}
           icon={AlertTriangle}
           color={overdueOrders.length > 0 ? "text-red-500" : "text-green-600"}
-          onClick={overdueOrders.length > 0 ? () => navigate('/manager/orders') : undefined}
+          onClick={overdueOrders.length > 0 ? () => navigate('/manager/orders?filter=PRZETERMINOWANE') : undefined}
         />
         <KPICard
           title="Aktywni pracownicy"
@@ -555,7 +555,7 @@ const Dashboard = () => {
               })}
               {overdueOrders.length > 5 && (
                 <button
-                  onClick={() => navigate('/manager/orders')}
+                  onClick={() => navigate('/manager/orders?filter=PRZETERMINOWANE')}
                   className="w-full text-center text-sm text-muted-foreground hover:text-foreground py-2"
                 >
                   Zobacz wszystkie ({overdueOrders.length})

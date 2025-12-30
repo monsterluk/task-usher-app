@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
+import MaterialPricesPanel from '@/components/Admin/MaterialPricesPanel';
 
 // Umiejętności/etapy produkcyjne do przypisania
 const AVAILABLE_SKILLS: Position[] = [
@@ -823,6 +824,9 @@ const AdminHome = () => {
         <button onClick={() => navigate('/admin/settings')} className="btn-secondary">
           <Settings size={18} className="mr-2" /> Ustawienia
         </button>
+        <button onClick={() => navigate('/admin/prices')} className="btn-primary">
+          <DollarSign size={18} className="mr-2" /> Ceny materiałów
+        </button>
       </div>
 
       {/* Financial KPIs */}
@@ -1185,6 +1189,7 @@ const AdminDashboard = () => {
           <Route path="/workers" element={<WorkersManagement />} />
           <Route path="/machines" element={<MachinesManagement />} />
           <Route path="/settings" element={<AdminSettings />} />
+          <Route path="/prices" element={<MaterialPricesPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>

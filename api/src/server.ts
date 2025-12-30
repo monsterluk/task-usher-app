@@ -29,9 +29,14 @@ import productionReportsRoutes from './routes/production-reports';
 import costsRoutes from './routes/costs';
 import documentsRoutes from './routes/documents';
 import calendarRoutes from './routes/calendar';
+import announcementsRoutes from './routes/announcements';
+import adminRoutes from './routes/admin';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
+
+// Trust proxy for production (behind nginx/reverse proxy)
+app.set('trust proxy', 1);
 
 // Middleware
 app.use(corsMiddleware);
@@ -81,6 +86,8 @@ app.use('/api/production-reports', productionReportsRoutes);
 app.use('/api/costs', costsRoutes);
 app.use('/api/documents', documentsRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/announcements', announcementsRoutes);
+app.use('/api/admin', adminRoutes);
 
 // Error handling
 app.use(notFoundHandler);

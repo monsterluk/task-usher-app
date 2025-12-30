@@ -1,19 +1,28 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, ArrowLeft, Filter } from 'lucide-react';
 import AdvancedOrderFilters, { OrderFilters, defaultFilters } from './Filters/AdvancedOrderFilters';
 import { getStageStatusColor } from '@/data/mockData';
 import { PRIORITY_LABELS, PRIORITY_COLORS, OrderPriority } from '@/types';
 
-type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE';
+type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE' | 'PRZETERMINOWANE';
 type SortField = 'order_number' | 'client_name' | 'product_name' | 'quantity' | 'price_total' | 'planned_completion_date' | 'status' | 'priority';
 type SortDirection = 'asc' | 'desc';
 
 const OrdersList = () => {
   const { orders, setOrders, refreshOrders, loading, currentUser } = useApp();
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<FilterType>('AKTYWNE');
+  const [searchParams] = useSearchParams();
+
+  // Check for initial filter from URL
+  const getInitialFilter = (): FilterType => {
+    const urlFilter = searchParams.get('filter');
+    if (urlFilter === 'PRZETERMINOWANE') return 'PRZETERMINOWANE';
+    return 'AKTYWNE';
+  };
+
+  const [filter, setFilter] = useState<FilterType>(getInitialFilter());
   const [localLoading, setLocalLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -39,11 +48,22 @@ const OrdersList = () => {
     setCurrentPage(1);
   }, [filter, searchQuery]);
 
+  // Helper: check if order is overdue
+  const isOrderOverdue = (order: typeof orders[0]) => {
+    if (order.archived || order.status === 'GOTOWE') return false;
+    const deadline = new Date(order.planned_completion_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    deadline.setHours(0, 0, 0, 0);
+    return deadline < today;
+  };
+
   // Filter and search orders
   const filteredOrders = orders.filter(order => {
     // Status filter
     if (filter === 'AKTYWNE' && (order.archived || order.status === 'GOTOWE')) return false;
     if (filter === 'ARCHIWUM' && !order.archived && order.status !== 'GOTOWE') return false;
+    if (filter === 'PRZETERMINOWANE' && !isOrderOverdue(order)) return false;
 
     // Search filter
     if (searchQuery.trim()) {
@@ -317,22 +337,34 @@ const OrdersList = () => {
         </button>
 
         {/* Status Filters */}
-        <div className="flex gap-2">
-          {(['AKTYWNE', 'ARCHIWUM', 'WSZYSTKIE'] as FilterType[]).map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`px-4 py-2 rounded-md transition-colors ${
-                filter === f
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80'
-              }`}
-            >
-              {f} ({f === 'AKTYWNE' ? orders.filter(o => !o.archived && o.status !== 'GOTOWE').length :
-                  f === 'ARCHIWUM' ? orders.filter(o => o.archived || o.status === 'GOTOWE').length :
-                  orders.length})
-            </button>
-          ))}
+        <div className="flex gap-2 flex-wrap">
+          {(['AKTYWNE', 'PRZETERMINOWANE', 'ARCHIWUM', 'WSZYSTKIE'] as FilterType[]).map(f => {
+            const getFilterCount = () => {
+              switch (f) {
+                case 'AKTYWNE': return orders.filter(o => !o.archived && o.status !== 'GOTOWE').length;
+                case 'PRZETERMINOWANE': return orders.filter(isOrderOverdue).length;
+                case 'ARCHIWUM': return orders.filter(o => o.archived || o.status === 'GOTOWE').length;
+                case 'WSZYSTKIE': return orders.length;
+              }
+            };
+            return (
+              <button
+                key={f}
+                onClick={() => setFilter(f)}
+                className={`px-4 py-2 rounded-md transition-colors ${
+                  filter === f
+                    ? f === 'PRZETERMINOWANE'
+                      ? 'bg-red-500 text-white'
+                      : 'bg-primary text-primary-foreground'
+                    : f === 'PRZETERMINOWANE' && getFilterCount() > 0
+                      ? 'bg-red-100 text-red-700 hover:bg-red-200 dark:bg-red-900/30 dark:text-red-300'
+                      : 'bg-muted hover:bg-muted/80'
+                }`}
+              >
+                {f} ({getFilterCount()})
+              </button>
+            );
+          })}
         </div>
       </div>
 

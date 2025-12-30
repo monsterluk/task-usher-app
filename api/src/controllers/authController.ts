@@ -42,6 +42,7 @@ export const login = asyncHandler(async (req: Request, res: Response) => {
     id: worker.id,
     email: worker.email,
     role: worker.role,
+    name: worker.name,
   };
 
   const token = generateToken(payload);
@@ -94,6 +95,7 @@ export const loginWithPin = asyncHandler(async (req: Request, res: Response) => 
     id: worker.id,
     email: worker.email,
     role: worker.role,
+    name: worker.name,
   };
 
   const token = generateToken(payload);

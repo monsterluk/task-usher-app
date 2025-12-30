@@ -53,83 +53,102 @@ interface MachineOEE {
 
 const OEEDashboard = () => {
   const navigate = useNavigate();
-  const { orders, loading: appLoading } = useApp();
+  const { orders, machines, workSessions, loading: appLoading } = useApp();
   const [timeRange, setTimeRange] = useState<'day' | 'week' | 'month'>('week');
   const [selectedDepartment, setSelectedDepartment] = useState<string>('all');
 
-  // Demo data - in production this would come from API
-  const machinesOEE: MachineOEE[] = useMemo(() => [
-    {
-      id: 1,
-      name: 'CNC Router 1',
-      department: 'Frezowanie',
-      availability: 92,
-      performance: 88,
-      quality: 97,
-      oee: 78.5,
-      status: 'in_use',
-      runningHours: 44,
-      plannedHours: 48,
-      downtime: 4,
-      defectRate: 3
-    },
-    {
-      id: 2,
-      name: 'CNC Router 2',
-      department: 'Frezowanie',
-      availability: 85,
-      performance: 82,
-      quality: 95,
-      oee: 66.2,
-      status: 'available',
-      runningHours: 40,
-      plannedHours: 48,
-      downtime: 8,
-      defectRate: 5
-    },
-    {
-      id: 3,
-      name: 'Laser CO2',
-      department: 'Ciecie',
-      availability: 95,
-      performance: 91,
-      quality: 99,
-      oee: 85.6,
-      status: 'in_use',
-      runningHours: 46,
-      plannedHours: 48,
-      downtime: 2,
-      defectRate: 1
-    },
-    {
-      id: 4,
-      name: 'Giętarka',
-      department: 'Giecie',
-      availability: 78,
-      performance: 85,
-      quality: 94,
-      oee: 62.3,
-      status: 'maintenance',
-      runningHours: 37,
-      plannedHours: 48,
-      downtime: 11,
-      defectRate: 6
-    },
-    {
-      id: 5,
-      name: 'Polerka',
-      department: 'Wykanczanie',
-      availability: 88,
-      performance: 90,
-      quality: 98,
-      oee: 77.6,
-      status: 'in_use',
-      runningHours: 42,
-      plannedHours: 48,
-      downtime: 6,
-      defectRate: 2
-    },
-  ], []);
+  // Calculate OEE from real work sessions data
+  const machinesOEE: MachineOEE[] = useMemo(() => {
+    if (!machines || machines.length === 0) {
+      // Fallback demo data when no machines defined
+      return [
+        { id: 1, name: 'CNC Router 1', department: 'Frezowanie', availability: 92, performance: 88, quality: 97, oee: 78.5, status: 'in_use' as const, runningHours: 44, plannedHours: 48, downtime: 4, defectRate: 3 },
+        { id: 2, name: 'Laser CO2', department: 'Ciecie', availability: 95, performance: 91, quality: 99, oee: 85.6, status: 'in_use' as const, runningHours: 46, plannedHours: 48, downtime: 2, defectRate: 1 },
+      ];
+    }
+
+    // Filter sessions by time range
+    const now = new Date();
+    const rangeStart = new Date();
+    if (timeRange === 'day') {
+      rangeStart.setHours(0, 0, 0, 0);
+    } else if (timeRange === 'week') {
+      rangeStart.setDate(now.getDate() - 7);
+    } else {
+      rangeStart.setDate(now.getDate() - 30);
+    }
+
+    // Calculate planned hours based on time range (8h per work day)
+    const workDays = timeRange === 'day' ? 1 : timeRange === 'week' ? 5 : 22;
+    const plannedHours = workDays * 8;
+
+    return machines.map(machine => {
+      // Get sessions for this machine in selected time range
+      const machineSessions = workSessions.filter(ws => {
+        if (ws.machineId !== machine.id) return false;
+        const sessionDate = new Date(ws.date);
+        return sessionDate >= rangeStart && sessionDate <= now;
+      });
+
+      // Calculate running time in hours
+      let runningMinutes = 0;
+      let totalProduced = 0;
+      let totalDefective = 0;
+
+      machineSessions.forEach(session => {
+        if (!session.startTime) return;
+
+        const start = new Date(session.startTime).getTime();
+        const end = session.endTime ? new Date(session.endTime).getTime() : Date.now();
+        let workTime = end - start;
+
+        // Subtract breaks
+        session.breaks?.forEach(br => {
+          const breakStart = new Date(br.start).getTime();
+          const breakEnd = br.end ? new Date(br.end).getTime() : Date.now();
+          workTime -= (breakEnd - breakStart);
+        });
+
+        runningMinutes += Math.max(0, workTime / 60000);
+        totalProduced += session.quantityDone || 0;
+        totalDefective += session.quantityDefective || 0;
+      });
+
+      const runningHours = runningMinutes / 60;
+
+      // Calculate OEE components
+      // Availability = Running Time / Planned Time
+      const availability = plannedHours > 0 ? Math.min(100, (runningHours / plannedHours) * 100) : 0;
+
+      // Performance = Actual Output / Theoretical Output (assume 10 units/hour ideal)
+      const theoreticalOutput = runningHours * 10; // 10 units per hour ideal rate
+      const performance = theoreticalOutput > 0 ? Math.min(100, (totalProduced / theoreticalOutput) * 100) : (machineSessions.length > 0 ? 85 : 0);
+
+      // Quality = Good Units / Total Units
+      const quality = totalProduced > 0 ? ((totalProduced - totalDefective) / totalProduced) * 100 : (machineSessions.length > 0 ? 98 : 0);
+
+      // OEE = Availability × Performance × Quality
+      const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+
+      const downtime = Math.max(0, plannedHours - runningHours);
+      const defectRate = totalProduced > 0 ? (totalDefective / totalProduced) * 100 : 0;
+
+      return {
+        id: machine.id,
+        name: machine.name,
+        department: machine.department,
+        availability: Math.round(availability * 10) / 10,
+        performance: Math.round(performance * 10) / 10,
+        quality: Math.round(quality * 10) / 10,
+        oee: Math.round(oee * 10) / 10,
+        status: machine.status,
+        runningHours: Math.round(runningHours * 10) / 10,
+        plannedHours,
+        downtime: Math.round(downtime * 10) / 10,
+        defectRate: Math.round(defectRate * 10) / 10
+      };
+    });
+  }, [machines, workSessions, timeRange]);
 
   // Filter by department
   const filteredMachines = useMemo(() => {
@@ -164,31 +183,85 @@ const OEEDashboard = () => {
     return ['all', ...depts];
   }, [machinesOEE]);
 
-  // Trend data for chart
+  // Trend data for chart - calculated from real work sessions
   const trendData = useMemo(() => {
     const days = timeRange === 'day' ? 24 : timeRange === 'week' ? 7 : 30;
     const data = [];
+
     for (let i = days - 1; i >= 0; i--) {
       const date = new Date();
       if (timeRange === 'day') {
-        date.setHours(date.getHours() - i);
+        date.setHours(date.getHours() - i, 0, 0, 0);
       } else {
         date.setDate(date.getDate() - i);
+        date.setHours(0, 0, 0, 0);
       }
-      // Simulated data
-      const baseOEE = 72 + Math.random() * 15;
+
+      const dateStr = date.toISOString().split('T')[0];
+
+      // Filter sessions for this specific date
+      const daySessions = workSessions.filter(ws => {
+        if (!ws.machineId) return false; // Only sessions with machine
+        return ws.date === dateStr;
+      });
+
+      if (daySessions.length === 0) {
+        // No data for this day - show 0 or skip
+        data.push({
+          name: timeRange === 'day'
+            ? date.toLocaleTimeString('pl-PL', { hour: '2-digit' })
+            : date.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric' }),
+          oee: 0,
+          availability: 0,
+          performance: 0,
+          quality: 100,
+        });
+        continue;
+      }
+
+      // Calculate metrics for this day
+      let totalRunningMinutes = 0;
+      let totalProduced = 0;
+      let totalDefective = 0;
+
+      daySessions.forEach(session => {
+        if (!session.startTime) return;
+        const start = new Date(session.startTime).getTime();
+        const end = session.endTime ? new Date(session.endTime).getTime() : Date.now();
+        let workTime = end - start;
+
+        session.breaks?.forEach(br => {
+          const breakStart = new Date(br.start).getTime();
+          const breakEnd = br.end ? new Date(br.end).getTime() : Date.now();
+          workTime -= (breakEnd - breakStart);
+        });
+
+        totalRunningMinutes += Math.max(0, workTime / 60000);
+        totalProduced += session.quantityDone || 0;
+        totalDefective += session.quantityDefective || 0;
+      });
+
+      const plannedMinutes = 8 * 60; // 8 hour shift
+      const runningHours = totalRunningMinutes / 60;
+
+      const availability = Math.min(100, (totalRunningMinutes / plannedMinutes) * 100);
+      const theoreticalOutput = runningHours * 10;
+      const performance = theoreticalOutput > 0 ? Math.min(100, (totalProduced / theoreticalOutput) * 100) : 85;
+      const quality = totalProduced > 0 ? ((totalProduced - totalDefective) / totalProduced) * 100 : 98;
+      const oee = (availability / 100) * (performance / 100) * (quality / 100) * 100;
+
       data.push({
         name: timeRange === 'day'
           ? date.toLocaleTimeString('pl-PL', { hour: '2-digit' })
           : date.toLocaleDateString('pl-PL', { weekday: 'short', day: 'numeric' }),
-        oee: Math.round(baseOEE * 10) / 10,
-        availability: Math.round((baseOEE + 10 + Math.random() * 8) * 10) / 10,
-        performance: Math.round((baseOEE + 5 + Math.random() * 10) * 10) / 10,
-        quality: Math.round((baseOEE + 15 + Math.random() * 8) * 10) / 10,
+        oee: Math.round(oee * 10) / 10,
+        availability: Math.round(availability * 10) / 10,
+        performance: Math.round(performance * 10) / 10,
+        quality: Math.round(quality * 10) / 10,
       });
     }
     return data;
-  }, [timeRange]);
+  }, [timeRange, workSessions]);
 
   // OEE gauge data for radial chart
   const gaugeData = [

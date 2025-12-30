@@ -51,7 +51,7 @@ interface KPICard {
 }
 
 const KPIDashboard = () => {
-  const { orders, workers, timesheets } = useApp();
+  const { orders, workers, timeEntries } = useApp();
   const [period, setPeriod] = useState<'week' | 'month' | 'quarter' | 'year'>('month');
   const [compareMode, setCompareMode] = useState(false);
 
@@ -349,8 +349,8 @@ const KPIDashboard = () => {
         o.stages?.some(s => s.assigned_worker_id === worker.id && s.status === 'ZAKONCZONE')
       );
 
-      const workerTimesheets = timesheets.filter(t => t.worker_id === worker.id);
-      const totalHours = workerTimesheets.reduce((sum, t) => sum + (t.hours || 0), 0);
+      const workerTimesheets = timeEntries.filter(t => t.workerId === worker.id);
+      const totalHours = workerTimesheets.reduce((sum, t) => sum + ((t.totalSeconds || 0) / 3600), 0);
 
       return {
         name: worker.name.split(' ')[0],
@@ -361,7 +361,7 @@ const KPIDashboard = () => {
           : 0
       };
     }).sort((a, b) => b.zlecenia - a.zlecenia).slice(0, 8);
-  }, [workers, orders, timesheets]);
+  }, [workers, orders, timeEntries]);
 
   // OEE-like gauge data
   const oeeData = useMemo(() => {

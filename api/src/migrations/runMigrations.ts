@@ -70,7 +70,7 @@ const migrations: Migration[] = [
       -- Indexes for assignments table
       CREATE INDEX IF NOT EXISTS idx_assignments_stage_id ON assignments(stage_id);
       CREATE INDEX IF NOT EXISTS idx_assignments_worker_id ON assignments(worker_id);
-      CREATE INDEX IF NOT EXISTS idx_assignments_completed ON assignments(completed);
+      -- Note: completed column may not exist, skip this index
 
       -- Indexes for work_sessions table
       CREATE INDEX IF NOT EXISTS idx_work_sessions_assignment_id ON work_sessions(assignment_id);
@@ -366,6 +366,79 @@ const migrations: Migration[] = [
       -- Indexes
       CREATE INDEX IF NOT EXISTS idx_notification_settings_user_id ON notification_settings(user_id);
       CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+    `,
+  },
+  {
+    name: '008_create_announcements',
+    up: `
+      -- Announcements board
+      CREATE TABLE IF NOT EXISTS announcements (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        content TEXT NOT NULL,
+        type VARCHAR(30) DEFAULT 'info' CHECK (type IN ('info', 'warning', 'success', 'urgent')),
+        priority VARCHAR(20) DEFAULT 'normal' CHECK (priority IN ('low', 'normal', 'high')),
+        pinned BOOLEAN DEFAULT false,
+        active BOOLEAN DEFAULT true,
+        expires_at TIMESTAMP WITH TIME ZONE,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_announcements_active ON announcements(active);
+      CREATE INDEX IF NOT EXISTS idx_announcements_pinned ON announcements(pinned);
+      CREATE INDEX IF NOT EXISTS idx_announcements_created_at ON announcements(created_at);
+    `,
+  },
+  {
+    name: '009_create_material_prices',
+    up: `
+      -- Material prices for cost calculator
+      CREATE TABLE IF NOT EXISTS material_prices (
+        id SERIAL PRIMARY KEY,
+        material_type VARCHAR(50) NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        unit VARCHAR(20) NOT NULL,
+        price_per_unit DECIMAL(10,2) NOT NULL,
+        supplier VARCHAR(100),
+        min_order_quantity DECIMAL(10,2),
+        lead_time_days INTEGER,
+        notes TEXT,
+        active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Production overheads and margins
+      CREATE TABLE IF NOT EXISTS production_settings (
+        id SERIAL PRIMARY KEY,
+        setting_key VARCHAR(50) NOT NULL UNIQUE,
+        setting_value DECIMAL(10,4),
+        setting_type VARCHAR(30) CHECK (setting_type IN ('percentage', 'fixed', 'multiplier')),
+        description TEXT,
+        updated_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Insert default production settings
+      INSERT INTO production_settings (setting_key, setting_value, setting_type, description) VALUES
+        ('material_margin', 15.00, 'percentage', 'Narzut na materialy (%)'),
+        ('labor_margin', 25.00, 'percentage', 'Narzut na robocizne (%)'),
+        ('overhead_rate', 10.00, 'percentage', 'Koszty ogolne (%)'),
+        ('profit_margin', 20.00, 'percentage', 'Marza zysku (%)'),
+        ('waste_factor', 5.00, 'percentage', 'Wspolczynnik odpadow (%)'),
+        ('hourly_rate', 80.00, 'fixed', 'Stawka godzinowa (PLN)'),
+        ('machine_rate', 50.00, 'fixed', 'Stawka maszynowa (PLN/h)')
+      ON CONFLICT (setting_key) DO NOTHING;
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_material_prices_type ON material_prices(material_type);
+      CREATE INDEX IF NOT EXISTS idx_material_prices_active ON material_prices(active);
+      CREATE INDEX IF NOT EXISTS idx_production_settings_key ON production_settings(setting_key);
     `,
   },
 ];

@@ -58,6 +58,12 @@ const QualityDashboard = () => {
   const [recentDefects, setRecentDefects] = useState<Defect[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'open' | 'critical'>('open');
+  const [showNewCheckModal, setShowNewCheckModal] = useState(false);
+  const [newCheck, setNewCheck] = useState({
+    order_number: '',
+    check_type: 'in_process' as 'incoming' | 'in_process' | 'final',
+    notes: ''
+  });
 
   useEffect(() => {
     loadData();
@@ -205,12 +211,74 @@ const QualityDashboard = () => {
             <Filter size={18} className="mr-2" />
             Filtry
           </button>
-          <button className="btn-primary">
+          <button className="btn-primary" onClick={() => setShowNewCheckModal(true)}>
             <Plus size={18} className="mr-2" />
             Nowa kontrola
           </button>
         </div>
       </div>
+
+      {/* New Check Modal */}
+      {showNewCheckModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold mb-4">Nowa kontrola jakosci</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Numer zlecenia</label>
+                <input
+                  type="text"
+                  value={newCheck.order_number}
+                  onChange={(e) => setNewCheck({ ...newCheck, order_number: e.target.value })}
+                  className="input-industrial w-full"
+                  placeholder="np. ZLC-2024-0156"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Typ kontroli</label>
+                <select
+                  value={newCheck.check_type}
+                  onChange={(e) => setNewCheck({ ...newCheck, check_type: e.target.value as any })}
+                  className="input-industrial w-full"
+                >
+                  <option value="incoming">Wejsciowa (materialy)</option>
+                  <option value="in_process">W trakcie produkcji</option>
+                  <option value="final">Koncowa</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Uwagi</label>
+                <textarea
+                  value={newCheck.notes}
+                  onChange={(e) => setNewCheck({ ...newCheck, notes: e.target.value })}
+                  className="input-industrial w-full"
+                  rows={3}
+                  placeholder="Opcjonalne uwagi do kontroli..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  // TODO: Save to API
+                  console.log('New check:', newCheck);
+                  setShowNewCheckModal(false);
+                  setNewCheck({ order_number: '', check_type: 'in_process', notes: '' });
+                }}
+                className="btn-primary flex-1"
+              >
+                Rozpocznij kontrole
+              </button>
+              <button
+                onClick={() => setShowNewCheckModal(false)}
+                className="btn-secondary"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       {stats && (

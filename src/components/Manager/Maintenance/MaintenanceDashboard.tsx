@@ -47,6 +47,15 @@ const MaintenanceDashboard = () => {
   const [stats, setStats] = useState<MaintenanceStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'overdue' | 'in_progress'>('upcoming');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [newSchedule, setNewSchedule] = useState({
+    machine_name: '',
+    maintenance_type: 'preventive' as 'preventive' | 'corrective' | 'predictive' | 'inspection',
+    title: '',
+    description: '',
+    frequency_days: 30,
+    priority: 'normal' as 'low' | 'normal' | 'high' | 'critical'
+  });
 
   useEffect(() => {
     loadData();
@@ -214,12 +223,110 @@ const MaintenanceDashboard = () => {
           <h1 className="text-2xl md:text-3xl font-bold">Konserwacja TPM</h1>
         </div>
         <div className="flex items-center gap-2">
-          <button className="btn-primary">
+          <button className="btn-primary" onClick={() => setShowAddModal(true)}>
             <Plus size={18} className="mr-2" />
             Dodaj harmonogram
           </button>
         </div>
       </div>
+
+      {/* Add Schedule Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-lg p-6 max-w-lg w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-bold mb-4">Nowy harmonogram konserwacji</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Maszyna</label>
+                <input
+                  type="text"
+                  value={newSchedule.machine_name}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, machine_name: e.target.value })}
+                  className="input-industrial w-full"
+                  placeholder="np. CNC Router 1"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Tytul</label>
+                <input
+                  type="text"
+                  value={newSchedule.title}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, title: e.target.value })}
+                  className="input-industrial w-full"
+                  placeholder="np. Przeglad miesięczny"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Typ konserwacji</label>
+                  <select
+                    value={newSchedule.maintenance_type}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, maintenance_type: e.target.value as any })}
+                    className="input-industrial w-full"
+                  >
+                    <option value="preventive">Prewencyjna</option>
+                    <option value="corrective">Korygujaca</option>
+                    <option value="predictive">Predykcyjna</option>
+                    <option value="inspection">Inspekcja</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Priorytet</label>
+                  <select
+                    value={newSchedule.priority}
+                    onChange={(e) => setNewSchedule({ ...newSchedule, priority: e.target.value as any })}
+                    className="input-industrial w-full"
+                  >
+                    <option value="low">Niski</option>
+                    <option value="normal">Normalny</option>
+                    <option value="high">Wysoki</option>
+                    <option value="critical">Krytyczny</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Czestotliwosc (dni)</label>
+                <input
+                  type="number"
+                  value={newSchedule.frequency_days}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, frequency_days: parseInt(e.target.value) || 30 })}
+                  className="input-industrial w-full"
+                  min={1}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Opis</label>
+                <textarea
+                  value={newSchedule.description}
+                  onChange={(e) => setNewSchedule({ ...newSchedule, description: e.target.value })}
+                  className="input-industrial w-full"
+                  rows={3}
+                  placeholder="Opis czynnosci do wykonania..."
+                />
+              </div>
+            </div>
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => {
+                  // TODO: Save to API
+                  console.log('New schedule:', newSchedule);
+                  setShowAddModal(false);
+                  setNewSchedule({ machine_name: '', maintenance_type: 'preventive', title: '', description: '', frequency_days: 30, priority: 'normal' });
+                }}
+                className="btn-primary flex-1"
+              >
+                Dodaj harmonogram
+              </button>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="btn-secondary"
+              >
+                Anuluj
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* KPI Cards */}
       {stats && (

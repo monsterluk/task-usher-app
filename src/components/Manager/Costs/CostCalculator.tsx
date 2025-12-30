@@ -59,7 +59,10 @@ const CostCalculator = () => {
     product_type: '',
     quantity: 1,
     material_type: 'plexi_clear_3mm',
-    material_quantity: 1
+    material_quantity: 1,
+    // Cutting efficiency settings
+    cutting_meters: 0, // Linear meters of cutting required
+    cutting_speed: 100 // Meters per hour (cutting speed)
   });
   const [stages, setStages] = useState<QuoteStage[]>([
     { type: 'ciecie_laser', estimated_hours: 1 }
@@ -179,12 +182,20 @@ const CostCalculator = () => {
     const totalCost = materialCost + stageCost + laborCost;
     const suggestedPrice = Math.ceil(totalCost / 0.7);
 
+    // Cutting efficiency info
+    const cuttingInfo = quoteForm.cutting_meters > 0 ? {
+      meters: quoteForm.cutting_meters,
+      speed: quoteForm.cutting_speed,
+      calculated_hours: quoteForm.cutting_meters / quoteForm.cutting_speed
+    } : null;
+
     setQuoteResult({
       costs: {
         material: { type: quoteForm.material_type, quantity: quoteForm.material_quantity, unit_price: materialPrice, total: materialCost },
         stages: stageBreakdown,
         stage_total: stageCost,
         labor: { hours: totalHours, rate: 50, total: laborCost },
+        cutting: cuttingInfo,
         total: totalCost
       },
       pricing: {
@@ -324,6 +335,71 @@ const CostCalculator = () => {
                 </select>
               </div>
 
+              {/* Cutting efficiency settings */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                <h3 className="font-medium mb-3 flex items-center gap-2 text-blue-700 dark:text-blue-300">
+                  <Wrench size={16} />
+                  Wydajnosc ciecia laserowego
+                </h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Metry ciecia (mb)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.1"
+                      value={quoteForm.cutting_meters}
+                      onChange={(e) => {
+                        const meters = parseFloat(e.target.value) || 0;
+                        setQuoteForm({ ...quoteForm, cutting_meters: meters });
+                        // Auto-update laser cutting hours
+                        if (meters > 0 && quoteForm.cutting_speed > 0) {
+                          const hours = meters / quoteForm.cutting_speed;
+                          const laserStageIndex = stages.findIndex(s => s.type === 'ciecie_laser');
+                          if (laserStageIndex !== -1) {
+                            updateStage(laserStageIndex, 'estimated_hours', Math.round(hours * 10) / 10);
+                          }
+                        }
+                      }}
+                      placeholder="np. 25.5"
+                      className="input-industrial w-full"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Laczna dlugosc linii ciecia</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Predkosc ciecia (mb/h)</label>
+                    <input
+                      type="number"
+                      min="1"
+                      step="1"
+                      value={quoteForm.cutting_speed}
+                      onChange={(e) => {
+                        const speed = parseFloat(e.target.value) || 100;
+                        setQuoteForm({ ...quoteForm, cutting_speed: speed });
+                        // Auto-update laser cutting hours
+                        if (quoteForm.cutting_meters > 0 && speed > 0) {
+                          const hours = quoteForm.cutting_meters / speed;
+                          const laserStageIndex = stages.findIndex(s => s.type === 'ciecie_laser');
+                          if (laserStageIndex !== -1) {
+                            updateStage(laserStageIndex, 'estimated_hours', Math.round(hours * 10) / 10);
+                          }
+                        }
+                      }}
+                      placeholder="np. 100"
+                      className="input-industrial w-full"
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">Typowo 60-150 mb/h dla plexi</p>
+                  </div>
+                </div>
+                {quoteForm.cutting_meters > 0 && quoteForm.cutting_speed > 0 && (
+                  <div className="mt-3 p-2 bg-blue-100 dark:bg-blue-800/30 rounded text-sm text-center">
+                    <strong>Szacowany czas ciecia:</strong>{' '}
+                    {(quoteForm.cutting_meters / quoteForm.cutting_speed).toFixed(2)}h
+                    ({Math.round(quoteForm.cutting_meters / quoteForm.cutting_speed * 60)} min)
+                  </div>
+                )}
+              </div>
+
               {/* Stages */}
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -423,6 +499,20 @@ const CostCalculator = () => {
                       </span>
                       <span className="font-bold">{quoteResult.costs.material.total.toFixed(2)} zl</span>
                     </div>
+                    {/* Cutting efficiency info */}
+                    {quoteResult.costs.cutting && (
+                      <div className="p-2 bg-cyan-50 dark:bg-cyan-900/20 rounded border border-cyan-200 dark:border-cyan-800">
+                        <div className="flex justify-between items-center">
+                          <span className="flex items-center gap-2 text-cyan-700 dark:text-cyan-300">
+                            <TrendingUp size={16} />
+                            Ciecie: {quoteResult.costs.cutting.meters} mb @ {quoteResult.costs.cutting.speed} mb/h
+                          </span>
+                          <span className="font-medium text-cyan-700 dark:text-cyan-300">
+                            = {quoteResult.costs.cutting.calculated_hours.toFixed(2)}h
+                          </span>
+                        </div>
+                      </div>
+                    )}
                     {quoteResult.costs.stages.map((s: any, i: number) => (
                       <div key={i} className="flex justify-between p-2 bg-green-50 dark:bg-green-900/20 rounded">
                         <span className="flex items-center gap-2">
