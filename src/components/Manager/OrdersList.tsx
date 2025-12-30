@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, ArrowLeft } from 'lucide-react';
+import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, ArrowLeft, Filter } from 'lucide-react';
+import AdvancedOrderFilters, { OrderFilters, defaultFilters } from './Filters/AdvancedOrderFilters';
 import { getStageStatusColor } from '@/data/mockData';
 import { PRIORITY_LABELS, PRIORITY_COLORS, OrderPriority } from '@/types';
 
@@ -18,6 +19,8 @@ const OrdersList = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [sortField, setSortField] = useState<SortField>('planned_completion_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [advancedFilters, setAdvancedFilters] = useState<OrderFilters>(defaultFilters);
   const itemsPerPage = 15;
 
   // Ładuj zlecenia z API przy mount (tylko raz)
@@ -304,6 +307,15 @@ const OrdersList = () => {
           />
         </div>
 
+        {/* Advanced Filter Toggle */}
+        <button
+          onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          className={`btn-secondary ${showAdvancedFilters ? 'bg-primary text-primary-foreground' : ''}`}
+        >
+          <Filter size={18} className="mr-2" />
+          Filtry
+        </button>
+
         {/* Status Filters */}
         <div className="flex gap-2">
           {(['AKTYWNE', 'ARCHIWUM', 'WSZYSTKIE'] as FilterType[]).map(f => (
@@ -323,6 +335,17 @@ const OrdersList = () => {
           ))}
         </div>
       </div>
+
+      {/* Advanced Filters Panel */}
+      {showAdvancedFilters && (
+        <div className="mb-4">
+          <AdvancedOrderFilters
+            filters={advancedFilters}
+            onFiltersChange={setAdvancedFilters}
+            onClose={() => setShowAdvancedFilters(false)}
+          />
+        </div>
+      )}
 
       {/* Results info */}
       {searchQuery && (

@@ -20,7 +20,8 @@ import {
   Settings,
   Factory,
   Calculator,
-  CalendarDays
+  CalendarDays,
+  Download
 } from 'lucide-react';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
 import {
@@ -315,6 +316,16 @@ const Dashboard = () => {
           <div className="text-left">
             <p className="font-semibold text-sm">Kalendarz</p>
             <p className="text-xs text-muted-foreground">Planowanie</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/export')}
+          className="flex items-center gap-3 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
+        >
+          <Download className="text-violet-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Eksport</p>
+            <p className="text-xs text-muted-foreground">Dane</p>
           </div>
         </button>
         <button

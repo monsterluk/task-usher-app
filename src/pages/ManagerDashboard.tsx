@@ -17,6 +17,7 @@ import CapacityDashboard from '@/components/Manager/Capacity/CapacityDashboard';
 import ProductionReport from '@/components/Manager/Reports/ProductionReport';
 import CostCalculator from '@/components/Manager/Costs/CostCalculator';
 import ProductionCalendar from '@/components/Manager/Calendar/ProductionCalendar';
+import DataExport from '@/components/Manager/Export/DataExport';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -56,6 +57,7 @@ const ManagerDashboard = () => {
           <Route path="production-report" element={<ProductionReport />} />
           <Route path="costs" element={<CostCalculator />} />
           <Route path="calendar" element={<ProductionCalendar />} />
+          <Route path="export" element={<DataExport />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>
