@@ -16,6 +16,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { maintenanceApi, isDemoMode } from '@/utils/api';
+import { useApp } from '@/context/AppContext';
 
 interface MaintenanceSchedule {
   id: number;
@@ -43,9 +44,12 @@ interface MaintenanceStats {
 
 const MaintenanceDashboard = () => {
   const navigate = useNavigate();
+  const { machines } = useApp();
   const [schedules, setSchedules] = useState<MaintenanceSchedule[]>([]);
   const [stats, setStats] = useState<MaintenanceStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'upcoming' | 'overdue' | 'in_progress'>('upcoming');
   const [showAddModal, setShowAddModal] = useState(false);
   const [newSchedule, setNewSchedule] = useState({
@@ -56,6 +60,69 @@ const MaintenanceDashboard = () => {
     frequency_days: 30,
     priority: 'normal' as 'low' | 'normal' | 'high' | 'critical'
   });
+
+  // Save new maintenance schedule to API
+  const handleSaveSchedule = async () => {
+    if (!newSchedule.machine_name.trim()) {
+      setSaveError('Wybierz maszyne');
+      return;
+    }
+    if (!newSchedule.title.trim()) {
+      setSaveError('Podaj tytul konserwacji');
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      // Find machine by name
+      const machine = machines.find(m =>
+        m.name.toLowerCase().includes(newSchedule.machine_name.toLowerCase())
+      );
+
+      if (!machine) {
+        setSaveError('Nie znaleziono maszyny o podanej nazwie');
+        setSaving(false);
+        return;
+      }
+
+      // Create maintenance schedule via API
+      if (!isDemoMode()) {
+        const nextDue = new Date();
+        nextDue.setDate(nextDue.getDate() + newSchedule.frequency_days);
+
+        await maintenanceApi.createSchedule({
+          machine_id: machine.id,
+          maintenance_type: newSchedule.maintenance_type,
+          title: newSchedule.title,
+          description: newSchedule.description || undefined,
+          frequency_days: newSchedule.frequency_days,
+          priority: newSchedule.priority,
+          next_due_at: nextDue.toISOString()
+        });
+      }
+
+      // Reset form and close modal
+      setShowAddModal(false);
+      setNewSchedule({
+        machine_name: '',
+        maintenance_type: 'preventive',
+        title: '',
+        description: '',
+        frequency_days: 30,
+        priority: 'normal'
+      });
+
+      // Reload data
+      await loadData();
+    } catch (err: any) {
+      console.error('Error saving maintenance schedule:', err);
+      setSaveError(err.response?.data?.error || 'Blad podczas zapisywania harmonogramu');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -305,20 +372,26 @@ const MaintenanceDashboard = () => {
                 />
               </div>
             </div>
-            <div className="flex gap-2 mt-6">
+            {saveError && (
+              <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg text-sm">
+                {saveError}
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
               <button
-                onClick={() => {
-                  // TODO: Save to API
-                  console.log('New schedule:', newSchedule);
-                  setShowAddModal(false);
-                  setNewSchedule({ machine_name: '', maintenance_type: 'preventive', title: '', description: '', frequency_days: 30, priority: 'normal' });
-                }}
-                className="btn-primary flex-1"
+                onClick={handleSaveSchedule}
+                disabled={saving}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
               >
-                Dodaj harmonogram
+                {saving ? <Loader2 className="animate-spin" size={16} /> : null}
+                {saving ? 'Zapisywanie...' : 'Dodaj harmonogram'}
               </button>
               <button
-                onClick={() => setShowAddModal(false)}
+                onClick={() => {
+                  setShowAddModal(false);
+                  setSaveError(null);
+                }}
+                disabled={saving}
                 className="btn-secondary"
               >
                 Anuluj

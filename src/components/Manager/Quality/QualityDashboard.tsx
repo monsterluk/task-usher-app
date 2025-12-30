@@ -14,8 +14,9 @@ import {
   AlertOctagon,
   Loader2
 } from 'lucide-react';
-import { qualityApi } from '@/utils/api';
+import { qualityApi, ordersApi } from '@/utils/api';
 import { isDemoMode } from '@/utils/api';
+import { useApp } from '@/context/AppContext';
 
 interface QualityStats {
   checks: {
@@ -54,9 +55,12 @@ interface Defect {
 
 const QualityDashboard = () => {
   const navigate = useNavigate();
+  const { orders } = useApp();
   const [stats, setStats] = useState<QualityStats | null>(null);
   const [recentDefects, setRecentDefects] = useState<Defect[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'open' | 'critical'>('open');
   const [showNewCheckModal, setShowNewCheckModal] = useState(false);
   const [newCheck, setNewCheck] = useState({
@@ -64,6 +68,52 @@ const QualityDashboard = () => {
     check_type: 'in_process' as 'incoming' | 'in_process' | 'final',
     notes: ''
   });
+
+  // Save new quality check to API
+  const handleSaveCheck = async () => {
+    if (!newCheck.order_number.trim()) {
+      setSaveError('Podaj numer zlecenia');
+      return;
+    }
+
+    setSaving(true);
+    setSaveError(null);
+
+    try {
+      // Find order by order number
+      const order = orders.find(o =>
+        o.orderNumber === newCheck.order_number ||
+        o.order_number === newCheck.order_number
+      );
+
+      if (!order) {
+        setSaveError('Nie znaleziono zlecenia o podanym numerze');
+        setSaving(false);
+        return;
+      }
+
+      // Create quality check via API
+      if (!isDemoMode()) {
+        await qualityApi.createCheck(order.id, {
+          check_type: newCheck.check_type,
+          status: 'pending',
+          notes: newCheck.notes || undefined
+        });
+      }
+
+      // Reset form and close modal
+      setShowNewCheckModal(false);
+      setNewCheck({ order_number: '', check_type: 'in_process', notes: '' });
+
+      // Reload data
+      await loadData();
+    } catch (err: any) {
+      console.error('Error saving quality check:', err);
+      setSaveError(err.response?.data?.error || 'Blad podczas zapisywania kontroli');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -257,21 +307,27 @@ const QualityDashboard = () => {
                 />
               </div>
             </div>
-            <div className="flex gap-2 mt-6">
+            {saveError && (
+              <div className="p-3 bg-red-100 dark:bg-red-900/30 text-red-600 rounded-lg text-sm">
+                {saveError}
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
               <button
-                onClick={() => {
-                  // TODO: Save to API
-                  console.log('New check:', newCheck);
-                  setShowNewCheckModal(false);
-                  setNewCheck({ order_number: '', check_type: 'in_process', notes: '' });
-                }}
-                className="btn-primary flex-1"
+                onClick={handleSaveCheck}
+                disabled={saving}
+                className="btn-primary flex-1 flex items-center justify-center gap-2"
               >
-                Rozpocznij kontrole
+                {saving ? <Loader2 className="animate-spin" size={16} /> : null}
+                {saving ? 'Zapisywanie...' : 'Rozpocznij kontrole'}
               </button>
               <button
-                onClick={() => setShowNewCheckModal(false)}
+                onClick={() => {
+                  setShowNewCheckModal(false);
+                  setSaveError(null);
+                }}
                 className="btn-secondary"
+                disabled={saving}
               >
                 Anuluj
               </button>
