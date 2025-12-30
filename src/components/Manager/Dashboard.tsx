@@ -329,6 +329,16 @@ const Dashboard = () => {
           </div>
         </button>
         <button
+          onClick={() => navigate('/manager/kpi')}
+          className="flex items-center gap-3 p-4 bg-pink-50 dark:bg-pink-900/20 rounded-lg hover:bg-pink-100 dark:hover:bg-pink-900/30 transition-colors"
+        >
+          <TrendingUp className="text-pink-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">KPI</p>
+            <p className="text-xs text-muted-foreground">Wskazniki</p>
+          </div>
+        </button>
+        <button
           onClick={() => navigate('/manager/orders/new')}
           className="flex items-center gap-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
         >

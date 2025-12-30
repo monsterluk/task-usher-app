@@ -18,6 +18,7 @@ import ProductionReport from '@/components/Manager/Reports/ProductionReport';
 import CostCalculator from '@/components/Manager/Costs/CostCalculator';
 import ProductionCalendar from '@/components/Manager/Calendar/ProductionCalendar';
 import DataExport from '@/components/Manager/Export/DataExport';
+import KPIDashboard from '@/components/Manager/KPI/KPIDashboard';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -58,6 +59,7 @@ const ManagerDashboard = () => {
           <Route path="costs" element={<CostCalculator />} />
           <Route path="calendar" element={<ProductionCalendar />} />
           <Route path="export" element={<DataExport />} />
+          <Route path="kpi" element={<KPIDashboard />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>
