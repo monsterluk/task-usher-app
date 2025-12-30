@@ -13,6 +13,7 @@ export const generalLimiter = rateLimit({
   },
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  validate: { trustProxy: true }, // Trust proxy is configured in server.ts
 });
 
 /**
@@ -29,6 +30,7 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Don't count successful requests against the limit
+  validate: { trustProxy: true },
 });
 
 /**
@@ -46,6 +48,7 @@ export const pinLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skipSuccessfulRequests: true, // Only count failed attempts
+  validate: { trustProxy: true },
 });
 
 /**
@@ -61,6 +64,7 @@ export const passwordChangeLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: true },
 });
 
 /**
@@ -76,6 +80,7 @@ export const uploadLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: true },
 });
 
 /**
@@ -91,4 +96,5 @@ export const externalApiLimiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  validate: { trustProxy: true },
 });
