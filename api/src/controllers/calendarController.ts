@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { pool } from '../config/database';
 import { logger } from '../utils/logger';
+import { AuthRequest } from '../types';
 
 // Google Calendar integration controller
 // For production, you would use googleapis package
@@ -95,7 +96,7 @@ export const getCalendarEvents = async (req: Request, res: Response, next: NextF
 };
 
 // Create calendar event
-export const createCalendarEvent = async (req: Request, res: Response, next: NextFunction) => {
+export const createCalendarEvent = async (req: AuthRequest, res: Response, next: NextFunction) => {
   try {
     const { title, description, start, end, type, orderId } = req.body;
 
