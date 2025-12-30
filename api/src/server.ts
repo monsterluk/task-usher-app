@@ -26,6 +26,7 @@ import notificationsRoutes from './routes/notifications';
 import maintenanceRoutes from './routes/maintenance';
 import capacityRoutes from './routes/capacity';
 import productionReportsRoutes from './routes/production-reports';
+import costsRoutes from './routes/costs';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -75,6 +76,7 @@ app.use('/api/notifications', notificationsRoutes);
 app.use('/api/maintenance', maintenanceRoutes);
 app.use('/api/capacity', capacityRoutes);
 app.use('/api/production-reports', productionReportsRoutes);
+app.use('/api/costs', costsRoutes);
 
 // Error handling
 app.use(notFoundHandler);

@@ -15,6 +15,7 @@ import OEEDashboard from '@/components/Manager/OEE/OEEDashboard';
 import MaintenanceDashboard from '@/components/Manager/Maintenance/MaintenanceDashboard';
 import CapacityDashboard from '@/components/Manager/Capacity/CapacityDashboard';
 import ProductionReport from '@/components/Manager/Reports/ProductionReport';
+import CostCalculator from '@/components/Manager/Costs/CostCalculator';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -52,6 +53,7 @@ const ManagerDashboard = () => {
           <Route path="maintenance" element={<MaintenanceDashboard />} />
           <Route path="capacity" element={<CapacityDashboard />} />
           <Route path="production-report" element={<ProductionReport />} />
+          <Route path="costs" element={<CostCalculator />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>

@@ -18,7 +18,8 @@ import {
   ShieldCheck,
   Gauge,
   Settings,
-  Factory
+  Factory,
+  Calculator
 } from 'lucide-react';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
 import {
@@ -214,7 +215,7 @@ const Dashboard = () => {
       </div>
 
       {/* Quick Actions */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 xl:grid-cols-10 gap-3 mb-8">
         <button
           onClick={() => navigate('/manager/gantt')}
           className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
@@ -293,6 +294,16 @@ const Dashboard = () => {
           <div className="text-left">
             <p className="font-semibold text-sm">Raport</p>
             <p className="text-xs text-muted-foreground">Produkcja</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/costs')}
+          className="flex items-center gap-3 p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg hover:bg-emerald-100 dark:hover:bg-emerald-900/30 transition-colors"
+        >
+          <Calculator className="text-emerald-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Koszty</p>
+            <p className="text-xs text-muted-foreground">Kalkulator</p>
           </div>
         </button>
         <button

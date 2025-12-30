@@ -813,6 +813,43 @@ export const maintenanceApi = {
   },
 };
 
+// Cost Calculator API
+export const costsApi = {
+  // Get cost for specific order
+  getOrderCost: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/costs/orders/${orderId}`);
+    return response.data;
+  },
+  // Update material cost
+  updateMaterialCost: async (orderId: number, materialCost: number) => {
+    checkDemoMode();
+    const response = await api.put(`/api/costs/orders/${orderId}/material`, { material_cost: materialCost });
+    return response.data;
+  },
+  // Get cost summary report
+  getSummary: async (filters?: { from_date?: string; to_date?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    const response = await api.get(`/api/costs/summary?${params.toString()}`);
+    return response.data;
+  },
+  // Calculate quote
+  calculateQuote: async (data: {
+    product_type?: string;
+    quantity: number;
+    material_type: string;
+    material_quantity: number;
+    stages?: { type: string; estimated_hours: number }[];
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/costs/quote', data);
+    return response.data;
+  },
+};
+
 // Production Reports API
 export const productionReportsApi = {
   // Get comprehensive report
