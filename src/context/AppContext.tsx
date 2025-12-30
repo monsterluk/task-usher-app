@@ -234,14 +234,17 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       // Spróbuj zalogować przez API
       const response = await authApi.login(email, password);
+      // API zwraca: { success: true, data: { token, user } }
+      const token = response.data?.token || response.token;
+      const user = response.data?.user || response.user;
 
-      if (response.token && response.user) {
-        localStorage.setItem('plexisystem_token', response.token);
+      if (token && user) {
+        localStorage.setItem('plexisystem_token', token);
         setCurrentUser({
-          id: response.user.id,
-          name: response.user.name,
-          role: response.user.role.toLowerCase() as UserRole,
-          email: response.user.email,
+          id: user.id,
+          name: user.name,
+          role: user.role.toLowerCase() as UserRole,
+          email: user.email,
         });
         setApiConnected(true);
         // Pobierz dane z API
@@ -351,17 +354,20 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     // Tryb produkcyjny - logowanie przez API
     try {
       const response = await authApi.loginWithPin(pin);
+      // API zwraca: { success: true, data: { token, user } }
+      const token = response.data?.token || response.token;
+      const user = response.data?.user || response.user;
 
-      if (response.token && response.user) {
-        localStorage.setItem('plexisystem_token', response.token);
+      if (token && user) {
+        localStorage.setItem('plexisystem_token', token);
         setCurrentUser({
-          id: response.user.id,
-          name: response.user.name,
-          role: response.user.role as UserRole,
-          email: response.user.email,
-          position: response.user.position,
-          skills: response.user.skills || [],
-          hourly_rate: response.user.hourly_rate,
+          id: user.id,
+          name: user.name,
+          role: user.role as UserRole,
+          email: user.email,
+          position: user.position,
+          skills: user.skills || [],
+          hourly_rate: user.hourly_rate,
         });
         setApiConnected(true);
         await refreshOrders();

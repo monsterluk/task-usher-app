@@ -11,8 +11,16 @@ import {
   Loader2,
   ArrowRight,
   BarChart3,
-  PieChart
+  PieChart,
+  GanttChartSquare,
+  Wrench,
+  FileText,
+  ShieldCheck,
+  Gauge,
+  Settings,
+  Factory
 } from 'lucide-react';
+import AnnouncementBoard from '@/components/AnnouncementBoard';
 import {
   LineChart,
   Line,
@@ -203,6 +211,100 @@ const Dashboard = () => {
           color="text-blue-600"
           onClick={() => navigate('/manager/workers')}
         />
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9 gap-3 mb-8">
+        <button
+          onClick={() => navigate('/manager/gantt')}
+          className="flex items-center gap-3 p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
+        >
+          <GanttChartSquare className="text-purple-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Gantt</p>
+            <p className="text-xs text-muted-foreground">Planowanie</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/quality')}
+          className="flex items-center gap-3 p-4 bg-teal-50 dark:bg-teal-900/20 rounded-lg hover:bg-teal-100 dark:hover:bg-teal-900/30 transition-colors"
+        >
+          <ShieldCheck className="text-teal-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">QC</p>
+            <p className="text-xs text-muted-foreground">Jakosc</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/oee')}
+          className="flex items-center gap-3 p-4 bg-violet-50 dark:bg-violet-900/20 rounded-lg hover:bg-violet-100 dark:hover:bg-violet-900/30 transition-colors"
+        >
+          <Gauge className="text-violet-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">OEE</p>
+            <p className="text-xs text-muted-foreground">Efektywnosc</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/machines')}
+          className="flex items-center gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-colors"
+        >
+          <Wrench className="text-blue-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Maszyny</p>
+            <p className="text-xs text-muted-foreground">Park</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/maintenance')}
+          className="flex items-center gap-3 p-4 bg-rose-50 dark:bg-rose-900/20 rounded-lg hover:bg-rose-100 dark:hover:bg-rose-900/30 transition-colors"
+        >
+          <Settings className="text-rose-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">TPM</p>
+            <p className="text-xs text-muted-foreground">Konserwacja</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/capacity')}
+          className="flex items-center gap-3 p-4 bg-amber-50 dark:bg-amber-900/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-900/30 transition-colors"
+        >
+          <Factory className="text-amber-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Zdolnosc</p>
+            <p className="text-xs text-muted-foreground">Capacity</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/reports')}
+          className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg hover:bg-green-100 dark:hover:bg-green-900/30 transition-colors"
+        >
+          <FileText className="text-green-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Czas</p>
+            <p className="text-xs text-muted-foreground">Praca</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/production-report')}
+          className="flex items-center gap-3 p-4 bg-cyan-50 dark:bg-cyan-900/20 rounded-lg hover:bg-cyan-100 dark:hover:bg-cyan-900/30 transition-colors"
+        >
+          <BarChart3 className="text-cyan-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Raport</p>
+            <p className="text-xs text-muted-foreground">Produkcja</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/orders/new')}
+          className="flex items-center gap-3 p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors"
+        >
+          <ClipboardList className="text-orange-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Nowe</p>
+            <p className="text-xs text-muted-foreground">Zlecenie</p>
+          </div>
+        </button>
       </div>
 
       {/* Charts Section */}
@@ -489,6 +591,11 @@ const Dashboard = () => {
             ))}
           </div>
         </div>
+      </div>
+
+      {/* Announcement Board */}
+      <div className="mt-8">
+        <AnnouncementBoard />
       </div>
     </div>
   );

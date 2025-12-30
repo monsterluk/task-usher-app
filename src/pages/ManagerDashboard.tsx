@@ -9,6 +9,12 @@ import OrderForm from '@/components/Manager/OrderForm';
 import TimeReport from '@/components/Manager/TimeReport';
 import WorkersList from '@/components/Manager/WorkersList';
 import MachinesList from '@/components/Manager/Machines/MachinesList';
+import GanttChart from '@/components/Manager/Planning/GanttChart';
+import QualityDashboard from '@/components/Manager/Quality/QualityDashboard';
+import OEEDashboard from '@/components/Manager/OEE/OEEDashboard';
+import MaintenanceDashboard from '@/components/Manager/Maintenance/MaintenanceDashboard';
+import CapacityDashboard from '@/components/Manager/Capacity/CapacityDashboard';
+import ProductionReport from '@/components/Manager/Reports/ProductionReport';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -40,6 +46,12 @@ const ManagerDashboard = () => {
           <Route path="workers" element={<WorkersList />} />
           <Route path="machines" element={<MachinesList />} />
           <Route path="reports" element={<TimeReport />} />
+          <Route path="gantt" element={<GanttChart />} />
+          <Route path="quality" element={<QualityDashboard />} />
+          <Route path="oee" element={<OEEDashboard />} />
+          <Route path="maintenance" element={<MaintenanceDashboard />} />
+          <Route path="capacity" element={<CapacityDashboard />} />
+          <Route path="production-report" element={<ProductionReport />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>

@@ -67,9 +67,9 @@ const TimeReport = () => {
                         <td className="font-semibold">{entry.stageName}</td>
                         <td>{entry.workerName}</td>
                         <td className="font-mono">{formatTime(entry.totalSeconds)}</td>
-                        <td>{entry.hourlyRate.toFixed(2)} zł/h</td>
+                        <td>{Number(entry.hourlyRate || 0).toFixed(2)} zł/h</td>
                         <td className="text-right font-semibold">
-                          {calculateCost(entry.totalSeconds, entry.hourlyRate).toFixed(2)} zł
+                          {Number(calculateCost(entry.totalSeconds, entry.hourlyRate) || 0).toFixed(2)} zł
                         </td>
                       </tr>
                     ))}
@@ -84,12 +84,12 @@ const TimeReport = () => {
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-bold">{entry.stageName}</span>
                       <span className="font-bold">
-                        {calculateCost(entry.totalSeconds, entry.hourlyRate).toFixed(2)} zł
+                        {Number(calculateCost(entry.totalSeconds, entry.hourlyRate) || 0).toFixed(2)} zł
                       </span>
                     </div>
                     <div className="text-sm text-muted-foreground space-y-1">
                       <p>{entry.workerName}</p>
-                      <p>Czas: {formatTime(entry.totalSeconds)} • {entry.hourlyRate.toFixed(2)} zł/h</p>
+                      <p>Czas: {formatTime(entry.totalSeconds)} • {Number(entry.hourlyRate || 0).toFixed(2)} zł/h</p>
                     </div>
                   </div>
                 ))}
@@ -100,7 +100,7 @@ const TimeReport = () => {
           <div className="card-industrial bg-primary text-primary-foreground">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <span className="text-lg font-semibold">RAZEM ROBOCIZNA:</span>
-              <span className="text-3xl font-bold">{totalCost.toFixed(2)} zł</span>
+              <span className="text-3xl font-bold">{Number(totalCost || 0).toFixed(2)} zł</span>
             </div>
           </div>
         </>

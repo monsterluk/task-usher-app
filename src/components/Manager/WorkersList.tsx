@@ -208,7 +208,7 @@ const WorkersList = () => {
                 <td className="font-semibold">{worker.name}</td>
                 <td className="text-muted-foreground">{worker.email}</td>
                 <td>{worker.position}</td>
-                <td className="font-mono">{worker.hourly_rate.toFixed(2)} zł/h</td>
+                <td className="font-mono">{Number(worker.hourly_rate || 0).toFixed(2)} zł/h</td>
                 <td>
                   <span className={`status-badge ${worker.role === 'manager' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                     {worker.role === 'manager' ? 'Kierownik' : 'Pracownik'}
@@ -257,7 +257,7 @@ const WorkersList = () => {
             </div>
             <div className="space-y-2 text-sm mb-4">
               <p><span className="text-muted-foreground">Stanowisko:</span> {worker.position}</p>
-              <p><span className="text-muted-foreground">Stawka:</span> {worker.hourly_rate.toFixed(2)} zł/h</p>
+              <p><span className="text-muted-foreground">Stawka:</span> {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>
               <p>
                 <span className="text-muted-foreground">Status:</span>{' '}
                 <span className={worker.active ? 'text-success' : 'text-destructive'}>

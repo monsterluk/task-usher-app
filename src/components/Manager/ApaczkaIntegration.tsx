@@ -45,6 +45,9 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
     recipient_phone: clientPhone,
     recipient_email: clientEmail,
     weight: 1,
+    length: 30,
+    width: 20,
+    height: 10,
     package_type: 'PACZKA' as 'PACZKA' | 'PALETA' | 'KOPERTA',
     cod: 0,
     insurance: 0,
@@ -136,6 +139,9 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
         recipientPhone: shipmentData.recipient_phone,
         recipientEmail: shipmentData.recipient_email,
         weight: shipmentData.weight,
+        length: shipmentData.length,
+        width: shipmentData.width,
+        height: shipmentData.height,
         packageType: shipmentData.package_type,
         cod: shipmentData.cod > 0 ? shipmentData.cod : undefined,
         insurance: shipmentData.insurance > 0 ? shipmentData.insurance : undefined,
@@ -227,7 +233,7 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xl font-bold text-primary">{courier.price.toFixed(2)} zł</p>
+                  <p className="text-xl font-bold text-primary">{Number(courier.price || 0).toFixed(2)} zł</p>
                 </div>
               </div>
               <div className="flex gap-2 mt-3 flex-wrap">
@@ -348,6 +354,42 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
           </div>
 
           <div>
+            <label className="block text-sm font-medium mb-1">Długość (cm) *</label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              className="input-industrial w-full"
+              value={shipmentData.length}
+              onChange={e => setShipmentData(p => ({ ...p, length: parseInt(e.target.value) || 1 }))}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Szerokość (cm) *</label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              className="input-industrial w-full"
+              value={shipmentData.width}
+              onChange={e => setShipmentData(p => ({ ...p, width: parseInt(e.target.value) || 1 }))}
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Wysokość (cm) *</label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              className="input-industrial w-full"
+              value={shipmentData.height}
+              onChange={e => setShipmentData(p => ({ ...p, height: parseInt(e.target.value) || 1 }))}
+            />
+          </div>
+
+          <div>
             <label className="block text-sm font-medium mb-1">Typ paczki</label>
             <select
               className="input-industrial w-full"
@@ -424,7 +466,7 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
                   <p className="text-sm text-muted-foreground">{selectedCourier?.delivery_time}</p>
                 </div>
               </div>
-              <p className="text-2xl font-bold text-primary">{selectedCourier?.price.toFixed(2)} zł</p>
+              <p className="text-2xl font-bold text-primary">{Number(selectedCourier?.price || 0).toFixed(2)} zł</p>
             </div>
           </div>
 
@@ -452,12 +494,13 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
             </h3>
             <div className="grid grid-cols-2 gap-2 text-sm">
               <p><span className="text-muted-foreground">Waga:</span> {shipmentData.weight} kg</p>
+              <p><span className="text-muted-foreground">Wymiary:</span> {shipmentData.length} × {shipmentData.width} × {shipmentData.height} cm</p>
               <p><span className="text-muted-foreground">Typ:</span> {shipmentData.package_type}</p>
               {shipmentData.cod > 0 && (
-                <p><span className="text-muted-foreground">Pobranie:</span> {shipmentData.cod.toFixed(2)} zł</p>
+                <p><span className="text-muted-foreground">Pobranie:</span> {Number(shipmentData.cod || 0).toFixed(2)} zł</p>
               )}
               {shipmentData.insurance > 0 && (
-                <p><span className="text-muted-foreground">Ubezpieczenie:</span> {shipmentData.insurance.toFixed(2)} zł</p>
+                <p><span className="text-muted-foreground">Ubezpieczenie:</span> {Number(shipmentData.insurance || 0).toFixed(2)} zł</p>
               )}
             </div>
           </div>

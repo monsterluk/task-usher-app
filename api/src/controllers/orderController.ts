@@ -3,6 +3,7 @@ import { query, getClient } from '../config/database';
 import { AuthRequest, Order } from '../types';
 import { logger } from '../utils/logger';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
+import { logAudit, getAuditContextFromRequest } from '../services/auditService';
 
 // Default stages for new orders
 const DEFAULT_STAGES = [
@@ -152,6 +153,7 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     invoice_number,
     invoice_date,
     stages: customStages,
+    priority,
   } = req.body;
 
   if (!order_number || !client_name || !product_name) {
@@ -177,10 +179,10 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     const orderResult = await client.query(
       `INSERT INTO orders (
         order_number, client_order_number, client_name, client_email, client_phone,
-        product_name, quantity, price_total, price_per_unit, status,
+        product_name, quantity, price_total, price_per_unit, status, priority,
         planned_completion_date, notes, folder_path, invoice_number, invoice_date,
         created_by, archived
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'NOWE', $10, $11, $12, $13, $14, $15, false)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'NOWE', $10, $11, $12, $13, $14, $15, $16, false)
       RETURNING *`,
       [
         order_number,
@@ -192,6 +194,7 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
         quantity,
         price_total,
         price_per_unit,
+        priority || 'NORMAL',
         planned_completion_date,
         notes,
         folder_path,
@@ -236,6 +239,15 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
 
     logger.info(`Order created: ${order_number}`);
 
+    // Audit log
+    await logAudit({
+      tableName: 'orders',
+      recordId: order.id,
+      action: 'CREATE',
+      newValues: fullOrderResult.rows[0],
+      context: getAuditContextFromRequest(req),
+    });
+
     res.status(201).json({
       success: true,
       data: {
@@ -271,6 +283,7 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     invoice_number,
     invoice_date,
     archived,
+    priority,
   } = req.body;
 
   // Check if order exists
@@ -308,6 +321,7 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     price_total,
     price_per_unit,
     status,
+    priority,
     planned_completion_date,
     notes,
     folder_path,
@@ -347,6 +361,16 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
 
   logger.info(`Order updated: ${result.rows[0].order_number}`);
 
+  // Audit log
+  await logAudit({
+    tableName: 'orders',
+    recordId: Number(id),
+    action: 'UPDATE',
+    oldValues: existingResult.rows[0],
+    newValues: result.rows[0],
+    context: getAuditContextFromRequest(req),
+  });
+
   res.json({
     success: true,
     data: {
@@ -368,6 +392,15 @@ export const deleteOrder = asyncHandler(async (req: AuthRequest, res: Response) 
   if (existingResult.rows.length === 0) {
     throw new AppError('Order not found', 404);
   }
+
+  // Audit log before delete
+  await logAudit({
+    tableName: 'orders',
+    recordId: Number(id),
+    action: 'DELETE',
+    oldValues: existingResult.rows[0],
+    context: getAuditContextFromRequest(req),
+  });
 
   // Delete order (cascades to stages, assignments, work_sessions)
   await query('DELETE FROM orders WHERE id = $1', [id]);
@@ -395,6 +428,15 @@ export const archiveOrder = asyncHandler(async (req: AuthRequest, res: Response)
 
   logger.info(`Order archived: ${result.rows[0].order_number}`);
 
+  // Audit log
+  await logAudit({
+    tableName: 'orders',
+    recordId: Number(id),
+    action: 'ARCHIVE',
+    newValues: { archived: true },
+    context: getAuditContextFromRequest(req),
+  });
+
   res.json({
     success: true,
     data: {
@@ -417,6 +459,15 @@ export const unarchiveOrder = asyncHandler(async (req: AuthRequest, res: Respons
   }
 
   logger.info(`Order unarchived: ${result.rows[0].order_number}`);
+
+  // Audit log
+  await logAudit({
+    tableName: 'orders',
+    recordId: Number(id),
+    action: 'RESTORE',
+    newValues: { archived: false },
+    context: getAuditContextFromRequest(req),
+  });
 
   res.json({
     success: true,

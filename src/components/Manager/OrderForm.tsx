@@ -1,22 +1,39 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { ordersApi, isDemoMode } from '@/utils/api';
-import { Order } from '@/types';
+import { ordersApi, orderItemsApi, isDemoMode } from '@/utils/api';
+import { Order, OrderPriority, PRIORITY_LABELS } from '@/types';
 import { generateOrderNumber } from '@/data/mockData';
-import { ArrowLeft, Save, Loader2 } from 'lucide-react';
+import { ArrowLeft, Save, Loader2, Plus, Trash2, Package } from 'lucide-react';
 import { toast } from 'sonner';
+
+// Typ dla pozycji zlecenia
+interface OrderItem {
+  id?: number;
+  product_name: string;
+  description?: string;
+  quantity: number;
+  unit: string;
+  price_per_unit: number;
+  price_total: number;
+  notes?: string;
+}
 
 const OrderForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentUser, refreshOrders, workers, orders, setOrders } = useApp();
   const isEdit = Boolean(id);
-  
+
   const [loading, setLoading] = useState(false);
 
   // Automatyczne generowanie numeru zlecenia dla nowych zleceń
   const autoOrderNumber = !isEdit ? generateOrderNumber(orders) : '';
+
+  // Stan dla pozycji zlecenia
+  const [items, setItems] = useState<OrderItem[]>([
+    { product_name: '', quantity: 1, unit: 'szt.', price_per_unit: 0, price_total: 0 }
+  ]);
 
   const [formData, setFormData] = useState<Partial<Order>>({
     order_number: autoOrderNumber,
@@ -27,7 +44,7 @@ const OrderForm = () => {
     client_address: '',
     client_postal: '',
     client_city: '',
-    product_name: '',
+    product_name: '', // Zachowujemy dla kompatybilności wstecznej
     quantity: 1,
     price_per_unit: 0,
     price_total: 0,
@@ -40,7 +57,35 @@ const OrderForm = () => {
     shipment_number: '',    // Nr listu przewozowego (Apaczka)
     packaging_info: '',     // Info o pakowaniu
     status: 'NOWE',
+    priority: 'NORMAL' as OrderPriority,
   });
+
+  // Funkcje do zarządzania pozycjami
+  const addItem = () => {
+    setItems(prev => [...prev, { product_name: '', quantity: 1, unit: 'szt.', price_per_unit: 0, price_total: 0 }]);
+  };
+
+  const removeItem = (index: number) => {
+    if (items.length > 1) {
+      setItems(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateItem = (index: number, field: keyof OrderItem, value: any) => {
+    setItems(prev => {
+      const updated = [...prev];
+      updated[index] = { ...updated[index], [field]: value };
+      // Automatyczne przeliczenie ceny całkowitej pozycji
+      if (field === 'quantity' || field === 'price_per_unit') {
+        updated[index].price_total = (updated[index].quantity || 0) * (updated[index].price_per_unit || 0);
+      }
+      return updated;
+    });
+  };
+
+  // Oblicz sumę całkowitą ze wszystkich pozycji
+  const totalPrice = items.reduce((sum, item) => sum + (item.price_total || 0), 0);
+  const totalQuantity = items.reduce((sum, item) => sum + (item.quantity || 0), 0);
 
   // Zaktualizuj numer przy zmianie isEdit lub orders
   useEffect(() => {
@@ -60,6 +105,16 @@ const OrderForm = () => {
           const existingOrder = orders.find(o => o.id === Number(id));
           if (existingOrder) {
             setFormData(existingOrder);
+            // W trybie demo utwórz jedną pozycję z danych zlecenia
+            if (existingOrder.product_name) {
+              setItems([{
+                product_name: existingOrder.product_name,
+                quantity: existingOrder.quantity || 1,
+                unit: 'szt.',
+                price_per_unit: existingOrder.price_per_unit || 0,
+                price_total: existingOrder.price_total || 0
+              }]);
+            }
           }
           setLoading(false);
           return;
@@ -70,11 +125,48 @@ const OrderForm = () => {
           if (response.success && response.data?.order) {
             setFormData(response.data.order);
           }
+
+          // Załaduj pozycje zlecenia
+          try {
+            const itemsResponse = await orderItemsApi.getOrderItems(Number(id));
+            if (itemsResponse.success && itemsResponse.data?.items?.length > 0) {
+              setItems(itemsResponse.data.items.map((item: any) => ({
+                id: item.id,
+                product_name: item.product_name,
+                description: item.description,
+                quantity: item.quantity || 1,
+                unit: item.unit || 'szt.',
+                price_per_unit: parseFloat(item.price_per_unit) || 0,
+                price_total: parseFloat(item.price_total) || 0,
+                notes: item.notes
+              })));
+            } else if (response.data?.order?.product_name) {
+              // Fallback - jeśli nie ma pozycji, utwórz jedną z danych zlecenia
+              setItems([{
+                product_name: response.data.order.product_name,
+                quantity: response.data.order.quantity || 1,
+                unit: 'szt.',
+                price_per_unit: parseFloat(response.data.order.price_per_unit) || 0,
+                price_total: parseFloat(response.data.order.price_total) || 0
+              }]);
+            }
+          } catch (itemsError) {
+            console.error('Failed to load order items:', itemsError);
+          }
         } catch (error) {
           // Fallback do lokalnego stanu
           const existingOrder = orders.find(o => o.id === Number(id));
           if (existingOrder) {
             setFormData(existingOrder);
+            if (existingOrder.product_name) {
+              setItems([{
+                product_name: existingOrder.product_name,
+                quantity: existingOrder.quantity || 1,
+                unit: 'szt.',
+                price_per_unit: existingOrder.price_per_unit || 0,
+                price_total: existingOrder.price_total || 0
+              }]);
+            }
           } else {
             toast.error('Nie udało się pobrać zlecenia');
           }
@@ -86,58 +178,59 @@ const OrderForm = () => {
     loadOrder();
   }, [isEdit, id, orders]);
 
-  // Auto-calculate total price
-  useEffect(() => {
-    if (formData.quantity && formData.price_per_unit) {
-      setFormData(prev => ({
-        ...prev,
-        price_total: Number(prev.quantity) * Number(prev.price_per_unit)
-      }));
-    }
-  }, [formData.quantity, formData.price_per_unit]);
-
   const handleSave = async () => {
-    if (!formData.order_number || !formData.client_name || !formData.product_name) {
-      toast.error('Wypełnij wymagane pola (nr zlecenia, klient, produkt)');
+    // Walidacja - sprawdź czy jest przynajmniej jedna pozycja z nazwą produktu
+    const validItems = items.filter(item => item.product_name.trim());
+    if (!formData.order_number || !formData.client_name || validItems.length === 0) {
+      toast.error('Wypełnij wymagane pola (nr zlecenia, klient, min. 1 pozycja z nazwą produktu)');
       return;
     }
 
     setLoading(true);
 
+    // Przygotuj dane zlecenia z pierwszą pozycją jako głównym produktem (dla kompatybilności)
+    const orderData = {
+      ...formData,
+      product_name: validItems[0].product_name,
+      quantity: totalQuantity,
+      price_total: totalPrice,
+      price_per_unit: validItems.length === 1 ? validItems[0].price_per_unit : 0
+    };
+
     // W trybie demo - zapisz lokalnie
     if (isDemoMode()) {
       if (isEdit && id) {
         setOrders(prev => prev.map(o =>
-          o.id === Number(id) ? { ...o, ...formData } as Order : o
+          o.id === Number(id) ? { ...o, ...orderData } as Order : o
         ));
         toast.success('Zlecenie zaktualizowane');
       } else {
         const newOrder: Order = {
           id: Math.max(0, ...orders.map(o => o.id)) + 1,
-          order_number: formData.order_number!,
-          client_order_number: formData.client_order_number,
-          client_name: formData.client_name!,
-          client_email: formData.client_email,
-          client_phone: formData.client_phone,
-          client_address: formData.client_address,
-          client_postal: formData.client_postal,
-          client_city: formData.client_city,
-          product_name: formData.product_name!,
-          quantity: formData.quantity || 1,
-          price_total: formData.price_total,
-          price_per_unit: formData.price_per_unit,
+          order_number: orderData.order_number!,
+          client_order_number: orderData.client_order_number,
+          client_name: orderData.client_name!,
+          client_email: orderData.client_email,
+          client_phone: orderData.client_phone,
+          client_address: orderData.client_address,
+          client_postal: orderData.client_postal,
+          client_city: orderData.client_city,
+          product_name: orderData.product_name!,
+          quantity: orderData.quantity || 1,
+          price_total: orderData.price_total,
+          price_per_unit: orderData.price_per_unit,
           status: 'NOWE',
-          planned_completion_date: formData.planned_completion_date || new Date().toISOString().split('T')[0],
-          notes: formData.notes,
-          folder_path: formData.folder_path,
-          invoice_number: formData.invoice_number,
+          planned_completion_date: orderData.planned_completion_date || new Date().toISOString().split('T')[0],
+          notes: orderData.notes,
+          folder_path: orderData.folder_path,
+          invoice_number: orderData.invoice_number,
           created_by: currentUser?.name,
           created_at: new Date().toISOString(),
           archived: false,
           stages: []
         };
         setOrders(prev => [...prev, newOrder]);
-        toast.success('Zlecenie utworzone pomyślnie!');
+        toast.success(`Zlecenie utworzone z ${validItems.length} pozycją/ami!`);
       }
       setLoading(false);
       navigate('/manager/orders');
@@ -147,8 +240,33 @@ const OrderForm = () => {
     // Tryb z API
     try {
       if (isEdit && id) {
-        const response = await ordersApi.update(Number(id), formData);
+        const response = await ordersApi.update(Number(id), orderData);
         if (response.success) {
+          // Aktualizuj pozycje - usuń stare i dodaj nowe
+          // (dla uproszczenia - w przyszłości można dodać bardziej inteligentną aktualizację)
+          for (const item of validItems) {
+            if (item.id) {
+              // Aktualizuj istniejącą pozycję
+              await orderItemsApi.update(item.id, {
+                product_name: item.product_name,
+                description: item.description,
+                quantity: item.quantity,
+                unit: item.unit,
+                price_per_unit: item.price_per_unit,
+                notes: item.notes
+              });
+            } else {
+              // Dodaj nową pozycję
+              await orderItemsApi.create(Number(id), {
+                product_name: item.product_name,
+                description: item.description,
+                quantity: item.quantity,
+                unit: item.unit,
+                price_per_unit: item.price_per_unit,
+                notes: item.notes
+              });
+            }
+          }
           toast.success('Zlecenie zaktualizowane');
           await refreshOrders();
           navigate('/manager/orders');
@@ -156,9 +274,28 @@ const OrderForm = () => {
           toast.error(response.error || 'Błąd aktualizacji');
         }
       } else {
-        const response = await ordersApi.create(formData as any);
-        if (response.success) {
-          toast.success('Zlecenie utworzone pomyślnie!');
+        // Tworzenie nowego zlecenia
+        const response = await ordersApi.create(orderData as any);
+        if (response.success && response.data?.order?.id) {
+          const newOrderId = response.data.order.id;
+
+          // Dodaj wszystkie pozycje do nowego zlecenia
+          for (const item of validItems) {
+            try {
+              await orderItemsApi.create(newOrderId, {
+                product_name: item.product_name,
+                description: item.description,
+                quantity: item.quantity,
+                unit: item.unit,
+                price_per_unit: item.price_per_unit,
+                notes: item.notes
+              });
+            } catch (itemError) {
+              console.error('Failed to create item:', itemError);
+            }
+          }
+
+          toast.success(`Zlecenie utworzone z ${validItems.length} pozycją/ami!`);
           await refreshOrders();
           navigate('/manager/orders');
         } else {
@@ -169,20 +306,20 @@ const OrderForm = () => {
       // Fallback do lokalnego zapisu w przypadku błędu
       if (isEdit && id) {
         setOrders(prev => prev.map(o =>
-          o.id === Number(id) ? { ...o, ...formData } as Order : o
+          o.id === Number(id) ? { ...o, ...orderData } as Order : o
         ));
         toast.success('Zlecenie zaktualizowane (lokalnie)');
       } else {
         const newOrder: Order = {
           id: Math.max(0, ...orders.map(o => o.id)) + 1,
-          order_number: formData.order_number!,
-          client_name: formData.client_name!,
-          product_name: formData.product_name!,
-          quantity: formData.quantity || 1,
-          price_total: formData.price_total,
+          order_number: orderData.order_number!,
+          client_name: orderData.client_name!,
+          product_name: orderData.product_name!,
+          quantity: orderData.quantity || 1,
+          price_total: orderData.price_total,
           status: 'NOWE',
-          planned_completion_date: formData.planned_completion_date || new Date().toISOString().split('T')[0],
-          notes: formData.notes,
+          planned_completion_date: orderData.planned_completion_date || new Date().toISOString().split('T')[0],
+          notes: orderData.notes,
           created_by: currentUser?.name,
           created_at: new Date().toISOString(),
           archived: false,
@@ -259,6 +396,20 @@ const OrderForm = () => {
                   onChange={e => updateField('planned_completion_date', e.target.value)}
                   className="input-industrial"
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Priorytet</label>
+                <select
+                  value={formData.priority || 'NORMAL'}
+                  onChange={e => updateField('priority', e.target.value as OrderPriority)}
+                  className="input-industrial"
+                >
+                  {(Object.keys(PRIORITY_LABELS) as OrderPriority[]).map(priority => (
+                    <option key={priority} value={priority}>
+                      {PRIORITY_LABELS[priority]}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
           </div>
@@ -340,49 +491,131 @@ const OrderForm = () => {
             </div>
           </div>
 
-          {/* Section 3: Product Info */}
+          {/* Section 3: Products/Items */}
           <div className="border-b border-border pb-4">
-            <h2 className="font-semibold mb-4 text-lg">📦 Produkt</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-2">Nazwa Produktu *</label>
-                <input
-                  type="text"
-                  value={formData.product_name || ''}
-                  onChange={e => updateField('product_name', e.target.value)}
-                  className="input-industrial"
-                  placeholder="Kieszonka A4 spacewall V2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Ilość (szt.)</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.quantity || 1}
-                  onChange={e => updateField('quantity', parseInt(e.target.value) || 1)}
-                  className="input-industrial"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Cena za sztukę (zł)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.price_per_unit || 0}
-                  onChange={e => updateField('price_per_unit', parseFloat(e.target.value) || 0)}
-                  className="input-industrial"
-                />
-              </div>
-              <div className="md:col-span-3 bg-primary/10 p-4 rounded-lg">
-                <label className="block text-sm font-medium mb-2">💰 Wartość Całkowita</label>
-                <div className="text-3xl font-bold text-primary">
-                  {formData.price_total?.toFixed(2) || '0.00'} zł
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-lg flex items-center gap-2">
+                <Package size={20} />
+                Pozycje Zlecenia ({items.length})
+              </h2>
+              <button
+                type="button"
+                onClick={addItem}
+                className="btn-secondary text-sm flex items-center gap-1"
+              >
+                <Plus size={16} />
+                Dodaj pozycję
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              {items.map((item, index) => (
+                <div key={index} className="bg-muted/30 p-4 rounded-lg border border-border">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="font-medium text-sm text-muted-foreground">
+                      Pozycja {index + 1}
+                    </span>
+                    {items.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => removeItem(index)}
+                        className="text-destructive hover:text-destructive/80 p-1"
+                        title="Usuń pozycję"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                    {/* Nazwa produktu - szersze pole */}
+                    <div className="md:col-span-5">
+                      <label className="block text-xs font-medium mb-1">Nazwa produktu *</label>
+                      <input
+                        type="text"
+                        value={item.product_name}
+                        onChange={e => updateItem(index, 'product_name', e.target.value)}
+                        className="input-industrial text-sm"
+                        placeholder="Kieszonka A4 spacewall V2"
+                      />
+                    </div>
+
+                    {/* Ilość */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium mb-1">Ilość</label>
+                      <div className="flex gap-1">
+                        <input
+                          type="number"
+                          min="1"
+                          value={item.quantity}
+                          onChange={e => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                          className="input-industrial text-sm w-full"
+                        />
+                        <select
+                          value={item.unit}
+                          onChange={e => updateItem(index, 'unit', e.target.value)}
+                          className="input-industrial text-sm w-20"
+                        >
+                          <option value="szt.">szt.</option>
+                          <option value="kpl.">kpl.</option>
+                          <option value="m">m</option>
+                          <option value="m²">m²</option>
+                          <option value="kg">kg</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Cena za sztukę */}
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium mb-1">Cena/szt. (zł)</label>
+                      <input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={item.price_per_unit}
+                        onChange={e => updateItem(index, 'price_per_unit', parseFloat(e.target.value) || 0)}
+                        className="input-industrial text-sm"
+                      />
+                    </div>
+
+                    {/* Wartość */}
+                    <div className="md:col-span-3">
+                      <label className="block text-xs font-medium mb-1">Wartość</label>
+                      <div className="input-industrial bg-primary/10 text-primary font-semibold text-sm">
+                        {item.price_total.toFixed(2)} zł
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Opis - opcjonalny */}
+                  <div className="mt-2">
+                    <input
+                      type="text"
+                      value={item.description || ''}
+                      onChange={e => updateItem(index, 'description', e.target.value)}
+                      className="input-industrial text-sm w-full"
+                      placeholder="Opis/uwagi do pozycji (opcjonalnie)"
+                    />
+                  </div>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Obliczana automatycznie: {formData.quantity || 0} × {formData.price_per_unit?.toFixed(2) || '0.00'} zł
-                </p>
+              ))}
+            </div>
+
+            {/* Podsumowanie wartości */}
+            <div className="mt-4 bg-primary/10 p-4 rounded-lg">
+              <div className="flex justify-between items-center">
+                <div>
+                  <span className="text-sm text-muted-foreground">Suma pozycji: </span>
+                  <span className="font-medium">{items.length}</span>
+                  <span className="text-sm text-muted-foreground ml-4">Łączna ilość: </span>
+                  <span className="font-medium">{totalQuantity}</span>
+                </div>
+                <div className="text-right">
+                  <label className="block text-sm font-medium mb-1">💰 Wartość Całkowita</label>
+                  <div className="text-3xl font-bold text-primary">
+                    {totalPrice.toFixed(2)} zł
+                  </div>
+                </div>
               </div>
             </div>
           </div>

@@ -4,7 +4,7 @@ import { useApp } from '@/context/AppContext';
 import Navigation from '@/components/Navigation';
 import { Worker, Machine, Position, UserRole, ROLE_LABELS, ROLES_WITH_PRICE_ACCESS } from '@/types';
 import { positions } from '@/data/mockData';
-import { workersApi, isDemoMode } from '@/utils/api';
+import { workersApi, settingsApi, isDemoMode } from '@/utils/api';
 import {
   Users,
   Cog,
@@ -28,6 +28,7 @@ import {
   Home
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
+import AnnouncementBoard from '@/components/AnnouncementBoard';
 
 // Umiejętności/etapy produkcyjne do przypisania
 const AVAILABLE_SKILLS: Position[] = [
@@ -511,7 +512,7 @@ const WorkersManagement = () => {
                     </div>
                   </td>
                   {canViewPrices && (
-                    <td className="font-mono">{worker.hourly_rate?.toFixed(2) || '0.00'} zł</td>
+                    <td className="font-mono">{Number(worker.hourly_rate || 0).toFixed(2)} zł</td>
                   )}
                   <td>
                     <button onClick={() => toggleActive(worker.id)} className="flex items-center gap-1">
@@ -732,7 +733,7 @@ const MachinesManagement = () => {
                   {getStatusBadge(machine.status)}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm">{machine.hourly_rate.toFixed(2)} zł/h</span>
+                  <span className="font-mono text-sm">{Number(machine.hourly_rate || 0).toFixed(2)} zł/h</span>
                   <div className="flex gap-1">
                     <button onClick={() => startEdit(machine)} className="btn-secondary py-1 px-2">
                       <Edit2 size={14} />
@@ -758,15 +759,36 @@ const AdminHome = () => {
 
   const activeOrders = orders.filter(o => !o.archived && o.status !== 'GOTOWE');
   const completedOrders = orders.filter(o => o.status === 'GOTOWE');
-  const totalRevenue = completedOrders.reduce((sum, o) => sum + (o.price_total || 0), 0);
-  const pendingRevenue = activeOrders.reduce((sum, o) => sum + (o.price_total || 0), 0);
+
+  // Calculate revenues with proper number conversion and safety checks
+  const totalRevenue = completedOrders.reduce((sum, o) => {
+    const price = Number(o.price_total) || 0;
+    return sum + (isNaN(price) ? 0 : price);
+  }, 0);
+
+  const pendingRevenue = activeOrders.reduce((sum, o) => {
+    const price = Number(o.price_total) || 0;
+    return sum + (isNaN(price) ? 0 : price);
+  }, 0);
+
   const activeWorkers = workers.filter(w => w.active).length;
   const availableMachines = machines.filter(m => m.status === 'available').length;
-  const overdueOrders = activeOrders.filter(o => new Date(o.planned_completion_date) < new Date());
+  const overdueOrders = activeOrders.filter(o => o.planned_completion_date && new Date(o.planned_completion_date) < new Date());
 
-  const totalLaborHours = timeEntries.reduce((sum, te) => sum + te.totalSeconds / 3600, 0);
-  const avgHourlyRate = workers.length > 0 ? workers.reduce((sum, w) => sum + w.hourly_rate, 0) / workers.length : 50;
-  const estimatedLaborCost = totalLaborHours * avgHourlyRate;
+  // Calculate labor costs with safety checks
+  const totalLaborHours = timeEntries.reduce((sum, te) => {
+    const seconds = Number(te.totalSeconds) || 0;
+    return sum + (isNaN(seconds) ? 0 : seconds / 3600);
+  }, 0);
+
+  const avgHourlyRate = workers.length > 0
+    ? workers.reduce((sum, w) => {
+        const rate = Number(w.hourly_rate) || 0;
+        return sum + (isNaN(rate) ? 0 : rate);
+      }, 0) / workers.length
+    : 50;
+
+  const estimatedLaborCost = isNaN(totalLaborHours * avgHourlyRate) ? 0 : totalLaborHours * avgHourlyRate;
 
   const KPICard = ({ title, value, subtitle, icon: Icon, color, onClick }: any) => (
     <div className={`card-industrial ${onClick ? 'cursor-pointer hover:shadow-lg' : ''}`} onClick={onClick}>
@@ -808,12 +830,12 @@ const AdminHome = () => {
         <DollarSign size={20} /> Finanse
       </h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-        <KPICard title="Przychód (zrealizowane)" value={`${totalRevenue.toLocaleString('pl-PL')} zł`}
+        <KPICard title="Przychód (zrealizowane)" value={`${(totalRevenue || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`}
           icon={DollarSign} color="text-green-600" subtitle={`${completedOrders.length} zleceń`} />
-        <KPICard title="Przychód oczekiwany" value={`${pendingRevenue.toLocaleString('pl-PL')} zł`}
+        <KPICard title="Przychód oczekiwany" value={`${(pendingRevenue || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`}
           icon={TrendingUp} color="text-blue-600" subtitle={`${activeOrders.length} aktywnych`} />
-        <KPICard title="Koszty pracy (szac.)" value={`${estimatedLaborCost.toLocaleString('pl-PL', { maximumFractionDigits: 0 })} zł`}
-          icon={Users} color="text-orange-600" subtitle={`${totalLaborHours.toFixed(1)} godz.`} />
+        <KPICard title="Koszty pracy (szac.)" value={`${(estimatedLaborCost || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł`}
+          icon={Users} color="text-orange-600" subtitle={`${(totalLaborHours || 0).toFixed(1)} godz.`} />
         <KPICard title="Przeterminowane" value={overdueOrders.length}
           icon={AlertTriangle} color={overdueOrders.length > 0 ? "text-red-600" : "text-green-600"} />
       </div>
@@ -827,8 +849,13 @@ const AdminHome = () => {
           subtitle={`z ${workers.length} w systemie`} onClick={() => navigate('/admin/workers')} />
         <KPICard title="Dostępne maszyny" value={availableMachines} icon={Cog} color="text-purple-600"
           subtitle={`z ${machines.length} w systemie`} onClick={() => navigate('/admin/machines')} />
-        <KPICard title="Wszystkie zlecenia" value={orders.length} icon={Package} color="text-primary" />
-        <KPICard title="Średnia stawka" value={`${avgHourlyRate.toFixed(2)} zł/h`} icon={DollarSign} color="text-green-600" />
+        <KPICard title="Wszystkie zlecenia" value={orders.length} icon={Package} color="text-primary" onClick={() => navigate('/kierownik')} />
+        <KPICard title="Średnia stawka" value={`${(avgHourlyRate || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} zł/h`} icon={DollarSign} color="text-green-600" />
+      </div>
+
+      {/* Announcement Board */}
+      <div className="mb-8">
+        <AnnouncementBoard />
       </div>
 
       {/* Workers by Position */}
@@ -868,9 +895,87 @@ const AdminHome = () => {
   );
 };
 
+// Default production stages
+const DEFAULT_STAGES = [
+  'GRAFIK', 'FREZOWANIE', 'LASER', 'POLEROWANIE', 'WYGINANIE',
+  'KLEJENIE', 'DRUKOWANIE', 'OKLEJANIE', 'PAKOWANIE', 'WYSYŁKA'
+];
+
 // ==================== ADMIN SETTINGS ====================
 const AdminSettings = () => {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newStageName, setNewStageName] = useState('');
+  const [settings, setSettings] = useState({
+    company_name: 'PLEXI SYSTEM',
+    company_nip: '',
+    default_worker_rate: 43.27,
+    default_machine_rate: 100.00,
+    company_address: '',
+    company_email: '',
+    company_phone: '',
+    default_stages: DEFAULT_STAGES as string[],
+  });
+
+  // Load settings on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      if (isDemoMode()) {
+        setLoading(false);
+        return;
+      }
+      try {
+        const response = await settingsApi.get();
+        if (response.success && response.data) {
+          setSettings(response.data);
+        }
+      } catch (error) {
+        console.error('Failed to load settings:', error);
+        // Try to initialize settings table
+        try {
+          await settingsApi.init();
+          const response = await settingsApi.get();
+          if (response.success && response.data) {
+            setSettings(response.data);
+          }
+        } catch (initError) {
+          console.error('Failed to initialize settings:', initError);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadSettings();
+  }, []);
+
+  const handleSave = async () => {
+    if (isDemoMode()) {
+      toast({ title: 'Tryb demo', description: 'Ustawienia nie są zapisywane w trybie demo' });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const response = await settingsApi.update(settings);
+      if (response.success) {
+        toast({ title: 'Sukces', description: 'Ustawienia zostały zapisane' });
+      }
+    } catch (error) {
+      console.error('Failed to save settings:', error);
+      toast({ title: 'Błąd', description: 'Nie udało się zapisać ustawień', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-4 md:p-6 max-w-4xl mx-auto">
+        <div className="text-center py-8">Ładowanie ustawień...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto">
@@ -889,11 +994,52 @@ const AdminSettings = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Nazwa firmy</label>
-              <input type="text" defaultValue="PLEXI SYSTEM" className="input-industrial w-full" />
+              <input
+                type="text"
+                value={settings.company_name}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_name: e.target.value }))}
+                className="input-industrial w-full"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">NIP</label>
-              <input type="text" placeholder="000-000-00-00" className="input-industrial w-full" />
+              <input
+                type="text"
+                value={settings.company_nip}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_nip: e.target.value }))}
+                placeholder="000-000-00-00"
+                className="input-industrial w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Adres</label>
+              <input
+                type="text"
+                value={settings.company_address || ''}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_address: e.target.value }))}
+                placeholder="ul. Przykładowa 1, 00-000 Miasto"
+                className="input-industrial w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Email</label>
+              <input
+                type="email"
+                value={settings.company_email || ''}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_email: e.target.value }))}
+                placeholder="kontakt@firma.pl"
+                className="input-industrial w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium mb-2">Telefon</label>
+              <input
+                type="tel"
+                value={settings.company_phone || ''}
+                onChange={(e) => setSettings(prev => ({ ...prev, company_phone: e.target.value }))}
+                placeholder="+48 123 456 789"
+                className="input-industrial w-full"
+              />
             </div>
           </div>
         </div>
@@ -903,16 +1049,113 @@ const AdminSettings = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">Stawka pracownika (zł/h)</label>
-              <input type="number" defaultValue="43.27" step="0.01" className="input-industrial w-full" />
+              <input
+                type="number"
+                value={settings.default_worker_rate}
+                onChange={(e) => setSettings(prev => ({ ...prev, default_worker_rate: parseFloat(e.target.value) || 0 }))}
+                step="0.01"
+                className="input-industrial w-full"
+              />
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Stawka maszyny (zł/h)</label>
-              <input type="number" defaultValue="100.00" step="0.01" className="input-industrial w-full" />
+              <input
+                type="number"
+                value={settings.default_machine_rate}
+                onChange={(e) => setSettings(prev => ({ ...prev, default_machine_rate: parseFloat(e.target.value) || 0 }))}
+                step="0.01"
+                className="input-industrial w-full"
+              />
             </div>
           </div>
         </div>
 
-        <button className="btn-primary w-full">Zapisz ustawienia</button>
+        {/* Global Stages Management */}
+        <div className="card-industrial">
+          <h2 className="font-bold mb-4">Globalne etapy produkcji</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Zarządzaj domyślnymi etapami produkcji. Te etapy będą dostępne przy tworzeniu nowych zleceń.
+          </p>
+
+          {/* Current stages */}
+          <div className="flex flex-wrap gap-2 mb-4">
+            {(settings.default_stages || DEFAULT_STAGES).map((stage, index) => (
+              <div
+                key={`${stage}-${index}`}
+                className="flex items-center gap-2 px-3 py-2 bg-primary/10 rounded-lg"
+              >
+                <span className="text-sm font-medium text-primary">{index + 1}. {stage}</span>
+                <button
+                  onClick={() => {
+                    setSettings(prev => ({
+                      ...prev,
+                      default_stages: prev.default_stages.filter((_, i) => i !== index)
+                    }));
+                  }}
+                  className="text-red-500 hover:text-red-700 ml-1"
+                  title="Usuń etap"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          {/* Add new stage */}
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={newStageName}
+              onChange={(e) => setNewStageName(e.target.value.toUpperCase())}
+              placeholder="Nazwa nowego etapu"
+              className="input-industrial flex-1"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && newStageName.trim()) {
+                  e.preventDefault();
+                  if (!settings.default_stages.includes(newStageName.trim())) {
+                    setSettings(prev => ({
+                      ...prev,
+                      default_stages: [...prev.default_stages, newStageName.trim()]
+                    }));
+                    setNewStageName('');
+                  }
+                }
+              }}
+            />
+            <button
+              onClick={() => {
+                if (newStageName.trim() && !settings.default_stages.includes(newStageName.trim())) {
+                  setSettings(prev => ({
+                    ...prev,
+                    default_stages: [...prev.default_stages, newStageName.trim()]
+                  }));
+                  setNewStageName('');
+                }
+              }}
+              className="btn-secondary"
+              disabled={!newStageName.trim() || settings.default_stages.includes(newStageName.trim())}
+            >
+              <Plus size={18} className="mr-2" />
+              Dodaj etap
+            </button>
+          </div>
+
+          {/* Reset to defaults */}
+          <button
+            onClick={() => setSettings(prev => ({ ...prev, default_stages: [...DEFAULT_STAGES] }))}
+            className="btn-secondary mt-4 text-sm"
+          >
+            Przywróć domyślne etapy
+          </button>
+        </div>
+
+        <button
+          onClick={handleSave}
+          disabled={saving}
+          className="btn-primary w-full"
+        >
+          {saving ? 'Zapisywanie...' : 'Zapisz ustawienia'}
+        </button>
       </div>
     </div>
   );

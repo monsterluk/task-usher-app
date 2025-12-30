@@ -22,6 +22,22 @@ export type StageStatus = 'pending' | 'in_progress' | 'completed' | 'delayed';
 // PRACOWNIK - wykonuje zadania produkcyjne (NIE widzi cen)
 export type UserRole = 'ADMIN' | 'GRAFIK' | 'HANDLOWIEC' | 'KIEROWNIK' | 'PRACOWNIK';
 
+export type OrderPriority = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+
+export const PRIORITY_LABELS: Record<OrderPriority, string> = {
+  'LOW': 'Niski',
+  'NORMAL': 'Normalny',
+  'HIGH': 'Wysoki',
+  'URGENT': 'Pilny',
+};
+
+export const PRIORITY_COLORS: Record<OrderPriority, string> = {
+  'LOW': 'text-gray-500',
+  'NORMAL': 'text-blue-600',
+  'HIGH': 'text-orange-500',
+  'URGENT': 'text-red-600',
+};
+
 // Mapowanie starych ról (dla kompatybilności)
 export const ROLE_LABELS: Record<UserRole, string> = {
   'ADMIN': 'Administrator',
@@ -61,6 +77,7 @@ export interface Order {
   price_total?: number;
   price_per_unit?: number;
   status: 'NOWE' | 'W_TRAKCIE' | 'GOTOWE';
+  priority: OrderPriority;
   planned_completion_date: string;
   notes?: string;
   folder_path?: string;
@@ -76,6 +93,7 @@ export interface Order {
   currentStage?: string;
   comments?: OrderComment[];
   history?: OrderHistory[];
+  attachments?: OrderAttachment[];
 }
 
 export type StageCategory = 'preparation' | 'production' | 'administrative';
@@ -116,6 +134,17 @@ export interface OrderComment {
   content: string;
   createdAt: string;
   type: 'comment' | 'system'; // system for automatic notes like status changes
+}
+
+export interface OrderAttachment {
+  id: string;
+  orderId: number;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 
 export interface OrderHistory {

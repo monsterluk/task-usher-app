@@ -198,6 +198,55 @@ export const ordersApi = {
   },
 };
 
+// Order Items API (pozycje zlecenia)
+export const orderItemsApi = {
+  getOrderItems: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/items`);
+    return response.data;
+  },
+  create: async (orderId: number, data: {
+    product_name: string;
+    description?: string;
+    quantity?: number;
+    unit?: string;
+    price_per_unit?: number;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/orders/${orderId}/items`, data);
+    return response.data;
+  },
+  update: async (id: number, data: Partial<{
+    product_name: string;
+    description: string;
+    quantity: number;
+    unit: string;
+    price_per_unit: number;
+    status: string;
+    notes: string;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/order-items/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/order-items/${id}`);
+    return response.data;
+  },
+  getStages: async (itemId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/order-items/${itemId}/stages`);
+    return response.data;
+  },
+  addStages: async (itemId: number, stages: string[]) => {
+    checkDemoMode();
+    const response = await api.post(`/api/order-items/${itemId}/stages`, { stages });
+    return response.data;
+  },
+};
+
 // Stages API
 export const stagesApi = {
   getOrderStages: async (orderId: number) => {
@@ -301,6 +350,531 @@ export const reportsApi = {
   getSummaryReport: async () => {
     checkDemoMode();
     const response = await api.get('/api/reports/summary');
+    return response.data;
+  },
+};
+
+// Attachments API
+export const attachmentsApi = {
+  getOrderAttachments: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/attachments`);
+    return response.data;
+  },
+  upload: async (orderId: number, file: File) => {
+    checkDemoMode();
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await api.post(`/api/orders/${orderId}/attachments`, formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/attachments/${id}`);
+    return response.data;
+  },
+  download: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/attachments/${id}/download`, {
+      responseType: 'blob',
+    });
+    return response.data;
+  },
+};
+
+// Comments API
+export const commentsApi = {
+  getOrderComments: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/comments`);
+    return response.data;
+  },
+  create: async (orderId: number, content: string) => {
+    checkDemoMode();
+    const response = await api.post(`/api/orders/${orderId}/comments`, { content });
+    return response.data;
+  },
+  getRecent: async (limit: number = 10) => {
+    checkDemoMode();
+    const response = await api.get('/api/comments/recent', { params: { limit } });
+    return response.data;
+  },
+};
+
+// Announcements API (tablica ogłoszeń)
+export const announcementsApi = {
+  getAll: async (limit: number = 20) => {
+    checkDemoMode();
+    const response = await api.get('/api/announcements', { params: { limit } });
+    return response.data;
+  },
+  create: async (data: { title: string; content: string; priority?: string; is_pinned?: boolean }) => {
+    checkDemoMode();
+    const response = await api.post('/api/announcements', data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/announcements/${id}`);
+    return response.data;
+  },
+};
+
+// Stage Templates API
+export const stageTemplatesApi = {
+  getAll: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/stage-templates');
+    return response.data;
+  },
+  create: async (data: { name: string; color: string; sequence_order: number }) => {
+    checkDemoMode();
+    const response = await api.post('/api/stage-templates', data);
+    return response.data;
+  },
+  update: async (id: number, data: { name?: string; color?: string; sequence_order?: number }) => {
+    checkDemoMode();
+    const response = await api.put(`/api/stage-templates/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/stage-templates/${id}`);
+    return response.data;
+  },
+};
+
+// Settings API
+export const settingsApi = {
+  get: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/settings');
+    return response.data;
+  },
+  update: async (data: {
+    company_name?: string;
+    company_nip?: string;
+    default_worker_rate?: number;
+    default_machine_rate?: number;
+    company_address?: string;
+    company_email?: string;
+    company_phone?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.put('/api/settings', data);
+    return response.data;
+  },
+  init: async () => {
+    checkDemoMode();
+    const response = await api.post('/api/settings/init');
+    return response.data;
+  },
+};
+
+// Machines API
+export const machinesApi = {
+  getAll: async (filters?: { active?: boolean; status?: string; department?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.active !== undefined) params.append('active', String(filters.active));
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.department) params.append('department', filters.department);
+    const response = await api.get(`/api/machines?${params.toString()}`);
+    return response.data;
+  },
+  getById: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/machines/${id}`);
+    return response.data;
+  },
+  create: async (data: {
+    name: string;
+    cost_per_hour?: number;
+    description?: string;
+    department?: string;
+    status?: string;
+    active?: boolean;
+    specifications?: Record<string, any>;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/machines', data);
+    return response.data;
+  },
+  update: async (id: number, data: Partial<{
+    name: string;
+    cost_per_hour: number;
+    description: string;
+    department: string;
+    status: string;
+    active: boolean;
+    specifications: Record<string, any>;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/machines/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/machines/${id}`);
+    return response.data;
+  },
+  updateStatus: async (id: number, status: 'available' | 'in_use' | 'maintenance' | 'offline') => {
+    checkDemoMode();
+    const response = await api.put(`/api/machines/${id}/status`, { status });
+    return response.data;
+  },
+};
+
+// Quality Control API
+export const qualityApi = {
+  // Checkpoints (templates)
+  getCheckpoints: async (filters?: { active?: boolean; category?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.active !== undefined) params.append('active', String(filters.active));
+    if (filters?.category) params.append('category', filters.category);
+    const response = await api.get(`/api/quality/checkpoints?${params.toString()}`);
+    return response.data;
+  },
+  createCheckpoint: async (data: {
+    name: string;
+    description?: string;
+    category?: string;
+    measurement_type?: 'boolean' | 'numeric' | 'text' | 'select';
+    min_value?: number;
+    max_value?: number;
+    unit?: string;
+    options?: string[];
+    is_critical?: boolean;
+    sequence_order?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/quality/checkpoints', data);
+    return response.data;
+  },
+  updateCheckpoint: async (id: number, data: Partial<{
+    name: string;
+    description: string;
+    category: string;
+    measurement_type: string;
+    min_value: number;
+    max_value: number;
+    unit: string;
+    options: string[];
+    is_critical: boolean;
+    sequence_order: number;
+    active: boolean;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/quality/checkpoints/${id}`, data);
+    return response.data;
+  },
+  deleteCheckpoint: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/quality/checkpoints/${id}`);
+    return response.data;
+  },
+
+  // Quality checks
+  getChecks: async (filters?: { order_id?: number; status?: string; check_type?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.order_id) params.append('order_id', String(filters.order_id));
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.check_type) params.append('check_type', filters.check_type);
+    const response = await api.get(`/api/quality/checks?${params.toString()}`);
+    return response.data;
+  },
+  getOrderChecks: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/quality-checks`);
+    return response.data;
+  },
+  createCheck: async (orderId: number, data: {
+    stage_id?: number;
+    checkpoint_id?: number;
+    check_type?: 'incoming' | 'in_process' | 'final' | 'random';
+    status?: 'pending' | 'passed' | 'failed' | 'conditional';
+    measured_value?: string;
+    is_within_tolerance?: boolean;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/orders/${orderId}/quality-checks`, data);
+    return response.data;
+  },
+  updateCheck: async (id: number, data: Partial<{
+    status: string;
+    measured_value: string;
+    is_within_tolerance: boolean;
+    notes: string;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/quality/checks/${id}`, data);
+    return response.data;
+  },
+
+  // Defects
+  getDefects: async (filters?: { order_id?: number; status?: string; severity?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.order_id) params.append('order_id', String(filters.order_id));
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.severity) params.append('severity', filters.severity);
+    const response = await api.get(`/api/quality/defects?${params.toString()}`);
+    return response.data;
+  },
+  getOrderDefects: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/defects`);
+    return response.data;
+  },
+  createDefect: async (orderId: number, data: {
+    quality_check_id?: number;
+    stage_id?: number;
+    defect_type: string;
+    severity?: 'cosmetic' | 'minor' | 'major' | 'critical';
+    description: string;
+    quantity_affected?: number;
+    cost_impact?: number;
+    photos?: string[];
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/orders/${orderId}/defects`, data);
+    return response.data;
+  },
+  updateDefect: async (id: number, data: Partial<{
+    status: string;
+    root_cause: string;
+    corrective_action: string;
+    quantity_affected: number;
+    cost_impact: number;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/quality/defects/${id}`, data);
+    return response.data;
+  },
+
+  // Stats
+  getStats: async (filters?: { from_date?: string; to_date?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    const response = await api.get(`/api/quality/stats?${params.toString()}`);
+    return response.data;
+  },
+};
+
+// Notifications API
+export const notificationsApi = {
+  getAll: async (filters?: { unread_only?: boolean; category?: string; limit?: number }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.unread_only) params.append('unread_only', 'true');
+    if (filters?.category) params.append('category', filters.category);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    const response = await api.get(`/api/notifications?${params.toString()}`);
+    return response.data;
+  },
+  markAsRead: async (notificationIds?: number[], markAll?: boolean) => {
+    checkDemoMode();
+    const response = await api.post('/api/notifications/mark-read', {
+      notification_ids: notificationIds,
+      mark_all: markAll,
+    });
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/notifications/${id}`);
+    return response.data;
+  },
+  create: async (data: {
+    user_id: number;
+    type: string;
+    title: string;
+    message?: string;
+    category?: string;
+    priority?: string;
+    link?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/notifications', data);
+    return response.data;
+  },
+  broadcast: async (data: {
+    user_ids?: number[];
+    role?: string;
+    type: string;
+    title: string;
+    message?: string;
+    category?: string;
+    priority?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/notifications/broadcast', data);
+    return response.data;
+  },
+};
+
+// Maintenance API
+export const maintenanceApi = {
+  // Schedules
+  getSchedules: async (filters?: { machine_id?: number; status?: string; maintenance_type?: string; upcoming_days?: number }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.machine_id) params.append('machine_id', String(filters.machine_id));
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.maintenance_type) params.append('maintenance_type', filters.maintenance_type);
+    if (filters?.upcoming_days) params.append('upcoming_days', String(filters.upcoming_days));
+    const response = await api.get(`/api/maintenance/schedules?${params.toString()}`);
+    return response.data;
+  },
+  getScheduleById: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/maintenance/schedules/${id}`);
+    return response.data;
+  },
+  createSchedule: async (data: {
+    machine_id: number;
+    title: string;
+    maintenance_type?: 'preventive' | 'corrective' | 'predictive' | 'inspection';
+    description?: string;
+    frequency_days?: number;
+    next_due_at?: string;
+    estimated_duration_hours?: number;
+    assigned_to?: number;
+    priority?: 'low' | 'normal' | 'high' | 'critical';
+    checklist?: string[];
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/maintenance/schedules', data);
+    return response.data;
+  },
+  updateSchedule: async (id: number, data: Partial<{
+    maintenance_type: string;
+    title: string;
+    description: string;
+    frequency_days: number;
+    next_due_at: string;
+    estimated_duration_hours: number;
+    assigned_to: number;
+    priority: string;
+    status: string;
+    checklist: string[];
+    notes: string;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/maintenance/schedules/${id}`, data);
+    return response.data;
+  },
+  deleteSchedule: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/maintenance/schedules/${id}`);
+    return response.data;
+  },
+  startMaintenance: async (id: number) => {
+    checkDemoMode();
+    const response = await api.post(`/api/maintenance/schedules/${id}/start`);
+    return response.data;
+  },
+  completeMaintenance: async (id: number, data: {
+    duration_hours?: number;
+    findings?: string;
+    actions_taken?: string;
+    parts_used?: string[];
+    cost?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/maintenance/schedules/${id}/complete`, data);
+    return response.data;
+  },
+  // Logs
+  getLogs: async (filters?: { machine_id?: number; limit?: number }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.machine_id) params.append('machine_id', String(filters.machine_id));
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    const response = await api.get(`/api/maintenance/logs?${params.toString()}`);
+    return response.data;
+  },
+  // Stats
+  getStats: async (filters?: { from_date?: string; to_date?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    const response = await api.get(`/api/maintenance/stats?${params.toString()}`);
+    return response.data;
+  },
+};
+
+// Production Reports API
+export const productionReportsApi = {
+  // Get comprehensive report
+  getReport: async (filters?: { from_date?: string; to_date?: string; department?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    if (filters?.department) params.append('department', filters.department);
+    const response = await api.get(`/api/production-reports?${params.toString()}`);
+    return response.data;
+  },
+  // Get comparison report
+  getComparison: async (filters?: { from_date?: string; to_date?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    const response = await api.get(`/api/production-reports/comparison?${params.toString()}`);
+    return response.data;
+  },
+  // Get export data
+  getExportData: async (type: 'orders' | 'work_sessions' | 'quality', filters?: { from_date?: string; to_date?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    params.append('type', type);
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    const response = await api.get(`/api/production-reports/export?${params.toString()}`);
+    return response.data;
+  },
+};
+
+// Capacity Planning API
+export const capacityApi = {
+  // Overview - zdolności produkcyjne per dział
+  getOverview: async (filters?: { start_date?: string; end_date?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    const response = await api.get(`/api/capacity/overview?${params.toString()}`);
+    return response.data;
+  },
+  // Forecast - prognoza obciążenia
+  getForecast: async (days?: number) => {
+    checkDemoMode();
+    const params = days ? `?days=${days}` : '';
+    const response = await api.get(`/api/capacity/forecast${params}`);
+    return response.data;
+  },
+  // Bottlenecks - analiza wąskich gardeł
+  getBottlenecks: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/capacity/bottlenecks');
+    return response.data;
+  },
+  // Worker availability - dostępność pracowników
+  getWorkerAvailability: async (date?: string) => {
+    checkDemoMode();
+    const params = date ? `?date=${date}` : '';
+    const response = await api.get(`/api/capacity/workers${params}`);
     return response.data;
   },
 };

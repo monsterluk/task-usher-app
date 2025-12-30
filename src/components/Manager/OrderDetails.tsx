@@ -1,13 +1,28 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { stages, productionStages, workers, getStageStatusColor } from '@/data/mockData';
-import { OrderStage, TimeEntry, OrderComment, OrderHistory } from '@/types';
-import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit, MessageSquare, Send, Clock, History, FileCheck, Palette } from 'lucide-react';
+import { OrderStage, TimeEntry, OrderComment, OrderHistory, OrderAttachment } from '@/types';
+import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit, MessageSquare, Send, Clock, History, FileCheck, Palette, Paperclip, Upload, FileImage, FileText, Trash2, Download, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
 import { ShipmentResponse } from '@/utils/apaczka';
+import { attachmentsApi, orderItemsApi, isDemoMode } from '@/utils/api';
+
+// Typ dla pozycji zlecenia
+interface OrderItemDisplay {
+  id: number;
+  item_number: number;
+  product_name: string;
+  description?: string;
+  quantity: number;
+  unit: string;
+  price_per_unit: number;
+  price_total: number;
+  status: string;
+  notes?: string;
+}
 
 const OrderDetails = () => {
   const { id } = useParams();
@@ -21,6 +36,11 @@ const OrderDetails = () => {
   const [showPrintCard, setShowPrintCard] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [showHistory, setShowHistory] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [dragActive, setDragActive] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [orderItems, setOrderItems] = useState<OrderItemDisplay[]>([]);
+  const [loadingItems, setLoadingItems] = useState(false);
 
   useEffect(() => {
     if (order?.stages) {
@@ -32,6 +52,69 @@ const OrderDetails = () => {
       setStageWorkers(workersMap);
     }
   }, [order]);
+
+  // Załaduj pozycje zlecenia
+  useEffect(() => {
+    const loadOrderItems = async () => {
+      if (!order?.id) return;
+
+      // W trybie demo - stwórz jedną pozycję z danych zlecenia
+      if (isDemoMode()) {
+        if (order.product_name) {
+          setOrderItems([{
+            id: 1,
+            item_number: 1,
+            product_name: order.product_name,
+            quantity: order.quantity || 1,
+            unit: 'szt.',
+            price_per_unit: order.price_per_unit || 0,
+            price_total: order.price_total || 0,
+            status: 'NOWE'
+          }]);
+        }
+        return;
+      }
+
+      setLoadingItems(true);
+      try {
+        const response = await orderItemsApi.getOrderItems(order.id);
+        if (response.success && response.data?.items?.length > 0) {
+          setOrderItems(response.data.items);
+        } else if (order.product_name) {
+          // Fallback - jeśli nie ma pozycji w bazie, pokaż główny produkt
+          setOrderItems([{
+            id: 0,
+            item_number: 1,
+            product_name: order.product_name,
+            quantity: order.quantity || 1,
+            unit: 'szt.',
+            price_per_unit: parseFloat(String(order.price_per_unit)) || 0,
+            price_total: parseFloat(String(order.price_total)) || 0,
+            status: order.status || 'NOWE'
+          }]);
+        }
+      } catch (error) {
+        console.error('Failed to load order items:', error);
+        // Fallback
+        if (order.product_name) {
+          setOrderItems([{
+            id: 0,
+            item_number: 1,
+            product_name: order.product_name,
+            quantity: order.quantity || 1,
+            unit: 'szt.',
+            price_per_unit: parseFloat(String(order.price_per_unit)) || 0,
+            price_total: parseFloat(String(order.price_total)) || 0,
+            status: order.status || 'NOWE'
+          }]);
+        }
+      } finally {
+        setLoadingItems(false);
+      }
+    };
+
+    loadOrderItems();
+  }, [order?.id]);
 
   if (!order) {
     return (
@@ -195,6 +278,21 @@ const OrderDetails = () => {
     toast({ title: "Komentarz dodany" });
   };
 
+  // Map attachment from API format to frontend format
+  const mapAttachment = (att: any) => ({
+    id: att.id,
+    orderId: att.order_id || att.orderId,
+    fileName: att.original_filename || att.filename || att.fileName,
+    fileType: att.file_type || att.fileType,
+    fileSize: att.file_size || att.fileSize,
+    fileUrl: att.file_path || att.fileUrl,
+    uploadedBy: att.uploaded_by || att.uploadedBy,
+    uploadedAt: att.created_at || att.uploadedAt
+  });
+
+  // Get mapped attachments
+  const attachments = order.attachments?.map(mapAttachment) || [];
+
   // Format date for display
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
@@ -205,6 +303,154 @@ const OrderDetails = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number): string => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Get file icon based on type
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith('image/')) return <FileImage size={20} className="text-blue-500" />;
+    if (fileType === 'application/pdf') return <FileText size={20} className="text-red-500" />;
+    return <Paperclip size={20} className="text-gray-500" />;
+  };
+
+  // Handle file upload
+  const handleFileUpload = async (files: FileList | null) => {
+    if (!files || files.length === 0 || !order) return;
+
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    const maxSize = 10 * 1024 * 1024; // 10MB
+
+    setIsUploading(true);
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+
+      if (!allowedTypes.includes(file.type)) {
+        toast({
+          title: "Nieprawidłowy format",
+          description: `Plik "${file.name}" ma nieobsługiwany format. Dozwolone: JPG, PNG, GIF, WebP, PDF`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      if (file.size > maxSize) {
+        toast({
+          title: "Plik za duży",
+          description: `Plik "${file.name}" przekracza limit 10MB`,
+          variant: "destructive"
+        });
+        continue;
+      }
+
+      try {
+        if (isDemoMode()) {
+          // Demo mode - create local attachment
+          const newAttachment: OrderAttachment = {
+            id: `attach_${Date.now()}_${i}`,
+            orderId: order.id,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileUrl: URL.createObjectURL(file),
+            uploadedBy: currentUser?.name || 'Użytkownik',
+            uploadedAt: new Date().toISOString()
+          };
+
+          setOrders(prev => prev.map(o =>
+            o.id === order.id
+              ? { ...o, attachments: [...(o.attachments || []), newAttachment] }
+              : o
+          ));
+
+          toast({ title: "Plik dodany", description: `${file.name} (tryb demo)` });
+        } else {
+          // Production mode - upload to server
+          const response = await attachmentsApi.upload(order.id, file);
+          // API zwraca: { success: true, data: { attachment: {...} } }
+          const attachment = response.data?.attachment || response.data;
+          if (response.success && attachment) {
+            // Mapuj pola z API na format frontendu
+            const mappedAttachment = {
+              id: attachment.id,
+              orderId: attachment.order_id,
+              fileName: attachment.original_filename || attachment.filename,
+              fileType: attachment.file_type,
+              fileSize: attachment.file_size,
+              fileUrl: attachment.file_path,
+              uploadedBy: attachment.uploaded_by,
+              uploadedAt: attachment.created_at
+            };
+            setOrders(prev => prev.map(o =>
+              o.id === order.id
+                ? { ...o, attachments: [...(o.attachments || []), mappedAttachment] }
+                : o
+            ));
+            toast({ title: "Plik przesłany", description: file.name });
+          }
+        }
+      } catch (error: any) {
+        console.error('Upload error:', error);
+        toast({
+          title: "Błąd przesyłania",
+          description: error.message || `Nie udało się przesłać pliku ${file.name}`,
+          variant: "destructive"
+        });
+      }
+    }
+
+    setIsUploading(false);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  // Handle drag events
+  const handleDrag = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.type === 'dragenter' || e.type === 'dragover') {
+      setDragActive(true);
+    } else if (e.type === 'dragleave') {
+      setDragActive(false);
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragActive(false);
+    handleFileUpload(e.dataTransfer.files);
+  };
+
+  // Delete attachment
+  const deleteAttachment = async (attachmentId: string) => {
+    if (!confirm('Czy na pewno chcesz usunąć ten plik?')) return;
+
+    try {
+      if (isDemoMode()) {
+        setOrders(prev => prev.map(o =>
+          o.id === order?.id
+            ? { ...o, attachments: (o.attachments || []).filter(a => a.id !== attachmentId) }
+            : o
+        ));
+        toast({ title: "Plik usunięty" });
+      } else {
+        await attachmentsApi.delete(Number(attachmentId));
+        setOrders(prev => prev.map(o =>
+          o.id === order?.id
+            ? { ...o, attachments: (o.attachments || []).filter(a => a.id !== attachmentId) }
+            : o
+        ));
+        toast({ title: "Plik usunięty" });
+      }
+    } catch (error) {
+      toast({ title: "Błąd", description: "Nie udało się usunąć pliku", variant: "destructive" });
+    }
   };
 
   return (
@@ -259,8 +505,8 @@ const OrderDetails = () => {
           </div>
           <div>
             <span className="text-muted-foreground text-sm">Cena:</span>
-            <p className="font-semibold">{order.price_total?.toFixed(2) || '-'} zł</p>
-            {order.price_per_unit && <p className="text-sm text-muted-foreground">{order.price_per_unit.toFixed(2)} zł/szt.</p>}
+            <p className="font-semibold">{order.price_total ? Number(order.price_total).toFixed(2) : '-'} zł</p>
+            {order.price_per_unit && <p className="text-sm text-muted-foreground">{Number(order.price_per_unit || 0).toFixed(2)} zł/szt.</p>}
           </div>
           <div>
             <span className="text-muted-foreground text-sm">Termin:</span>
@@ -293,6 +539,84 @@ const OrderDetails = () => {
           </div>
         )}
       </div>
+
+      {/* Pozycje Zlecenia */}
+      {orderItems.length > 0 && (
+        <div className="card-industrial mb-6">
+          <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+            <Package size={24} />
+            Pozycje Zlecenia ({orderItems.length})
+          </h2>
+
+          {loadingItems ? (
+            <div className="text-center py-4 text-muted-foreground">Ładowanie pozycji...</div>
+          ) : (
+            <div className="space-y-3">
+              {orderItems.map((item, index) => (
+                <div
+                  key={item.id || index}
+                  className="p-4 bg-muted/30 rounded-lg border border-border"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded font-medium">
+                        #{item.item_number || index + 1}
+                      </span>
+                      <span className="font-semibold text-lg">{item.product_name}</span>
+                    </div>
+                    <span className={`text-xs px-2 py-1 rounded font-medium ${
+                      item.status === 'GOTOWE' ? 'bg-green-100 text-green-800' :
+                      item.status === 'W_TRAKCIE' ? 'bg-blue-100 text-blue-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {item.status || 'NOWE'}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-muted-foreground">Ilość:</span>
+                      <p className="font-medium">{item.quantity} {item.unit}</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Cena/szt.:</span>
+                      <p className="font-medium">{Number(item.price_per_unit || 0).toFixed(2)} zł</p>
+                    </div>
+                    <div>
+                      <span className="text-muted-foreground">Wartość:</span>
+                      <p className="font-semibold text-primary">{Number(item.price_total || 0).toFixed(2)} zł</p>
+                    </div>
+                    {item.description && (
+                      <div className="col-span-2 sm:col-span-1">
+                        <span className="text-muted-foreground">Opis:</span>
+                        <p className="font-medium">{item.description}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {item.notes && (
+                    <p className="mt-2 text-sm text-muted-foreground italic">{item.notes}</p>
+                  )}
+                </div>
+              ))}
+
+              {/* Podsumowanie */}
+              <div className="mt-4 p-4 bg-primary/10 rounded-lg flex justify-between items-center">
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Łączna ilość: </span>
+                  <span className="font-semibold">{orderItems.reduce((sum, i) => sum + (i.quantity || 0), 0)}</span>
+                </div>
+                <div className="text-right">
+                  <span className="text-sm text-muted-foreground">Wartość całkowita: </span>
+                  <span className="text-2xl font-bold text-primary">
+                    {orderItems.reduce((sum, i) => sum + (Number(i.price_total) || 0), 0).toFixed(2)} zł
+                  </span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Przygotowanie - GRAFIK */}
       <div className="card-industrial mb-6">
@@ -447,29 +771,86 @@ const OrderDetails = () => {
                       <span className="font-medium">Przydziel pracowników:</span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
-                      {workers.filter(w => w.active).map((worker) => (
-                        <label
-                          key={worker.id}
-                          className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
-                            assignedWorkers.includes(worker.id)
-                              ? 'border-primary bg-primary/5'
-                              : 'border-border hover:border-muted-foreground'
-                          }`}
-                        >
-                          <input
-                            type="checkbox"
-                            checked={assignedWorkers.includes(worker.id)}
-                            onChange={() => toggleWorker(stage.id, worker.id)}
-                            className="w-4 h-4 rounded border-2 accent-primary"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium truncate">{worker.name}</p>
-                            <p className="text-sm text-muted-foreground">{worker.position} • {worker.hourly_rate.toFixed(2)} zł/h</p>
-                          </div>
-                        </label>
-                      ))}
-                    </div>
+                    {/* Filter workers by skill matching the stage name */}
+                    {(() => {
+                      const eligibleWorkers = workers.filter(w =>
+                        w.active && w.skills && w.skills.includes(stage.name)
+                      );
+                      const otherWorkers = workers.filter(w =>
+                        w.active && (!w.skills || !w.skills.includes(stage.name))
+                      );
+
+                      return (
+                        <>
+                          {eligibleWorkers.length > 0 ? (
+                            <>
+                              <p className="text-xs text-muted-foreground mb-2">
+                                Pracownicy z umiejętnością "{stage.name}":
+                              </p>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-4">
+                                {eligibleWorkers.map((worker) => (
+                                  <label
+                                    key={worker.id}
+                                    className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                      assignedWorkers.includes(worker.id)
+                                        ? 'border-primary bg-primary/5'
+                                        : 'border-border hover:border-muted-foreground'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={assignedWorkers.includes(worker.id)}
+                                      onChange={() => toggleWorker(stage.id, worker.id)}
+                                      className="w-4 h-4 rounded border-2 accent-primary"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium truncate">{worker.name}</p>
+                                      <p className="text-sm text-muted-foreground">{worker.position} • {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            </>
+                          ) : (
+                            <p className="text-sm text-yellow-600 mb-4">
+                              Brak pracowników z umiejętnością "{stage.name}". Dodaj umiejętności w panelu administracyjnym.
+                            </p>
+                          )}
+
+                          {/* Show other workers in collapsed section if needed */}
+                          {otherWorkers.length > 0 && (
+                            <details className="mb-4">
+                              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                                Inni pracownicy ({otherWorkers.length}) - bez umiejętności "{stage.name}"
+                              </summary>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 opacity-60">
+                                {otherWorkers.map((worker) => (
+                                  <label
+                                    key={worker.id}
+                                    className={`flex items-center gap-3 p-3 rounded-md border cursor-pointer transition-colors ${
+                                      assignedWorkers.includes(worker.id)
+                                        ? 'border-primary bg-primary/5'
+                                        : 'border-border hover:border-muted-foreground'
+                                    }`}
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={assignedWorkers.includes(worker.id)}
+                                      onChange={() => toggleWorker(stage.id, worker.id)}
+                                      className="w-4 h-4 rounded border-2 accent-primary"
+                                    />
+                                    <div className="flex-1 min-w-0">
+                                      <p className="font-medium truncate">{worker.name}</p>
+                                      <p className="text-sm text-muted-foreground">{worker.position} • {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>
+                                    </div>
+                                  </label>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+                        </>
+                      );
+                    })()}
 
                     {assignedWorkers.length > 0 && orderStage?.status !== 'completed' && (
                       <button
@@ -576,6 +957,115 @@ const OrderDetails = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Attachments Section */}
+      <div className="card-industrial mt-6">
+        <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+          <Paperclip size={24} />
+          Załączniki ({attachments.length})
+        </h2>
+
+        {/* Upload Area */}
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors mb-4 ${
+            dragActive
+              ? 'border-primary bg-primary/5'
+              : 'border-border hover:border-muted-foreground'
+          }`}
+          onDragEnter={handleDrag}
+          onDragLeave={handleDrag}
+          onDragOver={handleDrag}
+          onDrop={handleDrop}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept="image/*,.pdf"
+            onChange={(e) => handleFileUpload(e.target.files)}
+            className="hidden"
+            id="file-upload"
+          />
+          <label
+            htmlFor="file-upload"
+            className="cursor-pointer flex flex-col items-center gap-2"
+          >
+            {isUploading ? (
+              <>
+                <div className="animate-spin w-8 h-8 border-2 border-primary border-t-transparent rounded-full" />
+                <span className="text-sm text-muted-foreground">Przesyłanie...</span>
+              </>
+            ) : (
+              <>
+                <Upload size={32} className="text-muted-foreground" />
+                <span className="text-sm font-medium">
+                  Przeciągnij pliki tutaj lub kliknij, aby wybrać
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  Obsługiwane formaty: JPG, PNG, GIF, WebP, PDF (max 10MB)
+                </span>
+              </>
+            )}
+          </label>
+        </div>
+
+        {/* Attachments List */}
+        {attachments.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {attachments.map((attachment) => (
+              <div
+                key={attachment.id}
+                className="flex items-center gap-3 p-3 bg-muted/30 rounded-lg group"
+              >
+                {/* Preview for images */}
+                {attachment.fileType.startsWith('image/') ? (
+                  <img
+                    src={attachment.fileUrl}
+                    alt={attachment.fileName}
+                    className="w-12 h-12 object-cover rounded"
+                  />
+                ) : (
+                  <div className="w-12 h-12 flex items-center justify-center bg-muted rounded">
+                    {getFileIcon(attachment.fileType)}
+                  </div>
+                )}
+
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-sm truncate" title={attachment.fileName}>
+                    {attachment.fileName}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {formatFileSize(attachment.fileSize)} • {attachment.uploadedBy}
+                  </p>
+                </div>
+
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <a
+                    href={attachment.fileUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="p-2 hover:bg-muted rounded"
+                    title="Pobierz"
+                  >
+                    <Download size={16} />
+                  </a>
+                  <button
+                    onClick={() => deleteAttachment(attachment.id)}
+                    className="p-2 hover:bg-red-100 text-red-600 rounded"
+                    title="Usuń"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p className="text-center text-muted-foreground py-4">
+            Brak załączników. Dodaj zdjęcia lub pliki PDF przeciągając je powyżej.
+          </p>
+        )}
       </div>
 
       {/* Comments Section */}

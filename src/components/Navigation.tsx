@@ -1,6 +1,7 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette } from 'lucide-react';
+import NotificationBell from './NotificationBell';
 
 const Navigation = () => {
   const { currentUser, logout } = useApp();
@@ -106,6 +107,10 @@ const Navigation = () => {
 
           {/* User Menu */}
           <div className="flex items-center gap-3">
+            {/* Notification Bell - only for managers and admins */}
+            {(isAdmin || isKierownik) && (
+              <NotificationBell />
+            )}
             <div className="hidden sm:flex items-center gap-2 bg-white/10 px-3 py-1.5 rounded-full">
               <div className="w-7 h-7 bg-white/20 rounded-full flex items-center justify-center text-sm font-semibold">
                 {currentUser.name.charAt(0).toUpperCase()}

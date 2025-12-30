@@ -114,8 +114,8 @@ const WorkOrderPDF: React.FC<WorkOrderPDFProps> = ({ order, workers, onClose }) 
           <div className="section-title">📦 PRODUKT</div>
           <div><strong>Nazwa:</strong> {order.product_name}</div>
           <div><strong>Ilość:</strong> {order.quantity} szt.</div>
-          <div><strong>Cena:</strong> {order.price_per_unit?.toFixed(2) || '0.00'} zł/szt</div>
-          <div><strong>Wartość:</strong> {order.price_total?.toFixed(2) || '0.00'} zł</div>
+          <div><strong>Cena:</strong> {Number(order.price_per_unit || 0).toFixed(2)} zł/szt</div>
+          <div><strong>Wartość:</strong> {Number(order.price_total || 0).toFixed(2)} zł</div>
           {order.folder_path && <div><strong>Dokumentacja:</strong> {order.folder_path}</div>}
         </div>
 
@@ -223,7 +223,7 @@ const WorkOrderPDF: React.FC<WorkOrderPDFProps> = ({ order, workers, onClose }) 
 
                 <div className="section">
                   <div className="section-title">📦 PRODUKT: {order.product_name}</div>
-                  <div>Ilość: {order.quantity} szt. | Wartość: {order.price_total?.toFixed(2) || '0.00'} zł</div>
+                  <div>Ilość: {order.quantity} szt. | Wartość: {Number(order.price_total || 0).toFixed(2)} zł</div>
                 </div>
 
                 <div className="section">

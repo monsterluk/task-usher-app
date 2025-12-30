@@ -1,15 +1,16 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet } from 'lucide-react';
+import { Plus, Download, Eye, Archive, RotateCcw, Loader2, Search, ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown, FileSpreadsheet, ArrowLeft } from 'lucide-react';
 import { getStageStatusColor } from '@/data/mockData';
+import { PRIORITY_LABELS, PRIORITY_COLORS, OrderPriority } from '@/types';
 
 type FilterType = 'AKTYWNE' | 'ARCHIWUM' | 'WSZYSTKIE';
-type SortField = 'order_number' | 'client_name' | 'product_name' | 'quantity' | 'price_total' | 'planned_completion_date' | 'status';
+type SortField = 'order_number' | 'client_name' | 'product_name' | 'quantity' | 'price_total' | 'planned_completion_date' | 'status' | 'priority';
 type SortDirection = 'asc' | 'desc';
 
 const OrdersList = () => {
-  const { orders, setOrders, refreshOrders, loading } = useApp();
+  const { orders, setOrders, refreshOrders, loading, currentUser } = useApp();
   const navigate = useNavigate();
   const [filter, setFilter] = useState<FilterType>('AKTYWNE');
   const [localLoading, setLocalLoading] = useState(true);
@@ -19,7 +20,7 @@ const OrdersList = () => {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   const itemsPerPage = 15;
 
-  // Ładuj zlecenia z API przy mount
+  // Ładuj zlecenia z API przy mount (tylko raz)
   useEffect(() => {
     const loadOrders = async () => {
       setLocalLoading(true);
@@ -27,7 +28,8 @@ const OrdersList = () => {
       setLocalLoading(false);
     };
     loadOrders();
-  }, [refreshOrders]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Celowo puste - ładujemy tylko przy montowaniu
 
   // Reset page when filter or search changes
   useEffect(() => {
@@ -168,8 +170,8 @@ const OrdersList = () => {
       escapeCSV([o.client_address, o.client_postal, o.client_city].filter(Boolean).join(', ')),
       escapeCSV(o.product_name),
       o.quantity,
-      o.price_per_unit?.toFixed(2) || '0',
-      o.price_total?.toFixed(2) || '0',
+      Number(o.price_per_unit || 0).toFixed(2),
+      Number(o.price_total || 0).toFixed(2),
       o.planned_completion_date,
       o.status === 'NOWE' ? 'Nowe' : o.status === 'W_TRAKCIE' ? 'W trakcie' : o.status === 'GOTOWE' ? 'Gotowe' : o.status,
       escapeCSV(o.currentStage),
@@ -261,6 +263,18 @@ const OrdersList = () => {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {currentUser?.role === 'ADMIN' && (
+            <button onClick={() => navigate('/admin')} className="btn-secondary" title="Wróć do panelu admina">
+              <ArrowLeft size={18} className="mr-2" />
+              Panel Admin
+            </button>
+          )}
+          {currentUser?.role === 'KIEROWNIK' && (
+            <button onClick={() => navigate('/manager')} className="btn-secondary" title="Wróć do dashboardu">
+              <ArrowLeft size={18} className="mr-2" />
+              Dashboard
+            </button>
+          )}
           <button onClick={exportToCSV} className="btn-secondary" title="Eksport do CSV">
             <Download size={18} className="mr-2" />
             CSV
@@ -345,13 +359,16 @@ const OrdersList = () => {
               <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('status')}>
                 <span className="flex items-center gap-1">Status <SortIcon field="status" /></span>
               </th>
+              <th className="cursor-pointer hover:bg-muted/50" onClick={() => handleSort('priority')}>
+                <span className="flex items-center gap-1">Priorytet <SortIcon field="priority" /></span>
+              </th>
               <th>Akcje</th>
             </tr>
           </thead>
           <tbody>
             {paginatedOrders.length === 0 ? (
               <tr>
-                <td colSpan={10} className="text-center py-8 text-muted-foreground">
+                <td colSpan={11} className="text-center py-8 text-muted-foreground">
                   {searchQuery ? 'Brak wyników wyszukiwania' : 'Brak zleceń do wyświetlenia'}
                 </td>
               </tr>
@@ -364,7 +381,7 @@ const OrdersList = () => {
                     <td>{order.client_name}</td>
                     <td>{order.product_name}</td>
                     <td>{order.quantity} szt.</td>
-                    <td className="font-mono">{order.price_total?.toFixed(2) || '0.00'} zł</td>
+                    <td className="font-mono">{Number(order.price_total || 0).toFixed(2)} zł</td>
                     <td><StageIndicators stages={order.stages} plannedDate={order.planned_completion_date} /></td>
                     <td>{new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}</td>
                     <td className={getDeadlineColor(days)}>
@@ -373,6 +390,11 @@ const OrdersList = () => {
                        `${days} dni`}
                     </td>
                     <td>{getStatusBadge(order.status)}</td>
+                    <td>
+                      <span className={`font-medium ${PRIORITY_COLORS[order.priority as OrderPriority] || 'text-blue-600'}`}>
+                        {PRIORITY_LABELS[order.priority as OrderPriority] || 'Normalny'}
+                      </span>
+                    </td>
                     <td className="flex gap-2">
                       <button onClick={() => navigate(`/manager/orders/${order.id}`)} className="btn-secondary py-2 px-3" title="Szczegóły">
                         <Eye size={16} />
@@ -401,13 +423,18 @@ const OrdersList = () => {
             return (
               <div key={order.id} className={`card-industrial ${order.archived ? 'opacity-60' : ''}`}>
                 <div className="flex justify-between items-start mb-3">
-                  <span className="font-mono font-bold text-lg">{order.order_number}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-lg">{order.order_number}</span>
+                    <span className={`text-xs font-medium px-2 py-0.5 rounded ${PRIORITY_COLORS[order.priority as OrderPriority] || 'text-blue-600'}`}>
+                      {PRIORITY_LABELS[order.priority as OrderPriority] || 'Normalny'}
+                    </span>
+                  </div>
                   {getStatusBadge(order.status)}
                 </div>
                 <div className="space-y-2 text-sm mb-4">
                   <p><span className="text-muted-foreground">Klient:</span> {order.client_name}</p>
                   <p><span className="text-muted-foreground">Produkt:</span> {order.product_name}</p>
-                  <p><span className="text-muted-foreground">Ilość:</span> {order.quantity} szt. | <span className="text-muted-foreground">Wartość:</span> {order.price_total?.toFixed(2) || '0.00'} zł</p>
+                  <p><span className="text-muted-foreground">Ilość:</span> {order.quantity} szt. | <span className="text-muted-foreground">Wartość:</span> {Number(order.price_total || 0).toFixed(2)} zł</p>
                   <p><span className="text-muted-foreground">Termin:</span> {new Date(order.planned_completion_date).toLocaleDateString('pl-PL')} (<span className={getDeadlineColor(days)}>{days < 0 ? `${Math.abs(days)} dni temu` : days === 0 ? 'Dziś' : `${days} dni`}</span>)</p>
                   <div className="flex items-center gap-2">
                     <span className="text-muted-foreground">Etapy:</span>

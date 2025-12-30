@@ -102,7 +102,7 @@ const MachinesList = () => {
     const headers = ['Nazwa', 'Koszt/godz (zł)', 'Opis', 'Status'];
     const rows = machines.map(m => [
       m.name,
-      m.cost_per_hour.toFixed(2),
+      Number(m.cost_per_hour || 0).toFixed(2),
       m.description,
       m.active ? 'Aktywna' : 'Nieaktywna'
     ]);
@@ -222,7 +222,7 @@ const MachinesList = () => {
             </div>
 
             <div className="space-y-2 text-sm mb-4">
-              <p><span className="text-muted-foreground">Koszt:</span> <span className="font-mono font-bold">{machine.cost_per_hour.toFixed(2)} zł/h</span></p>
+              <p><span className="text-muted-foreground">Koszt:</span> <span className="font-mono font-bold">{Number(machine.cost_per_hour || 0).toFixed(2)} zł/h</span></p>
               <p>
                 <span className="text-muted-foreground">Status:</span>{' '}
                 <span className={machine.active ? 'text-success' : 'text-destructive'}>

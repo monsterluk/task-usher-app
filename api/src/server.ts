@@ -2,8 +2,10 @@ import express from 'express';
 import dotenv from 'dotenv';
 import { corsMiddleware } from './middleware/cors';
 import { errorHandler, notFoundHandler } from './middleware/errorHandler';
+import { generalLimiter } from './middleware/rateLimit';
 import { logger } from './utils/logger';
 import { testConnection } from './config/database';
+import { runMigrations } from './migrations/runMigrations';
 
 // Load environment variables
 dotenv.config();
@@ -17,6 +19,13 @@ import assignmentsRoutes from './routes/assignments';
 import workSessionsRoutes from './routes/work-sessions';
 import shipmentsRoutes from './routes/shipments';
 import reportsRoutes from './routes/reports';
+import settingsRoutes from './routes/settings';
+import machinesRoutes from './routes/machines';
+import qualityRoutes from './routes/quality';
+import notificationsRoutes from './routes/notifications';
+import maintenanceRoutes from './routes/maintenance';
+import capacityRoutes from './routes/capacity';
+import productionReportsRoutes from './routes/production-reports';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -47,6 +56,9 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
+// Apply general rate limiting to all API routes
+app.use('/api', generalLimiter);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/workers', workersRoutes);
@@ -56,6 +68,13 @@ app.use('/api/assignments', assignmentsRoutes);
 app.use('/api/work-sessions', workSessionsRoutes);
 app.use('/api/shipments', shipmentsRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/machines', machinesRoutes);
+app.use('/api/quality', qualityRoutes);
+app.use('/api/notifications', notificationsRoutes);
+app.use('/api/maintenance', maintenanceRoutes);
+app.use('/api/capacity', capacityRoutes);
+app.use('/api/production-reports', productionReportsRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -68,6 +87,14 @@ const startServer = async () => {
     const dbConnected = await testConnection();
     if (!dbConnected) {
       logger.warn('Database connection failed - starting server anyway');
+    } else {
+      // Run database migrations if connected
+      try {
+        await runMigrations();
+      } catch (migrationError) {
+        logger.error('Migration failed:', migrationError);
+        // Continue starting server even if migrations fail
+      }
     }
 
     app.listen(PORT, () => {

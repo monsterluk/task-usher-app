@@ -20,7 +20,9 @@ export interface ShipmentRequest {
   recipientPhone?: string;
   recipientEmail?: string;
   weight: number;
-  dimensions?: { length: number; width: number; height: number };
+  length?: number;
+  width?: number;
+  height?: number;
   packageType: 'PACZKA' | 'PALETA' | 'KOPERTA';
   cod?: number; // Cash on delivery
   insurance?: number;
@@ -202,9 +204,9 @@ class ApaczkaApi {
           },
           package: {
             weight: request.weight,
-            length: request.dimensions?.length || 30,
-            width: request.dimensions?.width || 20,
-            height: request.dimensions?.height || 10,
+            length: request.length || 30,
+            width: request.width || 20,
+            height: request.height || 10,
             type: request.packageType,
           },
           cod: request.cod ? { amount: request.cod, currency: 'PLN' } : undefined,
@@ -300,10 +302,12 @@ class ApaczkaApi {
     postalFrom: string,
     postalTo: string,
     weight: number,
-    dimensions?: { length: number; width: number; height: number }
+    length?: number,
+    width?: number,
+    height?: number
   ): Promise<{ price: number; currency: string }> {
     if (!this.isConfigured) {
-      // Mock price calculation
+      // Mock price calculation based on weight and dimensions
       const basePrices: Record<string, number> = {
         ups: 25,
         dhl: 22.5,
@@ -314,7 +318,11 @@ class ApaczkaApi {
       };
       const basePrice = basePrices[serviceId.toLowerCase()] || 20;
       const weightSurcharge = Math.max(0, (weight - 1) * 2);
-      return { price: basePrice + weightSurcharge, currency: 'PLN' };
+      // Volumetric weight calculation (length × width × height / 5000)
+      const volumetricWeight = ((length || 30) * (width || 20) * (height || 10)) / 5000;
+      const effectiveWeight = Math.max(weight, volumetricWeight);
+      const dimensionSurcharge = effectiveWeight > weight ? (effectiveWeight - weight) * 1.5 : 0;
+      return { price: Math.round((basePrice + weightSurcharge + dimensionSurcharge) * 100) / 100, currency: 'PLN' };
     }
 
     try {
@@ -323,7 +331,7 @@ class ApaczkaApi {
         postal_from: postalFrom,
         postal_to: postalTo,
         weight,
-        dimensions,
+        dimensions: { length: length || 30, width: width || 20, height: height || 10 },
       });
 
       return {
