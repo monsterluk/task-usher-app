@@ -6,6 +6,7 @@ import { generalLimiter } from './middleware/rateLimit';
 import { logger } from './utils/logger';
 import { testConnection } from './config/database';
 import { runMigrations } from './migrations/runMigrations';
+import { startBackupScheduler } from './services/backupScheduler';
 
 // Load environment variables
 dotenv.config();
@@ -32,6 +33,9 @@ import calendarRoutes from './routes/calendar';
 import announcementsRoutes from './routes/announcements';
 import adminRoutes from './routes/admin';
 import auditRoutes from './routes/audit';
+import bomRoutes from './routes/bom';
+import traceabilityRoutes from './routes/traceability';
+import integrationsRoutes from './routes/integrations';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -90,6 +94,9 @@ app.use('/api/calendar', calendarRoutes);
 app.use('/api/announcements', announcementsRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/audit', auditRoutes);
+app.use('/api/bom', bomRoutes);
+app.use('/api/traceability', traceabilityRoutes);
+app.use('/api/integrations', integrationsRoutes);
 
 // Error handling
 app.use(notFoundHandler);
@@ -116,6 +123,11 @@ const startServer = async () => {
       logger.info(`🚀 PlexiSystem API server running on port ${PORT}`);
       logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
       logger.info(`Database: ${dbConnected ? 'connected' : 'not connected'}`);
+
+      // Start backup scheduler in production
+      if (process.env.NODE_ENV === 'production' && dbConnected) {
+        startBackupScheduler();
+      }
     });
   } catch (error) {
     logger.error('Failed to start server:', error);

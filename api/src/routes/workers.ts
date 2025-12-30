@@ -3,6 +3,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { validateBody, validateParams } from '../middleware/validate';
 import { createWorkerSchema, updateWorkerSchema, idParamSchema } from '../validation/schemas';
 import * as workerController from '../controllers/workerController';
+import * as assignmentController from '../controllers/assignmentController';
 
 const router = Router();
 
@@ -17,6 +18,9 @@ router.get('/:id', validateParams(idParamSchema), workerController.getWorkerById
 
 // Get worker's assignments (both roles)
 router.get('/:id/assignments', validateParams(idParamSchema), workerController.getWorkerAssignments);
+
+// Check worker availability (for scheduling)
+router.get('/:id/availability', validateParams(idParamSchema), assignmentController.checkWorkerAvailability);
 
 // Manager only routes
 router.post('/', requireRole('MANAGER'), validateBody(createWorkerSchema), workerController.createWorker);

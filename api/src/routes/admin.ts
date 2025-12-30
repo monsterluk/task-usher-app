@@ -3,6 +3,7 @@ import { authenticate, requireRole } from '../middleware/auth';
 import { validateParams } from '../middleware/validate';
 import { idParamSchema } from '../validation/schemas';
 import * as adminController from '../controllers/adminController';
+import * as backupController from '../controllers/backupController';
 
 const router = Router();
 
@@ -23,5 +24,12 @@ router.delete('/materials/:id', requireRole('ADMIN'), validateParams(idParamSche
 router.get('/settings', requireRole('ADMIN'), adminController.getProductionSettings);
 router.put('/settings', requireRole('ADMIN'), adminController.updateProductionSettingsBatch);
 router.put('/settings/:key', requireRole('ADMIN'), adminController.updateProductionSetting);
+
+// ============ BACKUP MANAGEMENT - ADMIN ONLY ============
+router.get('/backup/status', requireRole('ADMIN'), backupController.getBackupStatus);
+router.get('/backups', requireRole('ADMIN'), backupController.listBackups);
+router.post('/backup', requireRole('ADMIN'), backupController.createBackup);
+router.delete('/backups/:filename', requireRole('ADMIN'), backupController.deleteBackup);
+router.post('/restore', requireRole('ADMIN'), backupController.restoreBackup);
 
 export default router;

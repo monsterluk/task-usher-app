@@ -22,8 +22,9 @@ const DEFAULT_STAGES = [
 ];
 
 // GET /api/orders
-export const getAllOrders = asyncHandler(async (req: Request, res: Response) => {
+export const getAllOrders = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { status, archived, limit = 50, offset = 0, search } = req.query;
+  const user = req.user;
 
   let sql = `
     SELECT
@@ -35,6 +36,26 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
   `;
   const params: any[] = [];
   let paramIndex = 1;
+
+  // TASK 1.5: Filter for PRACOWNIK - only show orders where they have assignments
+  if (user?.role === 'PRACOWNIK') {
+    // Get worker_id for this user
+    const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [user.id]);
+    if (workerResult.rows.length > 0) {
+      const workerId = workerResult.rows[0].id;
+      sql += ` AND o.id IN (
+        SELECT DISTINCT s.order_id
+        FROM assignments a
+        JOIN stages s ON a.stage_id = s.id
+        WHERE a.worker_id = $${paramIndex}
+      )`;
+      params.push(workerId);
+      paramIndex++;
+    } else {
+      // No worker profile - return empty list
+      sql += ` AND 1=0`;
+    }
+  }
 
   if (status) {
     sql += ` AND o.status = $${paramIndex}`;
@@ -82,8 +103,9 @@ export const getAllOrders = asyncHandler(async (req: Request, res: Response) => 
 });
 
 // GET /api/orders/:id
-export const getOrderById = asyncHandler(async (req: Request, res: Response) => {
+export const getOrderById = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
+  const user = req.user;
 
   // Get order
   const orderResult = await query('SELECT * FROM orders WHERE id = $1', [id]);
@@ -93,6 +115,26 @@ export const getOrderById = asyncHandler(async (req: Request, res: Response) => 
   }
 
   const order = orderResult.rows[0];
+
+  // TASK 1.5: Check access for PRACOWNIK - must have assignment to this order
+  if (user?.role === 'PRACOWNIK') {
+    const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [user.id]);
+    if (workerResult.rows.length > 0) {
+      const workerId = workerResult.rows[0].id;
+      const accessCheck = await query(
+        `SELECT 1 FROM assignments a
+         JOIN stages s ON a.stage_id = s.id
+         WHERE s.order_id = $1 AND a.worker_id = $2
+         LIMIT 1`,
+        [id, workerId]
+      );
+      if (accessCheck.rows.length === 0) {
+        throw new AppError('Nie masz dostępu do tego zlecenia', 403);
+      }
+    } else {
+      throw new AppError('Nie masz dostępu do tego zlecenia', 403);
+    }
+  }
 
   // Get stages with assignments
   const stagesResult = await query(
@@ -342,8 +384,40 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     throw new AppError('No fields to update', 400);
   }
 
-  // If status is changing to GOTOWE, set closed_at
+  // TASK 1.4: Validate order completion - all required stages must be completed
   if (status === 'GOTOWE' && existingResult.rows[0].status !== 'GOTOWE') {
+    const incompleteStagesResult = await query(
+      `SELECT stage_name, status FROM stages
+       WHERE order_id = $1 AND is_required = true AND status != 'GOTOWY'
+       ORDER BY sequence_order`,
+      [id]
+    );
+
+    if (incompleteStagesResult.rows.length > 0) {
+      const incompleteStagesList = incompleteStagesResult.rows
+        .map((s: any) => `${s.stage_name} (${s.status})`)
+        .join(', ');
+
+      throw new AppError(
+        `Nie można zamknąć zlecenia. Niezakończone wymagane etapy: ${incompleteStagesList}`,
+        400
+      );
+    }
+
+    // Check for open critical defects
+    const openCriticalDefectsResult = await query(
+      `SELECT id, defect_type FROM defects
+       WHERE order_id = $1 AND severity = 'critical' AND status != 'resolved'`,
+      [id]
+    );
+
+    if (openCriticalDefectsResult.rows.length > 0) {
+      throw new AppError(
+        `Nie można zamknąć zlecenia. Istnieją nierozwiązane defekty krytyczne (${openCriticalDefectsResult.rows.length}).`,
+        400
+      );
+    }
+
     updates.push(`closed_at = NOW()`);
   }
 

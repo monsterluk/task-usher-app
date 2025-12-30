@@ -1,9 +1,10 @@
 import { Request, Response } from 'express';
-import { query } from '../config/database';
+import { query, getClient } from '../config/database';
 import { AuthRequest } from '../types';
 import { logger } from '../utils/logger';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 import { logAudit, getAuditContextFromRequest } from '../services/auditService';
+import { notifyQualityIssue } from './notificationsController';
 
 // ============ QC CHECKPOINTS ============
 
@@ -435,46 +436,88 @@ export const createDefect = asyncHandler(async (req: AuthRequest, res: Response)
     throw new AppError('Typ wady i opis są wymagane', 400);
   }
 
-  // Verify order exists
-  const orderResult = await query('SELECT id FROM orders WHERE id = $1', [orderId]);
+  // Verify order exists and get order info
+  const orderResult = await query('SELECT id, order_number FROM orders WHERE id = $1', [orderId]);
   if (orderResult.rows.length === 0) {
     throw new AppError('Zlecenie nie znalezione', 404);
   }
 
-  const result = await query(
-    `INSERT INTO defects (order_id, quality_check_id, stage_id, reported_by, defect_type, severity, description, quantity_affected, cost_impact, photos)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     RETURNING *`,
-    [
-      orderId,
-      quality_check_id || null,
-      stage_id || null,
-      req.user?.id || null,
-      defect_type,
-      severity || 'minor',
-      description,
-      quantity_affected || 1,
-      cost_impact || null,
-      photos ? JSON.stringify(photos) : null,
-    ]
-  );
+  const order = orderResult.rows[0];
+  const defectSeverity = severity || 'minor';
+  const isCritical = defectSeverity === 'critical';
 
-  const defect = result.rows[0];
+  const client = await getClient();
 
-  await logAudit({
-    tableName: 'defects',
-    recordId: defect.id,
-    action: 'CREATE',
-    newValues: defect,
-    context: getAuditContextFromRequest(req),
-  });
+  try {
+    await client.query('BEGIN');
 
-  logger.info(`Defect reported for order ${orderId}: ${defect_type}`);
+    const result = await client.query(
+      `INSERT INTO defects (order_id, quality_check_id, stage_id, reported_by, defect_type, severity, description, quantity_affected, cost_impact, photos)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING *`,
+      [
+        orderId,
+        quality_check_id || null,
+        stage_id || null,
+        req.user?.id || null,
+        defect_type,
+        defectSeverity,
+        description,
+        quantity_affected || 1,
+        cost_impact || null,
+        photos ? JSON.stringify(photos) : null,
+      ]
+    );
 
-  res.status(201).json({
-    success: true,
-    data: { defect },
-  });
+    const defect = result.rows[0];
+
+    // TASK 1.3: Block production when critical defect is created
+    let stageBlocked = false;
+    if (isCritical && stage_id) {
+      await client.query(
+        `UPDATE stages SET status = 'WSTRZYMANY', updated_at = NOW() WHERE id = $1`,
+        [stage_id]
+      );
+      stageBlocked = true;
+
+      logger.warn(`Stage ${stage_id} blocked due to critical defect ${defect.id}`);
+    }
+
+    await client.query('COMMIT');
+
+    await logAudit({
+      tableName: 'defects',
+      recordId: defect.id,
+      action: 'CREATE',
+      newValues: defect,
+      context: getAuditContextFromRequest(req),
+    });
+
+    // Notify KIEROWNIK about quality issue (especially critical)
+    try {
+      await notifyQualityIssue(Number(orderId), order.order_number, defectSeverity);
+    } catch (notifyError) {
+      logger.error('Failed to send quality notification:', notifyError);
+    }
+
+    logger.info(`Defect reported for order ${orderId}: ${defect_type} (severity: ${defectSeverity})`);
+
+    res.status(201).json({
+      success: true,
+      data: {
+        defect,
+        stage_blocked: stageBlocked,
+        message: isCritical
+          ? 'Defekt krytyczny zgłoszony. Etap produkcji został wstrzymany. KIEROWNIK został powiadomiony.'
+          : 'Defekt zgłoszony pomyślnie.',
+      },
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 });
 
 // PUT /api/quality/defects/:id

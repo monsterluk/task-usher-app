@@ -6,11 +6,18 @@ import { logger } from '../utils/logger';
 import { AppError, asyncHandler } from '../middleware/errorHandler';
 
 // GET /api/workers
-export const getAllWorkers = asyncHandler(async (req: Request, res: Response) => {
+export const getAllWorkers = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { active, position, role } = req.query;
+  const user = req.user;
+
+  // TASK 1.5: PRACOWNIK sees limited fields (no hourly_rate of others)
+  const isPracownik = user?.role === 'PRACOWNIK';
+  const columns = isPracownik
+    ? 'id, name, email, position, role, skills, active, created_at, updated_at'
+    : 'id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at';
 
   let sql = `
-    SELECT id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at
+    SELECT ${columns}
     FROM workers
     WHERE 1=1
   `;
@@ -48,12 +55,27 @@ export const getAllWorkers = asyncHandler(async (req: Request, res: Response) =>
 });
 
 // GET /api/workers/:id
-export const getWorkerById = asyncHandler(async (req: Request, res: Response) => {
+export const getWorkerById = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
+  const user = req.user;
+
+  // TASK 1.5: PRACOWNIK can only see full details of themselves
+  const isPracownik = user?.role === 'PRACOWNIK';
+  let isOwnProfile = false;
+
+  if (isPracownik) {
+    const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [user.id]);
+    isOwnProfile = workerResult.rows.length > 0 && workerResult.rows[0].id === parseInt(id);
+  }
+
+  // Full details for managers/admins, or for PRACOWNIK viewing their own profile
+  const showFullDetails = !isPracownik || isOwnProfile;
+  const columns = showFullDetails
+    ? 'id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at'
+    : 'id, name, email, position, role, skills, active, created_at, updated_at';
 
   const result = await query(
-    `SELECT id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at
-     FROM workers WHERE id = $1`,
+    `SELECT ${columns} FROM workers WHERE id = $1`,
     [id]
   );
 

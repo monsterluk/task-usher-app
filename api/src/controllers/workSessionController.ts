@@ -8,10 +8,11 @@ import { updateOrderStatusFromStages } from './stageController';
 // POST /api/assignments/:assignmentId/start
 export const startTimer = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { assignmentId } = req.params;
+  const { auto_close_previous = false } = req.body;
 
   // Check if assignment exists
   const assignmentResult = await query(
-    `SELECT a.*, s.order_id, s.id as stage_id, w.hourly_rate
+    `SELECT a.*, s.order_id, s.id as stage_id, w.hourly_rate, w.id as worker_id
      FROM assignments a
      JOIN stages s ON a.stage_id = s.id
      JOIN workers w ON a.worker_id = w.id
@@ -24,21 +25,59 @@ export const startTimer = asyncHandler(async (req: AuthRequest, res: Response) =
   }
 
   const assignment = assignmentResult.rows[0];
-
-  // Check if there's already an active session
-  const activeSession = await query(
-    'SELECT id FROM work_sessions WHERE assignment_id = $1 AND end_time IS NULL',
-    [assignmentId]
-  );
-
-  if (activeSession.rows.length > 0) {
-    throw new AppError('Timer is already running for this assignment', 400);
-  }
+  const workerId = assignment.worker_id;
 
   const client = await getClient();
 
   try {
     await client.query('BEGIN');
+
+    // TASK 1.1: Check if worker has ANY active session (SELECT FOR UPDATE to prevent race condition)
+    const activeWorkerSession = await client.query(
+      `SELECT ws.id, ws.assignment_id, a.id as asgn_id, s.stage_name, o.order_number
+       FROM work_sessions ws
+       JOIN assignments a ON ws.assignment_id = a.id
+       JOIN stages s ON a.stage_id = s.id
+       JOIN orders o ON s.order_id = o.id
+       WHERE a.worker_id = $1 AND ws.end_time IS NULL
+       FOR UPDATE`,
+      [workerId]
+    );
+
+    if (activeWorkerSession.rows.length > 0) {
+      const existingSession = activeWorkerSession.rows[0];
+
+      if (auto_close_previous) {
+        // Automatically close the previous session
+        const hourlyRateResult = await client.query(
+          `SELECT w.hourly_rate FROM workers w
+           JOIN assignments a ON a.worker_id = w.id
+           WHERE a.id = $1`,
+          [existingSession.assignment_id]
+        );
+        const prevHourlyRate = parseFloat(hourlyRateResult.rows[0]?.hourly_rate || 0);
+
+        await client.query(
+          `UPDATE work_sessions
+           SET end_time = NOW(),
+               duration_minutes = EXTRACT(EPOCH FROM (NOW() - start_time)) / 60,
+               cost = (EXTRACT(EPOCH FROM (NOW() - start_time)) / 3600) * $1,
+               updated_at = NOW()
+           WHERE id = $2`,
+          [prevHourlyRate, existingSession.id]
+        );
+
+        logger.info(`Auto-closed previous session ${existingSession.id} for worker ${workerId}`);
+      } else {
+        // Return error with info about existing session
+        await client.query('ROLLBACK');
+        throw new AppError(
+          `Pracownik ma już aktywną sesję pracy (zlecenie: ${existingSession.order_number}, etap: ${existingSession.stage_name}). ` +
+          `Zakończ poprzednią sesję lub użyj auto_close_previous=true`,
+          400
+        );
+      }
+    }
 
     // Create new work session
     const sessionResult = await client.query(
@@ -266,32 +305,11 @@ export const getWorkerActiveSession = asyncHandler(async (req: Request, res: Res
 // DELETE /api/work-sessions/:id
 export const deleteWorkSession = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
+  const user = req.user;
 
-  // Check if session exists
-  const existingResult = await query('SELECT id FROM work_sessions WHERE id = $1', [id]);
-
-  if (existingResult.rows.length === 0) {
-    throw new AppError('Work session not found', 404);
-  }
-
-  await query('DELETE FROM work_sessions WHERE id = $1', [id]);
-
-  logger.info(`Work session deleted: ${id}`);
-
-  res.json({
-    success: true,
-    message: 'Work session deleted successfully',
-  });
-});
-
-// PUT /api/work-sessions/:id (manual correction)
-export const updateWorkSession = asyncHandler(async (req: AuthRequest, res: Response) => {
-  const { id } = req.params;
-  const { start_time, end_time, duration_minutes } = req.body;
-
-  // Check if session exists
+  // Check if session exists and get worker info
   const existingResult = await query(
-    `SELECT ws.*, w.hourly_rate
+    `SELECT ws.id, a.worker_id, w.user_id
      FROM work_sessions ws
      JOIN assignments a ON ws.assignment_id = a.id
      JOIN workers w ON a.worker_id = w.id
@@ -304,6 +322,52 @@ export const updateWorkSession = asyncHandler(async (req: AuthRequest, res: Resp
   }
 
   const session = existingResult.rows[0];
+
+  // TASK 1.2: Ownership validation - PRACOWNIK can only delete own sessions
+  if (user?.role === 'PRACOWNIK') {
+    if (session.user_id !== user.id) {
+      throw new AppError('Nie masz uprawnień do usunięcia tej sesji pracy', 403);
+    }
+  }
+
+  await query('DELETE FROM work_sessions WHERE id = $1', [id]);
+
+  logger.info(`Work session deleted: ${id} by user ${user?.id}`);
+
+  res.json({
+    success: true,
+    message: 'Work session deleted successfully',
+  });
+});
+
+// PUT /api/work-sessions/:id (manual correction)
+export const updateWorkSession = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { start_time, end_time, duration_minutes } = req.body;
+  const user = req.user;
+
+  // Check if session exists and get worker info
+  const existingResult = await query(
+    `SELECT ws.*, w.hourly_rate, w.user_id as worker_user_id
+     FROM work_sessions ws
+     JOIN assignments a ON ws.assignment_id = a.id
+     JOIN workers w ON a.worker_id = w.id
+     WHERE ws.id = $1`,
+    [id]
+  );
+
+  if (existingResult.rows.length === 0) {
+    throw new AppError('Work session not found', 404);
+  }
+
+  const session = existingResult.rows[0];
+
+  // TASK 1.2: Ownership validation - PRACOWNIK can only edit own sessions
+  if (user?.role === 'PRACOWNIK') {
+    if (session.worker_user_id !== user.id) {
+      throw new AppError('Nie masz uprawnień do edycji tej sesji pracy', 403);
+    }
+  }
 
   // Calculate new values
   let newStartTime = start_time ? new Date(start_time) : session.start_time;

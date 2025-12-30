@@ -280,3 +280,277 @@ export const updateOrderStatusFromStages = async (orderId: number): Promise<void
 
   logger.info(`Order ${orderId} status updated to ${newStatus}`);
 };
+
+// ============ STANDARD TIMES (TPZ, TJ) ============
+
+// GET /api/stages/time-standards
+export const getTimeStandards = asyncHandler(async (req: Request, res: Response) => {
+  const { stage_name, active } = req.query;
+
+  let sql = `SELECT * FROM stage_time_standards WHERE 1=1`;
+  const params: any[] = [];
+  let paramIndex = 1;
+
+  if (stage_name) {
+    sql += ` AND stage_name = $${paramIndex}`;
+    params.push(stage_name);
+    paramIndex++;
+  }
+
+  if (active !== undefined) {
+    sql += ` AND active = $${paramIndex}`;
+    params.push(active === 'true');
+    paramIndex++;
+  }
+
+  sql += ' ORDER BY stage_name ASC';
+
+  const result = await query(sql, params);
+
+  res.json({
+    success: true,
+    data: { standards: result.rows },
+  });
+});
+
+// POST /api/stages/time-standards
+export const createTimeStandard = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { stage_name, tpz_minutes, tj_minutes, description, machine_type, complexity_factor } = req.body;
+
+  if (!stage_name) {
+    throw new AppError('Nazwa etapu jest wymagana', 400);
+  }
+
+  const result = await query(
+    `INSERT INTO stage_time_standards (stage_name, tpz_minutes, tj_minutes, description, machine_type, complexity_factor, created_by)
+     VALUES ($1, $2, $3, $4, $5, $6, $7)
+     RETURNING *`,
+    [stage_name, tpz_minutes || 0, tj_minutes || 0, description, machine_type, complexity_factor || 1.0, req.user?.id]
+  );
+
+  res.status(201).json({
+    success: true,
+    data: { standard: result.rows[0] },
+  });
+});
+
+// PUT /api/stages/time-standards/:id
+export const updateTimeStandard = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { tpz_minutes, tj_minutes, description, machine_type, complexity_factor, active } = req.body;
+
+  const existingResult = await query('SELECT id FROM stage_time_standards WHERE id = $1', [id]);
+  if (existingResult.rows.length === 0) {
+    throw new AppError('Standard nie znaleziony', 404);
+  }
+
+  const updates: string[] = [];
+  const params: any[] = [];
+  let paramIndex = 1;
+
+  const fields: Record<string, any> = { tpz_minutes, tj_minutes, description, machine_type, complexity_factor, active };
+
+  for (const [key, value] of Object.entries(fields)) {
+    if (value !== undefined) {
+      updates.push(`${key} = $${paramIndex}`);
+      params.push(value);
+      paramIndex++;
+    }
+  }
+
+  if (updates.length === 0) {
+    throw new AppError('Brak pól do aktualizacji', 400);
+  }
+
+  updates.push(`updated_at = NOW()`);
+  params.push(id);
+
+  const result = await query(
+    `UPDATE stage_time_standards SET ${updates.join(', ')} WHERE id = $${paramIndex} RETURNING *`,
+    params
+  );
+
+  res.json({
+    success: true,
+    data: { standard: result.rows[0] },
+  });
+});
+
+// Helper: Calculate planned duration for a stage
+export const calculateStagePlannedDuration = (tpz: number, tj: number, quantity: number): number => {
+  return tpz + (tj * quantity);
+};
+
+// PUT /api/stages/:id/times - Update stage times with efficiency calculation
+export const updateStageTimes = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { tpz_minutes, tj_minutes } = req.body;
+
+  // Get stage with order quantity
+  const stageResult = await query(
+    `SELECT s.*, o.quantity FROM stages s
+     JOIN orders o ON s.order_id = o.id
+     WHERE s.id = $1`,
+    [id]
+  );
+
+  if (stageResult.rows.length === 0) {
+    throw new AppError('Stage not found', 404);
+  }
+
+  const stage = stageResult.rows[0];
+  const tpz = tpz_minutes !== undefined ? tpz_minutes : (parseFloat(stage.tpz_minutes) || 0);
+  const tj = tj_minutes !== undefined ? tj_minutes : (parseFloat(stage.tj_minutes) || 0);
+  const quantity = stage.quantity || 1;
+
+  // Calculate planned duration
+  const plannedDuration = calculateStagePlannedDuration(tpz, tj, quantity);
+
+  // Get actual duration from work sessions
+  const sessionsResult = await query(
+    `SELECT COALESCE(SUM(ws.duration_minutes), 0) as total_minutes
+     FROM work_sessions ws
+     JOIN assignments a ON ws.assignment_id = a.id
+     WHERE a.stage_id = $1 AND ws.end_time IS NOT NULL`,
+    [id]
+  );
+
+  const actualDuration = parseFloat(sessionsResult.rows[0].total_minutes) || 0;
+
+  // Calculate efficiency (planned/actual * 100)
+  let efficiency = null;
+  if (actualDuration > 0 && plannedDuration > 0) {
+    efficiency = (plannedDuration / actualDuration) * 100;
+  }
+
+  const result = await query(
+    `UPDATE stages
+     SET tpz_minutes = $1, tj_minutes = $2, planned_duration_minutes = $3,
+         actual_duration_minutes = $4, efficiency_percent = $5, updated_at = NOW()
+     WHERE id = $6
+     RETURNING *`,
+    [tpz, tj, plannedDuration, actualDuration, efficiency, id]
+  );
+
+  res.json({
+    success: true,
+    data: {
+      stage: result.rows[0],
+      calculations: {
+        tpz_minutes: tpz,
+        tj_minutes: tj,
+        quantity,
+        planned_duration_minutes: plannedDuration,
+        actual_duration_minutes: actualDuration,
+        efficiency_percent: efficiency,
+      },
+    },
+  });
+});
+
+// POST /api/stages/:id/apply-standard - Apply standard times from template
+export const applyStandardTimes = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  // Get stage
+  const stageResult = await query(
+    `SELECT s.*, o.quantity FROM stages s
+     JOIN orders o ON s.order_id = o.id
+     WHERE s.id = $1`,
+    [id]
+  );
+
+  if (stageResult.rows.length === 0) {
+    throw new AppError('Stage not found', 404);
+  }
+
+  const stage = stageResult.rows[0];
+
+  // Find matching standard
+  const standardResult = await query(
+    `SELECT * FROM stage_time_standards
+     WHERE stage_name = $1 AND active = true
+     ORDER BY machine_type NULLS LAST LIMIT 1`,
+    [stage.stage_name]
+  );
+
+  if (standardResult.rows.length === 0) {
+    throw new AppError(`Brak standardu czasowego dla etapu: ${stage.stage_name}`, 404);
+  }
+
+  const standard = standardResult.rows[0];
+  const quantity = stage.quantity || 1;
+  const tpz = parseFloat(standard.tpz_minutes) || 0;
+  const tj = parseFloat(standard.tj_minutes) || 0;
+  const complexityFactor = parseFloat(standard.complexity_factor) || 1.0;
+
+  // Apply complexity factor
+  const adjustedTpz = tpz * complexityFactor;
+  const adjustedTj = tj * complexityFactor;
+  const plannedDuration = calculateStagePlannedDuration(adjustedTpz, adjustedTj, quantity);
+
+  const result = await query(
+    `UPDATE stages
+     SET tpz_minutes = $1, tj_minutes = $2, planned_duration_minutes = $3, updated_at = NOW()
+     WHERE id = $4
+     RETURNING *`,
+    [adjustedTpz, adjustedTj, plannedDuration, id]
+  );
+
+  logger.info(`Applied standard times to stage ${id}: TPZ=${adjustedTpz}, TJ=${adjustedTj}`);
+
+  res.json({
+    success: true,
+    data: {
+      stage: result.rows[0],
+      applied_standard: standard,
+    },
+  });
+});
+
+// GET /api/stages/efficiency-report - Efficiency report across stages
+export const getEfficiencyReport = asyncHandler(async (req: Request, res: Response) => {
+  const { from_date, to_date, stage_name } = req.query;
+
+  let sql = `
+    SELECT
+      s.stage_name,
+      COUNT(*) as total_stages,
+      AVG(s.efficiency_percent) as avg_efficiency,
+      AVG(s.planned_duration_minutes) as avg_planned_minutes,
+      AVG(s.actual_duration_minutes) as avg_actual_minutes,
+      SUM(CASE WHEN s.efficiency_percent >= 100 THEN 1 ELSE 0 END) as on_target_count,
+      SUM(CASE WHEN s.efficiency_percent < 100 THEN 1 ELSE 0 END) as below_target_count
+    FROM stages s
+    WHERE s.efficiency_percent IS NOT NULL
+  `;
+  const params: any[] = [];
+  let paramIndex = 1;
+
+  if (from_date) {
+    sql += ` AND s.updated_at >= $${paramIndex}`;
+    params.push(from_date);
+    paramIndex++;
+  }
+
+  if (to_date) {
+    sql += ` AND s.updated_at <= $${paramIndex}`;
+    params.push(to_date);
+    paramIndex++;
+  }
+
+  if (stage_name) {
+    sql += ` AND s.stage_name = $${paramIndex}`;
+    params.push(stage_name);
+    paramIndex++;
+  }
+
+  sql += ' GROUP BY s.stage_name ORDER BY avg_efficiency DESC';
+
+  const result = await query(sql, params);
+
+  res.json({
+    success: true,
+    data: { efficiency_report: result.rows },
+  });
+});

@@ -441,6 +441,393 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_production_settings_key ON production_settings(setting_key);
     `,
   },
+  {
+    name: '010_create_bom_tables',
+    up: `
+      -- BOM Templates (reusable product templates)
+      CREATE TABLE IF NOT EXISTS bom_templates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        product_category VARCHAR(100),
+        version VARCHAR(20) DEFAULT '1.0',
+        is_active BOOLEAN DEFAULT true,
+        total_material_cost DECIMAL(12,2),
+        total_labor_hours DECIMAL(8,2),
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- BOM Template Items (materials/components in template)
+      CREATE TABLE IF NOT EXISTS bom_template_items (
+        id SERIAL PRIMARY KEY,
+        template_id INTEGER NOT NULL REFERENCES bom_templates(id) ON DELETE CASCADE,
+        item_type VARCHAR(50) NOT NULL CHECK (item_type IN ('material', 'component', 'labor', 'service')),
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        sku VARCHAR(100),
+        unit VARCHAR(30) NOT NULL,
+        quantity DECIMAL(12,4) NOT NULL,
+        unit_cost DECIMAL(12,4),
+        waste_percentage DECIMAL(5,2) DEFAULT 0,
+        supplier VARCHAR(200),
+        lead_time_days INTEGER,
+        is_critical BOOLEAN DEFAULT false,
+        sequence_order INTEGER DEFAULT 0,
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Order BOM (instance of BOM for specific order)
+      CREATE TABLE IF NOT EXISTS order_bom (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        template_id INTEGER REFERENCES bom_templates(id) ON DELETE SET NULL,
+        status VARCHAR(30) DEFAULT 'draft' CHECK (status IN ('draft', 'confirmed', 'in_production', 'completed')),
+        total_material_cost DECIMAL(12,2),
+        total_labor_cost DECIMAL(12,2),
+        total_cost DECIMAL(12,2),
+        notes TEXT,
+        confirmed_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        confirmed_at TIMESTAMP WITH TIME ZONE,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(order_id)
+      );
+
+      -- Order BOM Items (actual materials used in order)
+      CREATE TABLE IF NOT EXISTS order_bom_items (
+        id SERIAL PRIMARY KEY,
+        order_bom_id INTEGER NOT NULL REFERENCES order_bom(id) ON DELETE CASCADE,
+        template_item_id INTEGER REFERENCES bom_template_items(id) ON DELETE SET NULL,
+        item_type VARCHAR(50) NOT NULL CHECK (item_type IN ('material', 'component', 'labor', 'service')),
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        sku VARCHAR(100),
+        unit VARCHAR(30) NOT NULL,
+        quantity_planned DECIMAL(12,4) NOT NULL,
+        quantity_used DECIMAL(12,4),
+        unit_cost DECIMAL(12,4),
+        total_cost DECIMAL(12,2),
+        waste_quantity DECIMAL(12,4),
+        batch_number VARCHAR(100),
+        is_issued BOOLEAN DEFAULT false,
+        issued_at TIMESTAMP WITH TIME ZONE,
+        issued_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_bom_templates_category ON bom_templates(product_category);
+      CREATE INDEX IF NOT EXISTS idx_bom_templates_active ON bom_templates(is_active);
+      CREATE INDEX IF NOT EXISTS idx_bom_template_items_template ON bom_template_items(template_id);
+      CREATE INDEX IF NOT EXISTS idx_bom_template_items_type ON bom_template_items(item_type);
+      CREATE INDEX IF NOT EXISTS idx_order_bom_order ON order_bom(order_id);
+      CREATE INDEX IF NOT EXISTS idx_order_bom_status ON order_bom(status);
+      CREATE INDEX IF NOT EXISTS idx_order_bom_items_bom ON order_bom_items(order_bom_id);
+      CREATE INDEX IF NOT EXISTS idx_order_bom_items_type ON order_bom_items(item_type);
+      CREATE INDEX IF NOT EXISTS idx_order_bom_items_batch ON order_bom_items(batch_number);
+    `,
+  },
+  {
+    name: '011_create_traceability_tables',
+    up: `
+      -- Production batches (lot tracking)
+      CREATE TABLE IF NOT EXISTS production_batches (
+        id SERIAL PRIMARY KEY,
+        batch_number VARCHAR(100) NOT NULL UNIQUE,
+        order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+        product_name VARCHAR(200),
+        quantity INTEGER NOT NULL DEFAULT 1,
+        status VARCHAR(30) DEFAULT 'in_production' CHECK (status IN ('in_production', 'completed', 'on_hold', 'rejected')),
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        quality_status VARCHAR(30) DEFAULT 'pending' CHECK (quality_status IN ('pending', 'passed', 'failed', 'conditional')),
+        notes TEXT,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Batch materials (materials used in a batch with lot numbers)
+      CREATE TABLE IF NOT EXISTS batch_materials (
+        id SERIAL PRIMARY KEY,
+        batch_id INTEGER NOT NULL REFERENCES production_batches(id) ON DELETE CASCADE,
+        material_name VARCHAR(200) NOT NULL,
+        material_lot VARCHAR(100),
+        supplier VARCHAR(200),
+        quantity_used DECIMAL(12,4) NOT NULL,
+        unit VARCHAR(30) NOT NULL,
+        expiry_date DATE,
+        certificate_number VARCHAR(100),
+        order_bom_item_id INTEGER REFERENCES order_bom_items(id) ON DELETE SET NULL,
+        added_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        added_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Production events (genealogy/audit trail for production)
+      CREATE TABLE IF NOT EXISTS production_events (
+        id SERIAL PRIMARY KEY,
+        batch_id INTEGER REFERENCES production_batches(id) ON DELETE CASCADE,
+        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+        stage_id INTEGER REFERENCES stages(id) ON DELETE SET NULL,
+        event_type VARCHAR(50) NOT NULL CHECK (event_type IN (
+          'batch_created', 'batch_completed', 'batch_rejected', 'batch_on_hold',
+          'material_added', 'material_consumed',
+          'stage_started', 'stage_completed', 'stage_paused',
+          'quality_check', 'defect_reported', 'defect_resolved',
+          'rework_started', 'rework_completed',
+          'parameter_recorded', 'note_added'
+        )),
+        event_description TEXT,
+        event_data JSONB,
+        recorded_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Machine parameters log (for process traceability)
+      CREATE TABLE IF NOT EXISTS machine_parameters (
+        id SERIAL PRIMARY KEY,
+        batch_id INTEGER REFERENCES production_batches(id) ON DELETE CASCADE,
+        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+        machine_id INTEGER REFERENCES machines(id) ON DELETE SET NULL,
+        parameter_name VARCHAR(100) NOT NULL,
+        parameter_value VARCHAR(200),
+        unit VARCHAR(30),
+        min_value DECIMAL(12,4),
+        max_value DECIMAL(12,4),
+        is_within_spec BOOLEAN DEFAULT true,
+        recorded_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        recorded_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_batches_order ON production_batches(order_id);
+      CREATE INDEX IF NOT EXISTS idx_batches_status ON production_batches(status);
+      CREATE INDEX IF NOT EXISTS idx_batches_number ON production_batches(batch_number);
+      CREATE INDEX IF NOT EXISTS idx_batch_materials_batch ON batch_materials(batch_id);
+      CREATE INDEX IF NOT EXISTS idx_batch_materials_lot ON batch_materials(material_lot);
+      CREATE INDEX IF NOT EXISTS idx_production_events_batch ON production_events(batch_id);
+      CREATE INDEX IF NOT EXISTS idx_production_events_order ON production_events(order_id);
+      CREATE INDEX IF NOT EXISTS idx_production_events_type ON production_events(event_type);
+      CREATE INDEX IF NOT EXISTS idx_production_events_date ON production_events(recorded_at);
+      CREATE INDEX IF NOT EXISTS idx_machine_params_batch ON machine_parameters(batch_id);
+      CREATE INDEX IF NOT EXISTS idx_machine_params_machine ON machine_parameters(machine_id);
+    `,
+  },
+  {
+    name: '012_add_standard_times',
+    up: `
+      -- Add standard times to stages (TPZ = setup time, TJ = per-piece time)
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS tpz_minutes DECIMAL(8,2) DEFAULT 0;
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS tj_minutes DECIMAL(8,2) DEFAULT 0;
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS planned_duration_minutes DECIMAL(10,2);
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS actual_duration_minutes DECIMAL(10,2);
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS efficiency_percent DECIMAL(5,2);
+
+      -- Standard times templates for stage types
+      CREATE TABLE IF NOT EXISTS stage_time_standards (
+        id SERIAL PRIMARY KEY,
+        stage_name VARCHAR(100) NOT NULL,
+        tpz_minutes DECIMAL(8,2) DEFAULT 0,
+        tj_minutes DECIMAL(8,2) DEFAULT 0,
+        description TEXT,
+        machine_type VARCHAR(100),
+        complexity_factor DECIMAL(4,2) DEFAULT 1.0,
+        active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(stage_name, machine_type)
+      );
+
+      -- Insert default standards for PlexiSystem stages
+      INSERT INTO stage_time_standards (stage_name, tpz_minutes, tj_minutes, description) VALUES
+        ('HANDLOWIEC', 15, 5, 'Przygotowanie oferty i zamówienia'),
+        ('GRAFIK', 30, 15, 'Projektowanie graficzne'),
+        ('FREZOWANIE/LASER', 20, 2, 'Cięcie CNC/laser - zależne od materiału'),
+        ('POLEROWANIE', 10, 1.5, 'Polerowanie krawędzi'),
+        ('WYGINANIE', 15, 3, 'Gięcie termiczne plexi'),
+        ('KLEJENIE', 10, 2, 'Klejenie elementów'),
+        ('DRUKOWANIE', 15, 1, 'Druk UV/solwentowy'),
+        ('OKLEJANIE', 10, 2, 'Aplikacja folii'),
+        ('PAKOWANIE', 10, 1, 'Pakowanie produktu'),
+        ('WYSYŁKA', 10, 0.5, 'Przygotowanie do wysyłki'),
+        ('FAKTURA', 5, 1, 'Wystawienie faktury'),
+        ('ZAMKNIĘCIE', 5, 0.5, 'Zamknięcie zlecenia')
+      ON CONFLICT (stage_name, machine_type) DO NOTHING;
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_stage_time_standards_name ON stage_time_standards(stage_name);
+      CREATE INDEX IF NOT EXISTS idx_stage_time_standards_active ON stage_time_standards(active);
+    `,
+  },
+  {
+    name: '013_add_resource_scheduling',
+    up: `
+      -- Add machine assignment to stages
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS machine_id INTEGER REFERENCES machines(id) ON DELETE SET NULL;
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS scheduled_start TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS scheduled_end TIMESTAMP WITH TIME ZONE;
+
+      -- Add scheduling to assignments
+      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS scheduled_start TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS scheduled_end TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS priority INTEGER DEFAULT 0;
+      ALTER TABLE assignments ADD COLUMN IF NOT EXISTS notes TEXT;
+
+      -- Resource conflicts log
+      CREATE TABLE IF NOT EXISTS resource_conflicts (
+        id SERIAL PRIMARY KEY,
+        conflict_type VARCHAR(30) NOT NULL CHECK (conflict_type IN ('worker', 'machine', 'stage')),
+        resource_id INTEGER NOT NULL,
+        resource_name VARCHAR(200),
+        conflicting_assignment_id INTEGER REFERENCES assignments(id) ON DELETE CASCADE,
+        conflicting_stage_id INTEGER REFERENCES stages(id) ON DELETE CASCADE,
+        existing_assignment_id INTEGER REFERENCES assignments(id) ON DELETE SET NULL,
+        existing_stage_id INTEGER REFERENCES stages(id) ON DELETE SET NULL,
+        conflict_start TIMESTAMP WITH TIME ZONE,
+        conflict_end TIMESTAMP WITH TIME ZONE,
+        resolution VARCHAR(30) CHECK (resolution IN ('ignored', 'rescheduled', 'cancelled', 'auto_resolved')),
+        resolved_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        resolved_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_stages_machine_id ON stages(machine_id);
+      CREATE INDEX IF NOT EXISTS idx_stages_scheduled ON stages(scheduled_start, scheduled_end);
+      CREATE INDEX IF NOT EXISTS idx_assignments_scheduled ON assignments(scheduled_start, scheduled_end);
+      CREATE INDEX IF NOT EXISTS idx_resource_conflicts_type ON resource_conflicts(conflict_type);
+      CREATE INDEX IF NOT EXISTS idx_resource_conflicts_resource ON resource_conflicts(resource_id);
+    `,
+  },
+  {
+    name: '014_create_backup_logs',
+    up: `
+      -- Backup logs table
+      CREATE TABLE IF NOT EXISTS backup_logs (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL,
+        filepath VARCHAR(500),
+        file_size BIGINT,
+        backup_type VARCHAR(30) NOT NULL CHECK (backup_type IN ('full', 'incremental', 'restore', 'delete')),
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'completed', 'failed')),
+        error_message TEXT,
+        started_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        completed_at TIMESTAMP WITH TIME ZONE,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- System backup settings
+      CREATE TABLE IF NOT EXISTS backup_settings (
+        id SERIAL PRIMARY KEY,
+        setting_key VARCHAR(50) NOT NULL UNIQUE,
+        setting_value TEXT,
+        description TEXT,
+        updated_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Insert default backup settings
+      INSERT INTO backup_settings (setting_key, setting_value, description) VALUES
+        ('auto_backup_enabled', 'true', 'Enable automatic daily backups'),
+        ('backup_hour', '3', 'Hour of day for automatic backup (0-23)'),
+        ('backup_retention_days', '30', 'Number of days to keep backups'),
+        ('max_backup_count', '30', 'Maximum number of backup files to keep'),
+        ('backup_directory', '/var/backups/plexisystem', 'Directory for backup files')
+      ON CONFLICT (setting_key) DO NOTHING;
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_backup_logs_status ON backup_logs(status);
+      CREATE INDEX IF NOT EXISTS idx_backup_logs_type ON backup_logs(backup_type);
+      CREATE INDEX IF NOT EXISTS idx_backup_logs_created_at ON backup_logs(created_at);
+    `,
+  },
+  {
+    name: '015_create_integrations',
+    up: `
+      -- External integrations configuration
+      CREATE TABLE IF NOT EXISTS integrations (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL UNIQUE,
+        display_name VARCHAR(200) NOT NULL,
+        description TEXT,
+        provider VARCHAR(50) NOT NULL,
+        is_enabled BOOLEAN DEFAULT false,
+        config JSONB DEFAULT '{}',
+        credentials JSONB DEFAULT '{}',
+        last_sync_at TIMESTAMP WITH TIME ZONE,
+        last_sync_status VARCHAR(30),
+        last_sync_message TEXT,
+        sync_interval_minutes INTEGER DEFAULT 60,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        updated_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Integration sync logs
+      CREATE TABLE IF NOT EXISTS integration_logs (
+        id SERIAL PRIMARY KEY,
+        integration_id INTEGER NOT NULL REFERENCES integrations(id) ON DELETE CASCADE,
+        action VARCHAR(50) NOT NULL,
+        status VARCHAR(20) NOT NULL CHECK (status IN ('pending', 'success', 'failed', 'partial')),
+        request_data JSONB,
+        response_data JSONB,
+        error_message TEXT,
+        records_processed INTEGER DEFAULT 0,
+        records_failed INTEGER DEFAULT 0,
+        duration_ms INTEGER,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Invoice sync mapping (local orders to external invoices)
+      CREATE TABLE IF NOT EXISTS invoice_sync (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        integration_id INTEGER NOT NULL REFERENCES integrations(id) ON DELETE CASCADE,
+        external_id VARCHAR(100),
+        external_number VARCHAR(100),
+        sync_status VARCHAR(30) DEFAULT 'pending' CHECK (sync_status IN ('pending', 'synced', 'failed', 'cancelled')),
+        invoice_type VARCHAR(30) CHECK (invoice_type IN ('proforma', 'invoice', 'correction')),
+        invoice_data JSONB,
+        synced_at TIMESTAMP WITH TIME ZONE,
+        error_message TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(order_id, integration_id, invoice_type)
+      );
+
+      -- Insert default integrations
+      INSERT INTO integrations (name, display_name, description, provider, config) VALUES
+        ('wfirma', 'wFirma.pl', 'Integracja z systemem fakturowania wFirma.pl - automatyczne wystawianie faktur', 'wfirma',
+         '{"api_url": "https://api2.wfirma.pl", "company_id": "", "auto_create_invoice": false, "default_series": "", "payment_method": "transfer", "payment_days": 14}'::jsonb),
+        ('baselinker', 'BaseLinker', 'Integracja z BaseLinker - synchronizacja zamówień z marketplace', 'baselinker',
+         '{"api_url": "https://api.baselinker.com/connector.php", "auto_sync_orders": false, "sync_statuses": true}'::jsonb),
+        ('allegro', 'Allegro', 'Integracja z Allegro - pobieranie zamówień', 'allegro',
+         '{"sandbox": false, "auto_import_orders": false}'::jsonb),
+        ('apaczka', 'Apaczka.pl', 'Integracja z Apaczka.pl - nadawanie przesyłek kurierskich', 'apaczka',
+         '{"api_url": "https://www.apaczka.pl/api/v2", "default_service": "UPS_STANDARD", "sender_address": {}, "auto_create_shipment": false}'::jsonb)
+      ON CONFLICT (name) DO NOTHING;
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_integrations_name ON integrations(name);
+      CREATE INDEX IF NOT EXISTS idx_integrations_enabled ON integrations(is_enabled);
+      CREATE INDEX IF NOT EXISTS idx_integration_logs_integration ON integration_logs(integration_id);
+      CREATE INDEX IF NOT EXISTS idx_integration_logs_status ON integration_logs(status);
+      CREATE INDEX IF NOT EXISTS idx_integration_logs_created ON integration_logs(created_at);
+      CREATE INDEX IF NOT EXISTS idx_invoice_sync_order ON invoice_sync(order_id);
+      CREATE INDEX IF NOT EXISTS idx_invoice_sync_external ON invoice_sync(external_id);
+      CREATE INDEX IF NOT EXISTS idx_invoice_sync_status ON invoice_sync(sync_status);
+    `,
+  },
 ];
 
 // Create migrations tracking table
