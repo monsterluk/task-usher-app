@@ -813,6 +813,73 @@ export const maintenanceApi = {
   },
 };
 
+// Documents API
+export const documentsApi = {
+  // Get documents for an order
+  getOrderDocuments: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/documents/orders/${orderId}`);
+    return response.data;
+  },
+  // Get document by ID
+  getById: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/documents/${id}`);
+    return response.data;
+  },
+  // Upload document
+  upload: async (data: {
+    order_id: number;
+    filename: string;
+    original_name: string;
+    mime_type?: string;
+    file_size?: number;
+    file_path: string;
+    category: string;
+    description?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/documents', data);
+    return response.data;
+  },
+  // Update document metadata
+  update: async (id: number, data: { category?: string; description?: string }) => {
+    checkDemoMode();
+    const response = await api.put(`/api/documents/${id}`, data);
+    return response.data;
+  },
+  // Delete document
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/documents/${id}`);
+    return response.data;
+  },
+  // Get document versions
+  getVersions: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/documents/${id}/versions`);
+    return response.data;
+  },
+  // Upload new version
+  uploadVersion: async (id: number, data: { filename: string; file_path: string; file_size?: number; change_notes?: string }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/documents/${id}/versions`, data);
+    return response.data;
+  },
+  // Get by category
+  getByCategory: async (category: string) => {
+    checkDemoMode();
+    const response = await api.get(`/api/documents/category/${category}`);
+    return response.data;
+  },
+  // Get statistics
+  getStats: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/documents/stats/overview');
+    return response.data;
+  },
+};
+
 // Cost Calculator API
 export const costsApi = {
   // Get cost for specific order

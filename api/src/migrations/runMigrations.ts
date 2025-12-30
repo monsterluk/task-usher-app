@@ -243,6 +243,47 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_maintenance_logs_machine_id ON maintenance_logs(machine_id);
     `,
   },
+  {
+    name: '005_create_documents',
+    up: `
+      -- Documents attached to orders
+      CREATE TABLE IF NOT EXISTS documents (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER REFERENCES orders(id) ON DELETE CASCADE,
+        filename VARCHAR(255) NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(100),
+        file_size INTEGER,
+        file_path VARCHAR(500) NOT NULL,
+        category VARCHAR(50) CHECK (category IN ('drawing', 'specification', 'photo', 'contract', 'invoice', 'other')),
+        description TEXT,
+        version INTEGER DEFAULT 1,
+        is_current BOOLEAN DEFAULT true,
+        uploaded_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Document versions history
+      CREATE TABLE IF NOT EXISTS document_versions (
+        id SERIAL PRIMARY KEY,
+        document_id INTEGER NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
+        version INTEGER NOT NULL,
+        filename VARCHAR(255) NOT NULL,
+        file_path VARCHAR(500) NOT NULL,
+        file_size INTEGER,
+        change_notes TEXT,
+        uploaded_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_documents_order_id ON documents(order_id);
+      CREATE INDEX IF NOT EXISTS idx_documents_category ON documents(category);
+      CREATE INDEX IF NOT EXISTS idx_documents_is_current ON documents(is_current);
+      CREATE INDEX IF NOT EXISTS idx_document_versions_document_id ON document_versions(document_id);
+    `,
+  },
 ];
 
 // Create migrations tracking table
