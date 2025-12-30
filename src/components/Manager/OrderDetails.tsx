@@ -7,6 +7,8 @@ import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Packa
 import { toast } from '@/hooks/use-toast';
 import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
+import BOMTab from './BOMTab';
+import TraceabilityTab from './TraceabilityTab';
 import { ShipmentResponse } from '@/utils/apaczka';
 import { attachmentsApi, orderItemsApi, isDemoMode } from '@/utils/api';
 
@@ -959,11 +961,21 @@ const OrderDetails = () => {
         </div>
       </div>
 
+      {/* BOM Section */}
+      <div className="card-industrial mt-6">
+        <BOMTab orderId={order.id} canEdit={true} />
+      </div>
+
+      {/* Traceability Section */}
+      <div className="card-industrial mt-6">
+        <TraceabilityTab orderId={order.id} />
+      </div>
+
       {/* Attachments Section */}
       <div className="card-industrial mt-6">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
           <Paperclip size={24} />
-          Załączniki ({attachments.length})
+          Zalaczniki ({attachments.length})
         </h2>
 
         {/* Upload Area */}

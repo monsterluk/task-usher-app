@@ -1091,4 +1091,191 @@ export const auditApi = {
   },
 };
 
+// BOM (Bill of Materials) API
+export const bomApi = {
+  // Get BOM for order
+  getOrderBom: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/bom`);
+    return response.data;
+  },
+  // Create BOM item
+  createBomItem: async (orderId: number, data: {
+    material_name: string;
+    material_type?: string;
+    quantity: number;
+    unit: string;
+    unit_price?: number;
+    supplier?: string;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/orders/${orderId}/bom`, data);
+    return response.data;
+  },
+  // Update BOM item
+  updateBomItem: async (id: number, data: Partial<{
+    material_name: string;
+    material_type: string;
+    quantity: number;
+    unit: string;
+    unit_price: number;
+    supplier: string;
+    notes: string;
+    is_consumed: boolean;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/bom/${id}`, data);
+    return response.data;
+  },
+  // Delete BOM item
+  deleteBomItem: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/bom/${id}`);
+    return response.data;
+  },
+  // Mark as consumed
+  markConsumed: async (id: number) => {
+    checkDemoMode();
+    const response = await api.post(`/api/bom/${id}/consume`);
+    return response.data;
+  },
+};
+
+// Traceability API
+export const traceabilityApi = {
+  // Get events for order
+  getOrderEvents: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/events`);
+    return response.data;
+  },
+  // Get event details
+  getEventById: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/traceability/events/${id}`);
+    return response.data;
+  },
+  // Create event
+  createEvent: async (orderId: number, data: {
+    event_type: string;
+    description?: string;
+    metadata?: Record<string, any>;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/traceability/orders/${orderId}/events`, data);
+    return response.data;
+  },
+  // Get timeline
+  getTimeline: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/traceability/orders/${orderId}/timeline`);
+    return response.data;
+  },
+};
+
+// Integrations API
+export const integrationsApi = {
+  // Get all integrations
+  getAll: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/integrations');
+    return response.data;
+  },
+  // Get single integration
+  getByName: async (name: string) => {
+    checkDemoMode();
+    const response = await api.get(`/api/integrations/${name}`);
+    return response.data;
+  },
+  // Update integration
+  update: async (name: string, data: {
+    is_enabled?: boolean;
+    config?: Record<string, any>;
+    credentials?: Record<string, any>;
+  }) => {
+    checkDemoMode();
+    const response = await api.put(`/api/integrations/${name}`, data);
+    return response.data;
+  },
+  // Test connection
+  testConnection: async (name: string) => {
+    checkDemoMode();
+    const response = await api.post(`/api/integrations/${name}/test`);
+    return response.data;
+  },
+  // Get logs
+  getLogs: async (name: string, limit?: number) => {
+    checkDemoMode();
+    const params = limit ? `?limit=${limit}` : '';
+    const response = await api.get(`/api/integrations/${name}/logs${params}`);
+    return response.data;
+  },
+  // wFirma: Create invoice
+  createWfirmaInvoice: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.post('/api/integrations/wfirma/create-invoice', { order_id: orderId });
+    return response.data;
+  },
+  // wFirma: Get invoices
+  getWfirmaInvoices: async (orderId?: number) => {
+    checkDemoMode();
+    const params = orderId ? `?order_id=${orderId}` : '';
+    const response = await api.get(`/api/integrations/wfirma/invoices${params}`);
+    return response.data;
+  },
+  // Apaczka: Create shipment
+  createApaczkaShipment: async (shipmentId: number) => {
+    checkDemoMode();
+    const response = await api.post('/api/integrations/apaczka/create-shipment', { shipment_id: shipmentId });
+    return response.data;
+  },
+  // Apaczka: Get services
+  getApaczkaServices: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/integrations/apaczka/services');
+    return response.data;
+  },
+  // Get order invoices
+  getOrderInvoices: async (orderId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/orders/${orderId}/invoices`);
+    return response.data;
+  },
+};
+
+// Backups API
+export const backupsApi = {
+  // Get backup status
+  getStatus: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/admin/backup/status');
+    return response.data;
+  },
+  // List backups
+  list: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/admin/backups');
+    return response.data;
+  },
+  // Create backup
+  create: async (description?: string) => {
+    checkDemoMode();
+    const response = await api.post('/api/admin/backup', { description });
+    return response.data;
+  },
+  // Delete backup
+  delete: async (filename: string) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/admin/backups/${filename}`);
+    return response.data;
+  },
+  // Restore backup
+  restore: async (filename: string) => {
+    checkDemoMode();
+    const response = await api.post('/api/admin/restore', { filename });
+    return response.data;
+  },
+};
+
 export default api;

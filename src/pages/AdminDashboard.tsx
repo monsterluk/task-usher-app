@@ -25,11 +25,15 @@ import {
   Shield,
   Wrench,
   ArrowLeft,
-  Home
+  Home,
+  Plug,
+  Database
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
 import MaterialPricesPanel from '@/components/Admin/MaterialPricesPanel';
+import IntegrationsPanel from '@/components/Admin/IntegrationsPanel';
+import BackupsPanel from '@/components/Admin/BackupsPanel';
 
 // Umiejętności/etapy produkcyjne do przypisania
 const AVAILABLE_SKILLS: Position[] = [
@@ -825,7 +829,13 @@ const AdminHome = () => {
           <Settings size={18} className="mr-2" /> Ustawienia
         </button>
         <button onClick={() => navigate('/admin/prices')} className="btn-primary">
-          <DollarSign size={18} className="mr-2" /> Ceny materiałów
+          <DollarSign size={18} className="mr-2" /> Ceny materialow
+        </button>
+        <button onClick={() => navigate('/admin/integrations')} className="btn-secondary">
+          <Plug size={18} className="mr-2" /> Integracje
+        </button>
+        <button onClick={() => navigate('/admin/backups')} className="btn-secondary">
+          <Database size={18} className="mr-2" /> Backupy
         </button>
       </div>
 
@@ -1190,6 +1200,8 @@ const AdminDashboard = () => {
           <Route path="/machines" element={<MachinesManagement />} />
           <Route path="/settings" element={<AdminSettings />} />
           <Route path="/prices" element={<MaterialPricesPanel />} />
+          <Route path="/integrations" element={<IntegrationsPanel />} />
+          <Route path="/backups" element={<BackupsPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
