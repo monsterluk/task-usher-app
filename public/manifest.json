@@ -2,17 +2,17 @@
   "name": "PlexiSystem - System Produkcji",
   "short_name": "PlexiSystem",
   "description": "System zarządzania zleceniami i produkcją",
-  "start_url": "/",
+  "start_url": "/worker",
   "display": "standalone",
   "background_color": "#1e3a5f",
   "theme_color": "#1e3a5f",
-  "orientation": "any",
+  "orientation": "portrait-primary",
   "icons": [
     {
       "src": "/icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any"
+      "purpose": "any maskable"
     },
     {
       "src": "/favicon.ico",
@@ -24,5 +24,24 @@
   "lang": "pl-PL",
   "dir": "ltr",
   "scope": "/",
-  "prefer_related_applications": false
+  "prefer_related_applications": false,
+  "shortcuts": [
+    {
+      "name": "Moje zlecenia",
+      "short_name": "Zlecenia",
+      "description": "Lista przydzielonych zlecen",
+      "url": "/worker",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "Historia pracy",
+      "short_name": "Historia",
+      "description": "Historia sesji pracy",
+      "url": "/worker/history",
+      "icons": [{ "src": "/icons/icon.svg", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [],
+  "related_applications": [],
+  "handle_links": "preferred"
 }

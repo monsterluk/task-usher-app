@@ -1,10 +1,17 @@
 // PlexiSystem Service Worker
-const CACHE_NAME = 'plexisystem-v1';
+const CACHE_NAME = 'plexisystem-v2';
 const urlsToCache = [
   '/',
   '/index.html',
-  '/manifest.json'
+  '/manifest.json',
+  '/worker',
+  '/worker/history',
+  '/worker/profile'
 ];
+
+// API data cache for offline support
+const API_CACHE = 'plexisystem-api-v1';
+const API_CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // Install - cache essential files
 self.addEventListener('install', (event) => {
@@ -20,11 +27,12 @@ self.addEventListener('install', (event) => {
 
 // Activate - clean old caches
 self.addEventListener('activate', (event) => {
+  const validCaches = [CACHE_NAME, API_CACHE];
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
-          if (cacheName !== CACHE_NAME) {
+          if (!validCaches.includes(cacheName)) {
             console.log('PlexiSystem: Deleting old cache', cacheName);
             return caches.delete(cacheName);
           }
@@ -36,11 +44,33 @@ self.addEventListener('activate', (event) => {
 
 // Fetch - network first, fallback to cache
 self.addEventListener('fetch', (event) => {
-  // Skip API calls - always fetch from network
-  if (event.request.url.includes('/api/')) {
+  const requestUrl = new URL(event.request.url);
+
+  // Handle API calls with network-first strategy and caching
+  if (requestUrl.pathname.startsWith('/api/')) {
+    // Only cache GET requests for API
+    if (event.request.method === 'GET') {
+      event.respondWith(
+        fetch(event.request)
+          .then((response) => {
+            if (response && response.status === 200) {
+              const responseClone = response.clone();
+              caches.open(API_CACHE).then((cache) => {
+                cache.put(event.request, responseClone);
+              });
+            }
+            return response;
+          })
+          .catch(() => {
+            // Network failed, try API cache
+            return caches.match(event.request);
+          })
+      );
+    }
     return;
   }
 
+  // Handle static assets and pages
   event.respondWith(
     fetch(event.request)
       .then((response) => {
