@@ -21,7 +21,8 @@ import {
   Factory,
   Calculator,
   CalendarDays,
-  Download
+  Download,
+  History
 } from 'lucide-react';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
 import {
@@ -336,6 +337,16 @@ const Dashboard = () => {
           <div className="text-left">
             <p className="font-semibold text-sm">KPI</p>
             <p className="text-xs text-muted-foreground">Wskazniki</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/audit')}
+          className="flex items-center gap-3 p-4 bg-slate-50 dark:bg-slate-900/20 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900/30 transition-colors"
+        >
+          <History className="text-slate-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Audit</p>
+            <p className="text-xs text-muted-foreground">Historia</p>
           </div>
         </button>
         <button

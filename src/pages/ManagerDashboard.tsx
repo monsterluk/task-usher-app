@@ -20,6 +20,7 @@ import ProductionCalendar from '@/components/Manager/Calendar/ProductionCalendar
 import DataExport from '@/components/Manager/Export/DataExport';
 import KPIDashboard from '@/components/Manager/KPI/KPIDashboard';
 import NotificationSettings from '@/components/Manager/Notifications/NotificationSettings';
+import AuditTrail from '@/components/Manager/Audit/AuditTrail';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -62,6 +63,7 @@ const ManagerDashboard = () => {
           <Route path="export" element={<DataExport />} />
           <Route path="kpi" element={<KPIDashboard />} />
           <Route path="notifications" element={<NotificationSettings />} />
+          <Route path="audit" element={<AuditTrail />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>

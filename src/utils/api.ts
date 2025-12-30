@@ -1060,4 +1060,35 @@ export const calendarApi = {
   },
 };
 
+// Audit API
+export const auditApi = {
+  // Get recent audit logs
+  getLogs: async (filters?: {
+    table_name?: string;
+    action?: string;
+    user_id?: number;
+    from_date?: string;
+    to_date?: string;
+    limit?: number;
+  }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.table_name) params.append('table_name', filters.table_name);
+    if (filters?.action) params.append('action', filters.action);
+    if (filters?.user_id) params.append('user_id', String(filters.user_id));
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    const response = await api.get(`/api/audit?${params.toString()}`);
+    return response.data;
+  },
+  // Get audit history for specific record
+  getRecordHistory: async (tableName: string, recordId: number, limit?: number) => {
+    checkDemoMode();
+    const params = limit ? `?limit=${limit}` : '';
+    const response = await api.get(`/api/audit/${tableName}/${recordId}${params}`);
+    return response.data;
+  },
+};
+
 export default api;
