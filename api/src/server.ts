@@ -28,6 +28,7 @@ import capacityRoutes from './routes/capacity';
 import productionReportsRoutes from './routes/production-reports';
 import costsRoutes from './routes/costs';
 import documentsRoutes from './routes/documents';
+import calendarRoutes from './routes/calendar';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -79,6 +80,7 @@ app.use('/api/capacity', capacityRoutes);
 app.use('/api/production-reports', productionReportsRoutes);
 app.use('/api/costs', costsRoutes);
 app.use('/api/documents', documentsRoutes);
+app.use('/api/calendar', calendarRoutes);
 
 // Error handling
 app.use(notFoundHandler);

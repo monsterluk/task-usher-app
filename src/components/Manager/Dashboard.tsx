@@ -19,7 +19,8 @@ import {
   Gauge,
   Settings,
   Factory,
-  Calculator
+  Calculator,
+  CalendarDays
 } from 'lucide-react';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
 import {
@@ -304,6 +305,16 @@ const Dashboard = () => {
           <div className="text-left">
             <p className="font-semibold text-sm">Koszty</p>
             <p className="text-xs text-muted-foreground">Kalkulator</p>
+          </div>
+        </button>
+        <button
+          onClick={() => navigate('/manager/calendar')}
+          className="flex items-center gap-3 p-4 bg-indigo-50 dark:bg-indigo-900/20 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900/30 transition-colors"
+        >
+          <CalendarDays className="text-indigo-600" size={24} />
+          <div className="text-left">
+            <p className="font-semibold text-sm">Kalendarz</p>
+            <p className="text-xs text-muted-foreground">Planowanie</p>
           </div>
         </button>
         <button

@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette, CalendarDays } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
 const Navigation = () => {
@@ -85,6 +85,7 @@ const Navigation = () => {
               <>
                 <NavButton path="/manager/dashboard" icon={LayoutDashboard} label="Dashboard" />
                 <NavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
+                <NavButton path="/manager/calendar" icon={CalendarDays} label="Kalendarz" />
                 <NavButton path="/manager/machines" icon={Cog} label="Maszyny" />
                 <NavButton path="/manager/workers" icon={Users} label="Pracownicy" />
               </>

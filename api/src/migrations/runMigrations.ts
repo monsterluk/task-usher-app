@@ -284,6 +284,56 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_document_versions_document_id ON document_versions(document_id);
     `,
   },
+  {
+    name: '006_create_calendar_events',
+    up: `
+      -- Custom calendar events (meetings, reminders, etc.)
+      CREATE TABLE IF NOT EXISTS calendar_events (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        start_date TIMESTAMP WITH TIME ZONE NOT NULL,
+        end_date TIMESTAMP WITH TIME ZONE,
+        all_day BOOLEAN DEFAULT false,
+        event_type VARCHAR(30) CHECK (event_type IN ('order', 'maintenance', 'meeting', 'deadline', 'reminder', 'other')),
+        order_id INTEGER REFERENCES orders(id) ON DELETE SET NULL,
+        recurrence_rule VARCHAR(255),
+        color VARCHAR(20),
+        location VARCHAR(255),
+        attendees JSONB,
+        reminders JSONB,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        google_event_id VARCHAR(255),
+        synced_with_google BOOLEAN DEFAULT false,
+        last_synced_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Google Calendar sync tokens
+      CREATE TABLE IF NOT EXISTS google_calendar_tokens (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        access_token TEXT,
+        refresh_token TEXT,
+        token_type VARCHAR(50),
+        expires_at TIMESTAMP WITH TIME ZONE,
+        calendar_id VARCHAR(255),
+        sync_enabled BOOLEAN DEFAULT true,
+        last_sync_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(user_id)
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_start_date ON calendar_events(start_date);
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_type ON calendar_events(event_type);
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_order_id ON calendar_events(order_id);
+      CREATE INDEX IF NOT EXISTS idx_calendar_events_created_by ON calendar_events(created_by);
+      CREATE INDEX IF NOT EXISTS idx_google_tokens_user_id ON google_calendar_tokens(user_id);
+    `,
+  },
 ];
 
 // Create migrations tracking table

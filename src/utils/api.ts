@@ -983,4 +983,67 @@ export const capacityApi = {
   },
 };
 
+// Calendar API
+export const calendarApi = {
+  // Get calendar events
+  getEvents: async (filters?: { start?: string; end?: string; types?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.start) params.append('start', filters.start);
+    if (filters?.end) params.append('end', filters.end);
+    if (filters?.types) params.append('types', filters.types);
+    const response = await api.get(`/api/calendar/events?${params.toString()}`);
+    return response.data;
+  },
+  // Create calendar event
+  createEvent: async (data: {
+    title: string;
+    description?: string;
+    start: string;
+    end?: string;
+    type?: string;
+    orderId?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/calendar/events', data);
+    return response.data;
+  },
+  // Update calendar event
+  updateEvent: async (id: number, data: { title?: string; description?: string; start?: string; end?: string }) => {
+    checkDemoMode();
+    const response = await api.put(`/api/calendar/events/${id}`, data);
+    return response.data;
+  },
+  // Delete calendar event
+  deleteEvent: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/calendar/events/${id}`);
+    return response.data;
+  },
+  // Get production schedule
+  getProductionSchedule: async (filters?: { start?: string; end?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.start) params.append('start', filters.start);
+    if (filters?.end) params.append('end', filters.end);
+    const response = await api.get(`/api/calendar/production-schedule?${params.toString()}`);
+    return response.data;
+  },
+  // Get worker schedule
+  getWorkerSchedule: async (workerId: number, filters?: { start?: string; end?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.start) params.append('start', filters.start);
+    if (filters?.end) params.append('end', filters.end);
+    const response = await api.get(`/api/calendar/workers/${workerId}/schedule?${params.toString()}`);
+    return response.data;
+  },
+  // Sync with Google Calendar
+  syncGoogle: async () => {
+    checkDemoMode();
+    const response = await api.post('/api/calendar/google/sync');
+    return response.data;
+  },
+};
+
 export default api;
