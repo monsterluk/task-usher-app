@@ -180,6 +180,43 @@ export const updateStage = asyncHandler(async (req: AuthRequest, res: Response) 
   }
 
   if (status !== undefined) {
+    // TASK 1.2: Validate stage sequence - check if previous stages are completed
+    const isCompleting = (status === 'GOTOWY' || status === 'ZAKONCZONE') &&
+                         existingStage.status !== 'GOTOWY' &&
+                         existingStage.status !== 'ZAKONCZONE';
+
+    if (isCompleting) {
+      const previousIncompleteResult = await query(
+        `SELECT stage_name, status, sequence_order
+         FROM stages
+         WHERE order_id = $1
+           AND sequence_order < $2
+           AND is_sequential = true
+           AND is_required = true
+           AND status NOT IN ('GOTOWY', 'ZAKONCZONE')
+         ORDER BY sequence_order`,
+        [existingStage.order_id, existingStage.sequence_order]
+      );
+
+      if (previousIncompleteResult.rows.length > 0) {
+        const incompleteList = previousIncompleteResult.rows
+          .map((s: any) => `${s.stage_name} (${s.status})`)
+          .join(', ');
+        throw new AppError(
+          `Nie można zakończyć etapu. Najpierw zakończ poprzednie wymagane etapy: ${incompleteList}`,
+          400
+        );
+      }
+
+      // Set completed_at timestamp for both GOTOWY and ZAKONCZONE
+      updates.push(`completed_at = NOW()`);
+    }
+
+    // Set started_at when stage starts
+    if ((status === 'W_TRAKCIE' || status === 'W TRAKCIE') && existingStage.status === 'NOWY') {
+      updates.push(`started_at = NOW()`);
+    }
+
     updates.push(`status = $${paramIndex}`);
     params.push(status);
     paramIndex++;
@@ -260,9 +297,10 @@ export const updateOrderStatusFromStages = async (orderId: number): Promise<void
     return;
   }
 
-  const allCompleted = stages.every((s) => s.status === 'GOTOWY');
+  // Both GOTOWY and ZAKONCZONE count as completed
+  const allCompleted = stages.every((s) => s.status === 'GOTOWY' || s.status === 'ZAKONCZONE');
   const anyInProgress = stages.some(
-    (s) => s.status === 'W_TRAKCIE' || s.status === 'GOTOWY'
+    (s) => s.status === 'W_TRAKCIE' || s.status === 'GOTOWY' || s.status === 'ZAKONCZONE'
   );
 
   let newStatus = 'NOWE';

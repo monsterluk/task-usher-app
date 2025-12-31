@@ -39,22 +39,16 @@ export const getAllOrders = asyncHandler(async (req: AuthRequest, res: Response)
 
   // TASK 1.5: Filter for PRACOWNIK - only show orders where they have assignments
   if (user?.role === 'PRACOWNIK') {
-    // Get worker_id for this user
-    const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [user.id]);
-    if (workerResult.rows.length > 0) {
-      const workerId = workerResult.rows[0].id;
-      sql += ` AND o.id IN (
-        SELECT DISTINCT s.order_id
-        FROM assignments a
-        JOIN stages s ON a.stage_id = s.id
-        WHERE a.worker_id = $${paramIndex}
-      )`;
-      params.push(workerId);
-      paramIndex++;
-    } else {
-      // No worker profile - return empty list
-      sql += ` AND 1=0`;
-    }
+    // user.id IS the worker ID (from JWT payload)
+    const workerId = user.id;
+    sql += ` AND o.id IN (
+      SELECT DISTINCT s.order_id
+      FROM assignments a
+      JOIN stages s ON a.stage_id = s.id
+      WHERE a.worker_id = $${paramIndex}
+    )`;
+    params.push(workerId);
+    paramIndex++;
   }
 
   if (status) {
@@ -118,20 +112,16 @@ export const getOrderById = asyncHandler(async (req: AuthRequest, res: Response)
 
   // TASK 1.5: Check access for PRACOWNIK - must have assignment to this order
   if (user?.role === 'PRACOWNIK') {
-    const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [user.id]);
-    if (workerResult.rows.length > 0) {
-      const workerId = workerResult.rows[0].id;
-      const accessCheck = await query(
-        `SELECT 1 FROM assignments a
-         JOIN stages s ON a.stage_id = s.id
-         WHERE s.order_id = $1 AND a.worker_id = $2
-         LIMIT 1`,
-        [id, workerId]
-      );
-      if (accessCheck.rows.length === 0) {
-        throw new AppError('Nie masz dostępu do tego zlecenia', 403);
-      }
-    } else {
+    // user.id IS the worker ID (from JWT payload)
+    const workerId = user.id;
+    const accessCheck = await query(
+      `SELECT 1 FROM assignments a
+       JOIN stages s ON a.stage_id = s.id
+       WHERE s.order_id = $1 AND a.worker_id = $2
+       LIMIT 1`,
+      [id, workerId]
+    );
+    if (accessCheck.rows.length === 0) {
       throw new AppError('Nie masz dostępu do tego zlecenia', 403);
     }
   }
@@ -419,6 +409,11 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     }
 
     updates.push(`closed_at = NOW()`);
+
+    // Add closed_by if user is logged in (req.user.id IS the worker ID)
+    if (req.user?.id) {
+      updates.push(`closed_by = ${req.user.id}`);
+    }
   }
 
   updates.push(`updated_at = NOW()`);

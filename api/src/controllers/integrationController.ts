@@ -65,11 +65,8 @@ export const getIntegration = asyncHandler(async (req: AuthRequest, res: Respons
 export const updateIntegration = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { name } = req.params;
   const { config, credentials, is_enabled, sync_interval_minutes } = req.body;
-  const userId = req.user?.id;
-
-  // Get worker ID
-  const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [userId]);
-  const workerId = workerResult.rows.length > 0 ? workerResult.rows[0].id : null;
+  // req.user?.id IS the worker ID from JWT payload
+  const workerId = req.user?.id || null;
 
   // Build update query
   const updates: string[] = [];
@@ -119,7 +116,7 @@ export const updateIntegration = asyncHandler(async (req: AuthRequest, res: Resp
     throw new AppError('Integration not found', 404);
   }
 
-  logger.info(`Integration ${name} updated by user ${userId}`);
+  logger.info(`Integration ${name} updated by worker ${workerId}`);
 
   res.json({
     success: true,
@@ -564,31 +561,31 @@ export const getWfirmaInvoices = asyncHandler(async (req: AuthRequest, res: Resp
 
   let sql = `
     SELECT
-      is.*,
+      inv.*,
       o.order_number,
       o.client_name,
       o.product_name
-    FROM invoice_sync is
-    JOIN orders o ON is.order_id = o.id
-    JOIN integrations i ON is.integration_id = i.id
+    FROM invoice_sync inv
+    JOIN orders o ON inv.order_id = o.id
+    JOIN integrations i ON inv.integration_id = i.id
     WHERE i.name = 'wfirma'
   `;
   const params: any[] = [];
   let paramIndex = 1;
 
   if (order_id) {
-    sql += ` AND is.order_id = $${paramIndex}`;
+    sql += ` AND inv.order_id = $${paramIndex}`;
     params.push(order_id);
     paramIndex++;
   }
 
   if (status) {
-    sql += ` AND is.sync_status = $${paramIndex}`;
+    sql += ` AND inv.sync_status = $${paramIndex}`;
     params.push(status);
     paramIndex++;
   }
 
-  sql += ` ORDER BY is.created_at DESC LIMIT $${paramIndex}`;
+  sql += ` ORDER BY inv.created_at DESC LIMIT $${paramIndex}`;
   params.push(limit);
 
   const result = await query(sql, params);
@@ -608,13 +605,13 @@ export const getOrderInvoices = asyncHandler(async (req: AuthRequest, res: Respo
 
   const result = await query(
     `SELECT
-      is.*,
+      inv.*,
       i.name as integration_name,
       i.display_name as integration_display_name
-     FROM invoice_sync is
-     JOIN integrations i ON is.integration_id = i.id
-     WHERE is.order_id = $1
-     ORDER BY is.created_at DESC`,
+     FROM invoice_sync inv
+     JOIN integrations i ON inv.integration_id = i.id
+     WHERE inv.order_id = $1
+     ORDER BY inv.created_at DESC`,
     [orderId]
   );
 

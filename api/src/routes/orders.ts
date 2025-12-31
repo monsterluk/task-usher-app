@@ -9,6 +9,7 @@ import * as qualityController from '../controllers/qualityController';
 import * as bomController from '../controllers/bomController';
 import * as traceabilityController from '../controllers/traceabilityController';
 import * as integrationController from '../controllers/integrationController';
+import * as orderItemsController from '../controllers/orderItemsController';
 
 const router = Router();
 
@@ -42,7 +43,7 @@ router.post('/:orderId/defects', qualityController.createDefect);
 
 // BOM (Bill of Materials) - nested under orders
 router.get('/:orderId/bom', bomController.getOrderBom);
-router.post('/:orderId/bom', requireRole('MANAGER'), bomController.createOrderBom);
+router.post('/:orderId/bom', requireRole('MANAGER'), bomController.createOrderBomOrAddItem);
 router.put('/:orderId/bom', bomController.updateOrderBom);
 
 // Traceability events - nested under orders
@@ -50,5 +51,9 @@ router.get('/:orderId/events', traceabilityController.getOrderEvents);
 
 // Invoices - nested under orders
 router.get('/:orderId/invoices', integrationController.getOrderInvoices);
+
+// Order items - nested under orders
+router.get('/:orderId/items', orderItemsController.getOrderItems);
+router.post('/:orderId/items', requireRole('MANAGER'), orderItemsController.createOrderItem);
 
 export default router;

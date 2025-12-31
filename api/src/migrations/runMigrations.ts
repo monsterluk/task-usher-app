@@ -828,6 +828,249 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_invoice_sync_status ON invoice_sync(sync_status);
     `,
   },
+  {
+    name: '016_add_order_closing_validation',
+    up: `
+      -- Add closed_at and closed_by columns to orders
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE orders ADD COLUMN IF NOT EXISTS closed_by INTEGER REFERENCES workers(id) ON DELETE SET NULL;
+
+      -- Add is_sequential flag to stages for parallel/sequential execution
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS is_sequential BOOLEAN DEFAULT true;
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS is_required BOOLEAN DEFAULT true;
+
+      -- Ensure sequence_order exists on stages
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS sequence_order INTEGER DEFAULT 0;
+
+      -- Create index for stage sequence
+      CREATE INDEX IF NOT EXISTS idx_stages_sequence ON stages(order_id, sequence_order);
+      CREATE INDEX IF NOT EXISTS idx_stages_required ON stages(is_required);
+
+      -- Add started_at for stages
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS started_at TIMESTAMP WITH TIME ZONE;
+      ALTER TABLE stages ADD COLUMN IF NOT EXISTS completed_at TIMESTAMP WITH TIME ZONE;
+    `,
+  },
+  {
+    name: '017_create_inventory_module',
+    up: `
+      -- Kategorie materialow
+      CREATE TABLE IF NOT EXISTS material_categories (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        parent_id INTEGER REFERENCES material_categories(id) ON DELETE SET NULL,
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Materialy (katalog)
+      CREATE TABLE IF NOT EXISTS materials (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        description TEXT,
+        unit VARCHAR(20) NOT NULL CHECK (unit IN ('szt', 'm2', 'mb', 'kg', 'l', 'ark')),
+        category_id INTEGER REFERENCES material_categories(id) ON DELETE SET NULL,
+        thickness_mm DECIMAL(6,2),
+        width_mm DECIMAL(8,2),
+        height_mm DECIMAL(8,2),
+        color VARCHAR(100),
+        supplier VARCHAR(200),
+        supplier_code VARCHAR(100),
+        min_stock DECIMAL(10,2) DEFAULT 0,
+        max_stock DECIMAL(10,2),
+        reorder_point DECIMAL(10,2),
+        unit_cost DECIMAL(12,4),
+        last_purchase_price DECIMAL(12,4),
+        is_active BOOLEAN DEFAULT true,
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Lokacje magazynowe
+      CREATE TABLE IF NOT EXISTS storage_locations (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(200) NOT NULL,
+        warehouse VARCHAR(100) DEFAULT 'Magazyn glowny',
+        zone VARCHAR(50),
+        aisle VARCHAR(20),
+        rack VARCHAR(20),
+        shelf VARCHAR(20),
+        bin VARCHAR(20),
+        capacity_max DECIMAL(12,2),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Stany magazynowe
+      CREATE TABLE IF NOT EXISTS inventory_items (
+        id SERIAL PRIMARY KEY,
+        material_id INTEGER NOT NULL REFERENCES materials(id) ON DELETE CASCADE,
+        location_id INTEGER REFERENCES storage_locations(id) ON DELETE SET NULL,
+        batch_number VARCHAR(100),
+        serial_number VARCHAR(100),
+        quantity DECIMAL(12,4) NOT NULL DEFAULT 0,
+        reserved_quantity DECIMAL(12,4) NOT NULL DEFAULT 0,
+        available_quantity DECIMAL(12,4) GENERATED ALWAYS AS (quantity - reserved_quantity) STORED,
+        unit_cost DECIMAL(12,4),
+        total_value DECIMAL(14,2) GENERATED ALWAYS AS (quantity * COALESCE(unit_cost, 0)) STORED,
+        expiry_date DATE,
+        received_date DATE DEFAULT CURRENT_DATE,
+        last_counted_at TIMESTAMP WITH TIME ZONE,
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(material_id, location_id, batch_number)
+      );
+
+      -- Transakcje magazynowe
+      CREATE TABLE IF NOT EXISTS inventory_transactions (
+        id SERIAL PRIMARY KEY,
+        transaction_number VARCHAR(50) UNIQUE NOT NULL,
+        item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+        material_id INTEGER REFERENCES materials(id) ON DELETE SET NULL,
+        type VARCHAR(20) NOT NULL CHECK (type IN ('PZ', 'WZ', 'MM', 'MM_IN', 'MM_OUT', 'ADJUST', 'RESERVE', 'RELEASE', 'COUNT')),
+        quantity DECIMAL(12,4) NOT NULL,
+        quantity_before DECIMAL(12,4),
+        quantity_after DECIMAL(12,4),
+        unit_cost DECIMAL(12,4),
+        total_cost DECIMAL(14,2),
+        reference_type VARCHAR(50),
+        reference_id INTEGER,
+        reference_number VARCHAR(100),
+        from_location_id INTEGER REFERENCES storage_locations(id) ON DELETE SET NULL,
+        to_location_id INTEGER REFERENCES storage_locations(id) ON DELETE SET NULL,
+        supplier VARCHAR(200),
+        supplier_document VARCHAR(100),
+        notes TEXT,
+        worker_id INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Rezerwacje materialow dla zlecen
+      CREATE TABLE IF NOT EXISTS material_reservations (
+        id SERIAL PRIMARY KEY,
+        order_id INTEGER NOT NULL REFERENCES orders(id) ON DELETE CASCADE,
+        order_bom_item_id INTEGER REFERENCES order_bom_items(id) ON DELETE SET NULL,
+        inventory_item_id INTEGER NOT NULL REFERENCES inventory_items(id) ON DELETE CASCADE,
+        quantity_reserved DECIMAL(12,4) NOT NULL,
+        quantity_issued DECIMAL(12,4) DEFAULT 0,
+        status VARCHAR(20) DEFAULT 'reserved' CHECK (status IN ('reserved', 'partially_issued', 'issued', 'cancelled')),
+        reserved_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        reserved_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        issued_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        issued_at TIMESTAMP WITH TIME ZONE,
+        notes TEXT,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Indexes
+      CREATE INDEX IF NOT EXISTS idx_materials_code ON materials(code);
+      CREATE INDEX IF NOT EXISTS idx_materials_category ON materials(category_id);
+      CREATE INDEX IF NOT EXISTS idx_materials_active ON materials(is_active);
+      CREATE INDEX IF NOT EXISTS idx_inventory_items_material ON inventory_items(material_id);
+      CREATE INDEX IF NOT EXISTS idx_inventory_items_location ON inventory_items(location_id);
+      CREATE INDEX IF NOT EXISTS idx_inventory_items_batch ON inventory_items(batch_number);
+      CREATE INDEX IF NOT EXISTS idx_inventory_transactions_item ON inventory_transactions(item_id);
+      CREATE INDEX IF NOT EXISTS idx_inventory_transactions_type ON inventory_transactions(type);
+      CREATE INDEX IF NOT EXISTS idx_inventory_transactions_ref ON inventory_transactions(reference_type, reference_id);
+      CREATE INDEX IF NOT EXISTS idx_inventory_transactions_date ON inventory_transactions(created_at);
+      CREATE INDEX IF NOT EXISTS idx_material_reservations_order ON material_reservations(order_id);
+      CREATE INDEX IF NOT EXISTS idx_material_reservations_item ON material_reservations(inventory_item_id);
+      CREATE INDEX IF NOT EXISTS idx_material_reservations_status ON material_reservations(status);
+
+      -- Insert default categories for PlexiSystem
+      INSERT INTO material_categories (name, description) VALUES
+        ('Plyty plexi', 'Plyty akrylowe PMMA'),
+        ('Plyty PC', 'Plyty poliweglanowe'),
+        ('Kleje', 'Kleje do pleksi i tworzyw'),
+        ('Akcesoria', 'Akcesoria montazowe'),
+        ('Opakowania', 'Materialy opakowaniowe'),
+        ('Folie', 'Folie ochronne i dekoracyjne'),
+        ('Profile', 'Profile aluminiowe i plastikowe'),
+        ('Srodki czyszczace', 'Srodki do czyszczenia i konserwacji')
+      ON CONFLICT DO NOTHING;
+
+      -- Insert default storage locations for PlexiSystem
+      INSERT INTO storage_locations (code, name, warehouse, zone) VALUES
+        ('MAG-A-1', 'Regal A - Polka 1', 'Magazyn glowny', 'Plyty'),
+        ('MAG-A-2', 'Regal A - Polka 2', 'Magazyn glowny', 'Plyty'),
+        ('MAG-A-3', 'Regal A - Polka 3', 'Magazyn glowny', 'Plyty'),
+        ('MAG-B-1', 'Regal B - Polka 1', 'Magazyn glowny', 'Plyty grube'),
+        ('MAG-B-2', 'Regal B - Polka 2', 'Magazyn glowny', 'Plyty grube'),
+        ('MAG-C-1', 'Regal C - Dolna', 'Magazyn glowny', 'Akcesoria'),
+        ('MAG-C-2', 'Regal C - Gorna', 'Magazyn glowny', 'Kleje'),
+        ('MAG-D-1', 'Strefa przyjeccia', 'Magazyn glowny', 'Wejscie'),
+        ('WYD-1', 'Strefa wydan', 'Magazyn glowny', 'Wyjscie'),
+        ('PROD-1', 'Przy maszynie CNC', 'Hala produkcyjna', 'Produkcja'),
+        ('PROD-2', 'Przy laserze', 'Hala produkcyjna', 'Produkcja')
+      ON CONFLICT (code) DO NOTHING;
+
+      -- Insert example materials for PlexiSystem
+      INSERT INTO materials (code, name, unit, category_id, thickness_mm, min_stock, supplier) VALUES
+        ('PLEX-CLEAR-3', 'Plyta plexi bezbarwna 3mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 3, 10, 'Plast-Met'),
+        ('PLEX-CLEAR-5', 'Plyta plexi bezbarwna 5mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 5, 10, 'Plast-Met'),
+        ('PLEX-CLEAR-8', 'Plyta plexi bezbarwna 8mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 8, 5, 'Plast-Met'),
+        ('PLEX-CLEAR-10', 'Plyta plexi bezbarwna 10mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 10, 5, 'Plast-Met'),
+        ('PLEX-WHITE-3', 'Plyta plexi biala 3mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 3, 10, 'Plast-Met'),
+        ('PLEX-WHITE-5', 'Plyta plexi biala 5mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 5, 5, 'Plast-Met'),
+        ('PLEX-BLK-3', 'Plyta plexi czarna 3mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 3, 5, 'Plast-Met'),
+        ('PLEX-BLK-5', 'Plyta plexi czarna 5mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 5, 5, 'Plast-Met'),
+        ('PLEX-OPAL-3', 'Plyta plexi opal 3mm 2050x3050', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty plexi'), 3, 5, 'Plast-Met'),
+        ('PC-CLEAR-3', 'Plyta poliweglan bezbarwny 3mm', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty PC'), 3, 5, 'Bayer'),
+        ('PC-CLEAR-5', 'Plyta poliweglan bezbarwny 5mm', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Plyty PC'), 5, 3, 'Bayer'),
+        ('KLEJ-ACRIFIX-192', 'Klej Acrifix 192 50ml', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Kleje'), NULL, 20, 'Evonik'),
+        ('KLEJ-ACRIFIX-116', 'Klej Acrifix 116 1kg', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Kleje'), NULL, 5, 'Evonik'),
+        ('KLEJ-CYANO', 'Klej cyjanoakrylowy 20g', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Kleje'), NULL, 30, 'Loctite'),
+        ('PROFIL-AL-U-10', 'Profil aluminiowy U 10mm 2m', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Profile'), NULL, 50, 'Aluprofil'),
+        ('PROFIL-AL-L-20', 'Profil aluminiowy L 20mm 2m', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Profile'), NULL, 30, 'Aluprofil'),
+        ('FOLIA-OCHRONNA', 'Folia ochronna samoprzylepna', 'mb',
+         (SELECT id FROM material_categories WHERE name = 'Folie'), NULL, 100, 'Novatex'),
+        ('KARTON-3W-600', 'Karton 3-warstwowy 600x400x400', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Opakowania'), NULL, 50, 'Kartpol'),
+        ('FOLIA-STRETCH', 'Folia stretch 500mm', 'szt',
+         (SELECT id FROM material_categories WHERE name = 'Opakowania'), NULL, 10, 'Folpak')
+      ON CONFLICT (code) DO NOTHING;
+    `,
+  },
+  {
+    name: '018_integrate_bom_with_inventory',
+    up: `
+      -- Add material_id and inventory_item_id to order_bom_items
+      ALTER TABLE order_bom_items ADD COLUMN IF NOT EXISTS material_id INTEGER REFERENCES materials(id) ON DELETE SET NULL;
+      ALTER TABLE order_bom_items ADD COLUMN IF NOT EXISTS inventory_item_id INTEGER REFERENCES inventory_items(id) ON DELETE SET NULL;
+      ALTER TABLE order_bom_items ADD COLUMN IF NOT EXISTS reservation_id INTEGER REFERENCES material_reservations(id) ON DELETE SET NULL;
+
+      -- Add material_id to bom_template_items for quick material lookup
+      ALTER TABLE bom_template_items ADD COLUMN IF NOT EXISTS material_id INTEGER REFERENCES materials(id) ON DELETE SET NULL;
+
+      -- Index for faster lookups
+      CREATE INDEX IF NOT EXISTS idx_order_bom_items_material ON order_bom_items(material_id);
+      CREATE INDEX IF NOT EXISTS idx_order_bom_items_inventory ON order_bom_items(inventory_item_id);
+      CREATE INDEX IF NOT EXISTS idx_bom_template_items_material ON bom_template_items(material_id);
+    `,
+  },
 ];
 
 // Create migrations tracking table

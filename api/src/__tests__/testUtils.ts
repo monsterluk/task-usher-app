@@ -11,6 +11,12 @@ import machinesRoutes from '../routes/machines';
 import qualityRoutes from '../routes/quality';
 import maintenanceRoutes from '../routes/maintenance';
 import auditRoutes from '../routes/audit';
+import stagesRoutes from '../routes/stages';
+import assignmentsRoutes from '../routes/assignments';
+import workSessionsRoutes from '../routes/work-sessions';
+import costsRoutes from '../routes/costs';
+import bomRoutes from '../routes/bom';
+import inventoryRoutes from '../routes/inventory';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'test-secret-key-for-testing-only';
 
@@ -38,6 +44,12 @@ export const createTestApp = (): Express => {
   app.use('/api/quality', qualityRoutes);
   app.use('/api/maintenance', maintenanceRoutes);
   app.use('/api/audit', auditRoutes);
+  app.use('/api/stages', stagesRoutes);
+  app.use('/api/assignments', assignmentsRoutes);
+  app.use('/api/work-sessions', workSessionsRoutes);
+  app.use('/api/costs', costsRoutes);
+  app.use('/api/bom', bomRoutes);
+  app.use('/api/inventory', inventoryRoutes);
 
   // Error handling
   app.use(notFoundHandler);

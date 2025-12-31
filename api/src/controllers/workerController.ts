@@ -61,12 +61,8 @@ export const getWorkerById = asyncHandler(async (req: AuthRequest, res: Response
 
   // TASK 1.5: PRACOWNIK can only see full details of themselves
   const isPracownik = user?.role === 'PRACOWNIK';
-  let isOwnProfile = false;
-
-  if (isPracownik) {
-    const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [user.id]);
-    isOwnProfile = workerResult.rows.length > 0 && workerResult.rows[0].id === parseInt(id);
-  }
+  // user.id IS the worker ID (from JWT payload)
+  const isOwnProfile = isPracownik && user?.id === parseInt(id);
 
   // Full details for managers/admins, or for PRACOWNIK viewing their own profile
   const showFullDetails = !isPracownik || isOwnProfile;

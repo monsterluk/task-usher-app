@@ -34,6 +34,7 @@ import AnnouncementBoard from '@/components/AnnouncementBoard';
 import MaterialPricesPanel from '@/components/Admin/MaterialPricesPanel';
 import IntegrationsPanel from '@/components/Admin/IntegrationsPanel';
 import BackupsPanel from '@/components/Admin/BackupsPanel';
+import InventoryPanel from '@/components/Admin/InventoryPanel';
 
 // Umiejętności/etapy produkcyjne do przypisania
 const AVAILABLE_SKILLS: Position[] = [
@@ -834,6 +835,9 @@ const AdminHome = () => {
         <button onClick={() => navigate('/admin/integrations')} className="btn-secondary">
           <Plug size={18} className="mr-2" /> Integracje
         </button>
+        <button onClick={() => navigate('/admin/inventory')} className="btn-secondary">
+          <Package size={18} className="mr-2" /> Magazyn
+        </button>
         <button onClick={() => navigate('/admin/backups')} className="btn-secondary">
           <Database size={18} className="mr-2" /> Backupy
         </button>
@@ -1201,6 +1205,7 @@ const AdminDashboard = () => {
           <Route path="/settings" element={<AdminSettings />} />
           <Route path="/prices" element={<MaterialPricesPanel />} />
           <Route path="/integrations" element={<IntegrationsPanel />} />
+          <Route path="/inventory" element={<InventoryPanel />} />
           <Route path="/backups" element={<BackupsPanel />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

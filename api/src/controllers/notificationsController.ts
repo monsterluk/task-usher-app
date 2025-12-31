@@ -442,7 +442,7 @@ export const createNotificationWithEmail = async (
                 <h2 style="color: #1f2937; margin-top: 0;">${title}</h2>
                 <p style="color: #4b5563; line-height: 1.6;">${message}</p>
                 ${data?.link ? `
-                  <a href="${process.env.APP_URL || 'https://plexisystem.example.com'}${data.link}"
+                  <a href="${process.env.APP_URL || 'https://beata254.mikrus.xyz:20254'}${data.link}"
                      style="display: inline-block; margin-top: 15px; padding: 10px 20px; background: #3b82f6; color: white; text-decoration: none; border-radius: 5px;">
                     Otwórz w systemie
                   </a>
@@ -590,7 +590,7 @@ export const sendDailySummary = async () => {
                 </div>
               ` : ''}
 
-              <a href="${process.env.APP_URL || 'https://plexisystem.example.com'}/manager/dashboard"
+              <a href="${process.env.APP_URL || 'https://beata254.mikrus.xyz:20254'}/manager/dashboard"
                  style="display: inline-block; padding: 12px 24px; background: #3b82f6; color: white; text-decoration: none; border-radius: 5px;">
                 Otwórz dashboard
               </a>

@@ -17,17 +17,20 @@ export const getCapacityOverview = async (req: Request, res: Response) => {
         m.name,
         m.department,
         m.status,
-        m.capacity_per_hour,
+        m.cost_per_hour,
+        1 as capacity_per_hour,
         COALESCE(
-          (SELECT COUNT(*) FROM orders o
-           WHERE o.current_stage = m.department
-           AND o.status = 'W_TRAKCIE'
+          (SELECT COUNT(*) FROM stages s
+           JOIN orders o ON s.order_id = o.id
+           WHERE s.machine_id = m.id
+           AND s.status = 'W_TRAKCIE'
            AND o.archived = false), 0
         ) as active_orders,
         COALESCE(
-          (SELECT SUM(o.quantity) FROM orders o
-           WHERE o.current_stage = m.department
-           AND o.status IN ('NOWE', 'W_TRAKCIE')
+          (SELECT SUM(o.quantity) FROM stages s
+           JOIN orders o ON s.order_id = o.id
+           WHERE s.machine_id = m.id
+           AND s.status IN ('NOWY', 'W_TRAKCIE')
            AND o.archived = false), 0
         ) as pending_quantity
       FROM machines m
@@ -40,18 +43,17 @@ export const getCapacityOverview = async (req: Request, res: Response) => {
       SELECT
         w.id,
         w.name,
-        w.department,
-        w.role,
+        w.position as department,
+        'PRACOWNIK' as role,
         w.active,
         COALESCE(
-          (SELECT COUNT(*) FROM order_stage_assignments osa
-           JOIN workers w2 ON osa.worker_id = w2.id
-           WHERE w2.id = w.id
-           AND osa.status IN ('assigned', 'in_progress')), 0
+          (SELECT COUNT(*) FROM assignments a
+           WHERE a.worker_id = w.id
+           AND a.status IN ('ASSIGNED', 'W_TRAKCIE', 'in_progress')), 0
         ) as active_assignments
       FROM workers w
-      WHERE w.role = 'PRACOWNIK' AND w.active = true
-      ORDER BY w.department, w.name
+      WHERE w.active = true
+      ORDER BY w.position, w.name
     `);
 
     // Calculate department capacity
@@ -154,16 +156,16 @@ export const getWorkloadForecast = async (req: Request, res: Response) => {
         o.order_number,
         o.product_name,
         o.quantity,
-        o.current_stage,
+        (SELECT s.stage_name FROM stages s WHERE s.order_id = o.id AND s.status = 'W_TRAKCIE' LIMIT 1) as current_stage,
         o.planned_completion_date,
         o.priority,
         o.status,
         COALESCE(
           (SELECT json_agg(json_build_object(
-            'stage', os.name,
-            'estimated_hours', os.estimated_hours,
-            'status', os.status
-          )) FROM order_stages os WHERE os.order_id = o.id), '[]'
+            'stage', s.stage_name,
+            'estimated_hours', COALESCE(s.planned_duration_minutes / 60.0, 0),
+            'status', s.status
+          )) FROM stages s WHERE s.order_id = o.id), '[]'
         ) as stages
       FROM orders o
       WHERE o.archived = false
@@ -243,17 +245,17 @@ export const getBottleneckAnalysis = async (req: Request, res: Response) => {
     // Analyze stages with most pending work
     const stagesResult = await pool.query(`
       SELECT
-        os.name as stage_name,
+        s.stage_name as stage_name,
         COUNT(DISTINCT o.id) as orders_count,
         SUM(o.quantity) as total_quantity,
-        SUM(os.estimated_hours) as total_estimated_hours,
-        AVG(EXTRACT(EPOCH FROM (NOW() - os.started_at)) / 3600)::numeric(10,2) as avg_hours_in_stage
-      FROM order_stages os
-      JOIN orders o ON os.order_id = o.id
+        SUM(COALESCE(s.planned_duration_minutes / 60.0, 0)) as total_estimated_hours,
+        AVG(EXTRACT(EPOCH FROM (NOW() - s.started_at)) / 3600)::numeric(10,2) as avg_hours_in_stage
+      FROM stages s
+      JOIN orders o ON s.order_id = o.id
       WHERE o.archived = false
         AND o.status IN ('NOWE', 'W_TRAKCIE')
-        AND os.status IN ('pending', 'in_progress')
-      GROUP BY os.name
+        AND s.status IN ('NOWY', 'W_TRAKCIE', 'pending', 'in_progress')
+      GROUP BY s.stage_name
       ORDER BY total_estimated_hours DESC
     `);
 
@@ -326,12 +328,12 @@ export const getWorkerAvailability = async (req: Request, res: Response) => {
       SELECT
         w.id,
         w.name,
-        w.department,
+        w.position as department,
         w.active,
         COALESCE(
-          (SELECT COUNT(*) FROM order_stage_assignments osa
-           WHERE osa.worker_id = w.id
-           AND osa.status IN ('assigned', 'in_progress')), 0
+          (SELECT COUNT(*) FROM assignments a
+           WHERE a.worker_id = w.id
+           AND a.status IN ('ASSIGNED', 'W_TRAKCIE', 'assigned', 'in_progress')), 0
         ) as active_tasks,
         COALESCE(
           (SELECT SUM(
@@ -340,12 +342,13 @@ export const getWorkerAvailability = async (req: Request, res: Response) => {
             ELSE EXTRACT(EPOCH FROM (NOW() - ws.start_time)) / 3600
             END
           ) FROM work_sessions ws
-           WHERE ws.worker_id = w.id
+           JOIN assignments a ON ws.assignment_id = a.id
+           WHERE a.worker_id = w.id
            AND DATE(ws.start_time) = DATE($1)), 0
         )::numeric(10,2) as hours_worked_today
       FROM workers w
-      WHERE w.role = 'PRACOWNIK' AND w.active = true
-      ORDER BY w.department, w.name
+      WHERE w.active = true
+      ORDER BY w.position, w.name
     `, [targetDate]);
 
     const WORK_HOURS_PER_DAY = 8;

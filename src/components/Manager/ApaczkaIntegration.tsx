@@ -2,7 +2,42 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Truck, Package, MapPin, Clock, Check, Loader2, AlertCircle, RefreshCw, FileText } from 'lucide-react';
 import { toast } from 'sonner';
-import { apaczkaApi, Courier, ShipmentResponse, TrackingEvent } from '@/utils/apaczka';
+import { shipmentsApi, integrationsApi, isDemoMode } from '@/utils/api';
+
+// Types for courier/service data
+interface Courier {
+  id: string;
+  name: string;
+  logo: string;
+  price: number;
+  delivery_time: string;
+  features: string[];
+}
+
+interface ShipmentResponse {
+  id: number;
+  shipment_number?: string;
+  tracking_url?: string;
+  status: string;
+  courier?: string;
+}
+
+interface TrackingEvent {
+  date: string;
+  status: string;
+  location?: string;
+  description: string;
+}
+
+// Mock couriers for demo mode
+const MOCK_COURIERS: Courier[] = [
+  { id: 'ups', name: 'UPS', logo: '📦', price: 25.00, delivery_time: '1-2 dni', features: ['Śledzenie', 'Ubezpieczenie'] },
+  { id: 'dhl', name: 'DHL Express', logo: '🚚', price: 22.50, delivery_time: '1-2 dni', features: ['Śledzenie', 'Express'] },
+  { id: 'inpost', name: 'InPost Paczkomaty', logo: '📬', price: 18.00, delivery_time: '2-3 dni', features: ['Odbiór 24/7', 'Paczkomat'] },
+  { id: 'poczta', name: 'Poczta Polska', logo: '📨', price: 15.00, delivery_time: '3-5 dni', features: ['Ekonomiczne'] },
+  { id: 'dpd', name: 'DPD', logo: '📮', price: 20.00, delivery_time: '1-2 dni', features: ['Śledzenie', 'Pickup'] },
+  { id: 'fedex', name: 'FedEx', logo: '✈️', price: 35.00, delivery_time: '1 dzień', features: ['Express', 'Międzynarodowe'] },
+];
 
 interface ApaczkaIntegrationProps {
   orderId: number;
@@ -53,24 +88,57 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
     insurance: 0,
   });
 
-  const isApiConfigured = apaczkaApi.isApiConfigured();
+  const isApiConfigured = !isDemoMode();
+
+  // Helper to get logo for service
+  const getServiceLogo = (serviceId: string): string => {
+    const logos: Record<string, string> = {
+      ups: '📦', dhl: '🚚', inpost: '📬', poczta: '📨', dpd: '📮', fedex: '✈️', gls: '🚛',
+    };
+    return logos[serviceId.toLowerCase()] || '📦';
+  };
+
+  // Transform Apaczka API response to Courier[] format
+  const transformServices = (services: Record<string, any>): Courier[] => {
+    return Object.entries(services).map(([id, service]: [string, any]) => ({
+      id,
+      name: service.name || id.toUpperCase(),
+      logo: getServiceLogo(id),
+      price: parseFloat(service.price_brutto) || 20,
+      delivery_time: service.delivery_time || '2-3 dni',
+      features: service.features || ['Śledzenie'],
+    }));
+  };
 
   // Fetch couriers on mount
   const fetchCouriers = useCallback(async () => {
     setLoadingCouriers(true);
     try {
-      const result = await apaczkaApi.getCouriers(
-        '30-001', // PlexiSystem postal
-        shipmentData.recipient_postal || undefined
-      );
-      setCouriers(result);
+      if (isDemoMode()) {
+        // Demo mode - use mock data
+        await new Promise(resolve => setTimeout(resolve, 500));
+        setCouriers(MOCK_COURIERS);
+      } else {
+        // Production mode - use backend API
+        const response = await integrationsApi.getApaczkaServices();
+        if (response.success && response.data?.services) {
+          const transformed = transformServices(response.data.services);
+          setCouriers(transformed.length > 0 ? transformed : MOCK_COURIERS);
+        } else {
+          setCouriers(MOCK_COURIERS);
+        }
+      }
     } catch (error) {
       console.error('Failed to fetch couriers:', error);
-      toast.error('Nie udało się pobrać listy kurierów');
+      // Fallback to mock data on error
+      setCouriers(MOCK_COURIERS);
+      if (!isDemoMode()) {
+        toast.error('Nie udało się pobrać listy kurierów z API');
+      }
     } finally {
       setLoadingCouriers(false);
     }
-  }, [shipmentData.recipient_postal]);
+  }, []);
 
   useEffect(() => {
     fetchCouriers();
@@ -129,44 +197,125 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
 
     setLoading(true);
     try {
-      const result = await apaczkaApi.createShipment({
-        orderId,
-        courierId: selectedCourier.id,
-        recipientName: shipmentData.recipient_name,
-        recipientAddress: shipmentData.recipient_address,
-        recipientCity: shipmentData.recipient_city,
-        recipientPostal: shipmentData.recipient_postal,
-        recipientPhone: shipmentData.recipient_phone,
-        recipientEmail: shipmentData.recipient_email,
-        weight: shipmentData.weight,
-        length: shipmentData.length,
-        width: shipmentData.width,
-        height: shipmentData.height,
-        packageType: shipmentData.package_type,
-        cod: shipmentData.cod > 0 ? shipmentData.cod : undefined,
-        insurance: shipmentData.insurance > 0 ? shipmentData.insurance : undefined,
-      });
+      if (isDemoMode()) {
+        // Demo mode - simulate shipment creation
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        const mockTrackingNumber = `PL${Date.now().toString().slice(-10)}`;
+        const mockResult: ShipmentResponse = {
+          id: Date.now(),
+          shipment_number: mockTrackingNumber,
+          tracking_url: `https://apaczka.pl/tracking/${mockTrackingNumber}`,
+          status: 'ZAMÓWIONA',
+          courier: selectedCourier.name,
+        };
+        setShipmentResult(mockResult);
+        toast.success('Przesyłka utworzona pomyślnie! (demo)');
+        setStep('success');
+        onShipmentCreated?.(mockResult as any);
+      } else {
+        // Production mode - use backend API
+        const dimensions = `${shipmentData.length}x${shipmentData.width}x${shipmentData.height}`;
 
-      setShipmentResult(result);
-      toast.success('Przesyłka utworzona pomyślnie!');
-      setStep('success');
-      onShipmentCreated?.(result);
-    } catch (error) {
+        // Parse address into street and building number
+        const addressParts = shipmentData.recipient_address.match(/^(.+?)(\s+\d+.*)$/);
+        const street = addressParts ? addressParts[1] : shipmentData.recipient_address;
+        const buildingNumber = addressParts ? addressParts[2].trim() : '1';
+
+        const response = await shipmentsApi.create(orderId, {
+          weight: shipmentData.weight,
+          dimensions,
+          package_type: shipmentData.package_type,
+          service: selectedCourier.id.toUpperCase(),
+          recipient_name: shipmentData.recipient_name,
+          recipient_street: street,
+          recipient_building_number: buildingNumber,
+          recipient_postal_code: shipmentData.recipient_postal,
+          recipient_city: shipmentData.recipient_city,
+          recipient_phone: shipmentData.recipient_phone,
+          recipient_email: shipmentData.recipient_email,
+        } as any);
+
+        if (response.success && response.data?.shipment) {
+          const shipment = response.data.shipment;
+          const result: ShipmentResponse = {
+            id: shipment.id,
+            shipment_number: shipment.shipment_number,
+            tracking_url: shipment.tracking_url,
+            status: shipment.status,
+            courier: selectedCourier.name,
+          };
+          setShipmentResult(result);
+          toast.success('Przesyłka utworzona pomyślnie!');
+          setStep('success');
+          onShipmentCreated?.(result as any);
+
+          if (response.data.warning) {
+            toast.warning(response.data.warning);
+          }
+        } else {
+          throw new Error('Unexpected response format');
+        }
+      }
+    } catch (error: any) {
       console.error('Failed to create shipment:', error);
-      toast.error('Nie udało się utworzyć przesyłki. Spróbuj ponownie.');
+      toast.error(error.response?.data?.error || 'Nie udało się utworzyć przesyłki. Spróbuj ponownie.');
     } finally {
       setLoading(false);
     }
   };
 
   const handleTrackShipment = async () => {
-    if (!shipmentResult?.trackingNumber) return;
+    if (!shipmentResult?.id) return;
 
     setLoading(true);
     try {
-      const events = await apaczkaApi.trackShipment(shipmentResult.trackingNumber);
-      setTrackingEvents(events);
-      setStep('tracking');
+      if (isDemoMode()) {
+        // Demo mode - show mock tracking events
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const now = new Date();
+        const mockEvents: TrackingEvent[] = [
+          {
+            date: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+            status: 'IN_TRANSIT',
+            location: 'Kraków',
+            description: 'Przesyłka w drodze',
+          },
+          {
+            date: new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString(),
+            status: 'PICKED_UP',
+            location: 'Kraków',
+            description: 'Przesyłka odebrana od nadawcy',
+          },
+          {
+            date: new Date(now.getTime() - 25 * 60 * 60 * 1000).toISOString(),
+            status: 'CREATED',
+            location: 'Kraków',
+            description: 'Przesyłka utworzona',
+          },
+        ];
+        setTrackingEvents(mockEvents);
+        setStep('tracking');
+      } else {
+        // Production mode - refresh status from backend
+        const response = await shipmentsApi.refreshStatus(shipmentResult.id);
+        if (response.success && response.data?.apaczka_status) {
+          const apaczkaStatus = response.data.apaczka_status;
+          const events: TrackingEvent[] = apaczkaStatus.events?.map((e: any) => ({
+            date: e.timestamp || e.date,
+            status: e.status,
+            location: e.location,
+            description: e.description,
+          })) || [{
+            date: new Date().toISOString(),
+            status: response.data.shipment?.status || 'UNKNOWN',
+            description: `Status: ${response.data.shipment?.status || 'Nieznany'}`,
+          }];
+          setTrackingEvents(events);
+          setStep('tracking');
+        } else {
+          throw new Error('Could not get tracking info');
+        }
+      }
     } catch (error) {
       console.error('Failed to track shipment:', error);
       toast.error('Nie udało się pobrać statusu przesyłki');
@@ -549,15 +698,13 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
 
         <div className="bg-muted p-4 rounded-lg my-6 max-w-sm mx-auto">
           <p className="text-sm text-muted-foreground mb-1">Numer śledzenia:</p>
-          <p className="font-mono font-bold text-lg">{shipmentResult.trackingNumber}</p>
+          <p className="font-mono font-bold text-lg">{shipmentResult.shipment_number || 'Oczekuje...'}</p>
           <p className="text-sm text-muted-foreground mt-2">
             Kurier: {shipmentResult.courier}
           </p>
-          {shipmentResult.estimatedDelivery && (
-            <p className="text-sm text-muted-foreground">
-              Przewidywana dostawa: {new Date(shipmentResult.estimatedDelivery).toLocaleDateString('pl-PL')}
-            </p>
-          )}
+          <p className="text-sm text-muted-foreground">
+            Status: {shipmentResult.status}
+          </p>
         </div>
 
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -566,15 +713,15 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
             Śledź przesyłkę
           </button>
 
-          {shipmentResult.labelUrl && (
+          {shipmentResult.tracking_url && (
             <a
-              href={shipmentResult.labelUrl}
+              href={shipmentResult.tracking_url}
               target="_blank"
               rel="noopener noreferrer"
               className="btn-secondary inline-flex items-center justify-center"
             >
               <FileText size={18} className="mr-2" />
-              Pobierz etykietę
+              Śledź u kuriera
             </a>
           )}
 
@@ -604,7 +751,7 @@ const ApaczkaIntegration: React.FC<ApaczkaIntegrationProps> = ({
 
         <div className="bg-muted p-4 rounded-lg mb-6">
           <p className="text-sm text-muted-foreground">Numer śledzenia:</p>
-          <p className="font-mono font-bold text-lg">{shipmentResult?.trackingNumber}</p>
+          <p className="font-mono font-bold text-lg">{shipmentResult?.shipment_number || 'N/A'}</p>
         </div>
 
         <div className="space-y-4">

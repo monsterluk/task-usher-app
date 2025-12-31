@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { stages, productionStages, workers, getStageStatusColor } from '@/data/mockData';
+import { stages, productionStages, getStageStatusColor } from '@/data/mockData';
 import { OrderStage, TimeEntry, OrderComment, OrderHistory, OrderAttachment } from '@/types';
 import { ArrowLeft, Check, Users, ChevronRight, Truck, Copy, ExternalLink, Package, Printer, Edit, MessageSquare, Send, Clock, History, FileCheck, Palette, Paperclip, Upload, FileImage, FileText, Trash2, Download, X } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
@@ -9,8 +9,16 @@ import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
 import BOMTab from './BOMTab';
 import TraceabilityTab from './TraceabilityTab';
-import { ShipmentResponse } from '@/utils/apaczka';
 import { attachmentsApi, orderItemsApi, isDemoMode } from '@/utils/api';
+
+// Typ dla odpowiedzi z Apaczka
+interface ShipmentResult {
+  id: number;
+  shipment_number?: string;
+  tracking_url?: string;
+  status: string;
+  courier?: string;
+}
 
 // Typ dla pozycji zlecenia
 interface OrderItemDisplay {
@@ -29,7 +37,7 @@ interface OrderItemDisplay {
 const OrderDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { orders, setOrders, setTimeEntries, timeEntries, currentUser } = useApp();
+  const { orders, setOrders, setTimeEntries, timeEntries, currentUser, workers } = useApp();
 
   const order = orders.find(o => o.id === Number(id));
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
@@ -216,19 +224,19 @@ const OrderDetails = () => {
     toast({ title: "Etap uruchomiony", description: `Etap ${stage?.name} jest teraz w trakcie realizacji.` });
   };
 
-  const handleShipmentCreated = (shipment: ShipmentResponse) => {
+  const handleShipmentCreated = (shipment: ShipmentResult) => {
     setOrders(prev => prev.map(o =>
       o.id === order.id
         ? {
             ...o,
-            shipment_number: shipment.trackingNumber,
+            shipment_number: shipment.shipment_number,
             shipment_status: 'ZAMÓWIONA' as const,
-            shipment_tracking_url: shipment.trackingUrl || `https://apaczka.pl/track/${shipment.trackingNumber}`
+            shipment_tracking_url: shipment.tracking_url || `https://apaczka.pl/track/${shipment.shipment_number}`
           }
         : o
     ));
     setShowApaczkaIntegration(false);
-    toast({ title: "Kurier zamówiony", description: `Nr przesyłki: ${shipment.trackingNumber}` });
+    toast({ title: "Kurier zamówiony", description: `Nr przesyłki: ${shipment.shipment_number || 'Oczekuje'}` });
   };
 
   const copyToClipboard = (text: string) => {

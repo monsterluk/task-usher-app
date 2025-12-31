@@ -25,6 +25,7 @@ router.delete('/template-items/:id', requireRole('MANAGER'), bomController.delet
 router.post('/order-bom/:bomId/items', requireRole('MANAGER'), bomController.addOrderBomItem);
 router.put('/order-bom-items/:id', bomController.updateOrderBomItem);
 router.post('/order-bom-items/:id/issue', bomController.issueBomItem);
+router.post('/order-bom-items/:id/reserve', requireRole('MANAGER'), bomController.reserveBomItem);
 router.delete('/order-bom-items/:id', requireRole('MANAGER'), bomController.deleteOrderBomItem);
 
 export default router;

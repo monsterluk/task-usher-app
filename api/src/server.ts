@@ -36,6 +36,8 @@ import auditRoutes from './routes/audit';
 import bomRoutes from './routes/bom';
 import traceabilityRoutes from './routes/traceability';
 import integrationsRoutes from './routes/integrations';
+import inventoryRoutes from './routes/inventory';
+import orderItemsRoutes from './routes/orderItems';
 
 const app = express();
 const PORT = process.env.PORT || 4000;
@@ -97,6 +99,8 @@ app.use('/api/audit', auditRoutes);
 app.use('/api/bom', bomRoutes);
 app.use('/api/traceability', traceabilityRoutes);
 app.use('/api/integrations', integrationsRoutes);
+app.use('/api/inventory', inventoryRoutes);
+app.use('/api/order-items', orderItemsRoutes);
 
 // Error handling
 app.use(notFoundHandler);

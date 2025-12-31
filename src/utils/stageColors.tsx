@@ -132,14 +132,20 @@ export const STAGE_COLORS = {
 };
 
 // Funkcja pomocnicza - pobierz kolor dla etapu
-export const getStageColor = (stageName: string) => {
+export const getStageColor = (stageName: string | null | undefined) => {
+  if (!stageName) {
+    return { bg: '#6B7280', text: '#FFFFFF', icon: '📦', border: '#9CA3AF', description: 'Brak etapu' };
+  }
   const normalizedName = stageName.toUpperCase().trim();
-  return STAGE_COLORS.stages[normalizedName as keyof typeof STAGE_COLORS.stages] 
+  return STAGE_COLORS.stages[normalizedName as keyof typeof STAGE_COLORS.stages]
     || { bg: '#6B7280', text: '#FFFFFF', icon: '📦', border: '#9CA3AF', description: 'Inny etap' };
 };
 
 // Funkcja pomocnicza - pobierz kolor dla statusu
-export const getStatusColor = (status: string) => {
+export const getStatusColor = (status: string | null | undefined) => {
+  if (!status) {
+    return STAGE_COLORS.status.NOWE;
+  }
   const normalizedStatus = status.toUpperCase().trim();
   return STAGE_COLORS.status[normalizedStatus as keyof typeof STAGE_COLORS.status]
     || STAGE_COLORS.status.NOWE;

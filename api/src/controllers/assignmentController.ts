@@ -628,15 +628,12 @@ export const getResourceConflicts = asyncHandler(async (req: AuthRequest, res: R
 export const resolveResourceConflict = asyncHandler(async (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const { resolution } = req.body;
-  const userId = req.user?.id;
+  // req.user?.id IS the worker ID (from JWT payload)
+  const workerId = req.user?.id || null;
 
   if (!resolution || !['ignored', 'rescheduled', 'cancelled', 'auto_resolved'].includes(resolution)) {
     throw new AppError('Valid resolution is required (ignored, rescheduled, cancelled, auto_resolved)', 400);
   }
-
-  // Get worker ID for the user
-  const workerResult = await query('SELECT id FROM workers WHERE user_id = $1', [userId]);
-  const workerId = workerResult.rows.length > 0 ? workerResult.rows[0].id : null;
 
   const result = await query(
     `UPDATE resource_conflicts

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { bomApi, isDemoMode } from '@/utils/api';
+import { bomApi, inventoryApi, isDemoMode } from '@/utils/api';
 import { toast } from '@/hooks/use-toast';
 import {
   Package,
@@ -10,7 +10,9 @@ import {
   X,
   CheckCircle,
   DollarSign,
-  AlertCircle
+  AlertCircle,
+  Link,
+  Unlink
 } from 'lucide-react';
 
 interface BOMItem {
@@ -25,6 +27,20 @@ interface BOMItem {
   is_consumed: boolean;
   notes: string;
   created_at: string;
+  material_id?: number;
+  inventory_item_id?: number;
+  reservation_id?: number;
+}
+
+interface InventoryMaterial {
+  id: number;
+  code: string;
+  name: string;
+  unit: string;
+  unit_cost: number;
+  total_stock: number;
+  total_available: number;
+  category_name: string;
 }
 
 interface BOMTabProps {
@@ -49,6 +65,8 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [inventoryMaterials, setInventoryMaterials] = useState<InventoryMaterial[]>([]);
+  const [selectedMaterialId, setSelectedMaterialId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
     material_name: '',
     material_type: 'PLEXI',
@@ -60,6 +78,36 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
   });
 
   const demoMode = isDemoMode();
+
+  // Load inventory materials
+  useEffect(() => {
+    const loadInventoryMaterials = async () => {
+      if (demoMode) return;
+      try {
+        const response = await inventoryApi.getMaterials({ active: true });
+        if (response.success && response.data?.materials) {
+          setInventoryMaterials(response.data.materials);
+        }
+      } catch (error) {
+        console.error('Failed to load inventory materials:', error);
+      }
+    };
+    loadInventoryMaterials();
+  }, [demoMode]);
+
+  // Handle material selection from inventory
+  const handleMaterialSelect = (materialId: number) => {
+    const material = inventoryMaterials.find(m => m.id === materialId);
+    if (material) {
+      setSelectedMaterialId(materialId);
+      setFormData(prev => ({
+        ...prev,
+        material_name: material.name,
+        unit: material.unit,
+        unit_price: material.unit_cost || 0,
+      }));
+    }
+  };
 
   const loadBOM = useCallback(async () => {
     if (demoMode) {
@@ -123,6 +171,7 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
       supplier: '',
       notes: '',
     });
+    setSelectedMaterialId(null);
     setEditingId(null);
     setShowForm(false);
   };
@@ -161,9 +210,19 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
           await loadBOM();
         }
       } else {
-        const response = await bomApi.createBomItem(orderId, formData);
+        // Include material_id if selected from inventory
+        const payload = {
+          ...formData,
+          material_id: selectedMaterialId,
+        };
+        const response = await bomApi.createBomItem(orderId, payload);
         if (response.success) {
-          toast({ title: 'Dodano', description: 'Material dodany do BOM' });
+          toast({
+            title: 'Dodano',
+            description: selectedMaterialId
+              ? 'Material dodany do BOM (powiazany z magazynem)'
+              : 'Material dodany do BOM'
+          });
           await loadBOM();
         }
       }
@@ -205,14 +264,31 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
   const handleMarkConsumed = async (id: number) => {
     if (demoMode) return;
 
+    // Find the item to check if it's inventory-linked
+    const item = items.find(i => i.id === id);
+
     try {
-      const response = await bomApi.markConsumed(id);
-      if (response.success) {
-        toast({ title: 'Oznaczono', description: 'Material oznaczony jako zuzyty' });
-        await loadBOM();
+      if (item?.material_id) {
+        // Item is linked to inventory - use issue which creates WZ transaction
+        const response = await bomApi.issueBomItem(id, { notes: `Wydane do zlecenia` });
+        if (response.success) {
+          toast({ title: 'Wydano', description: 'Material wydany z magazynu (utworzono WZ)' });
+          await loadBOM();
+        }
+      } else {
+        // Not linked to inventory - just mark as consumed
+        const response = await bomApi.markConsumed(id);
+        if (response.success) {
+          toast({ title: 'Oznaczono', description: 'Material oznaczony jako zuzyty' });
+          await loadBOM();
+        }
       }
     } catch (error: any) {
-      toast({ title: 'Blad', description: 'Nie udalo sie oznaczyc', variant: 'destructive' });
+      toast({
+        title: 'Blad',
+        description: error.response?.data?.message || 'Nie udalo sie oznaczyc',
+        variant: 'destructive'
+      });
     }
   };
 
@@ -261,6 +337,40 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
       {showForm && (
         <div className="p-4 bg-muted/20 rounded-lg border border-border">
           <h4 className="font-medium mb-3">{editingId ? 'Edytuj material' : 'Nowy material'}</h4>
+
+          {/* Inventory material selection */}
+          {!editingId && inventoryMaterials.length > 0 && (
+            <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded">
+              <label className="block text-xs font-medium mb-1 text-blue-800">
+                <Link size={12} className="inline mr-1" />
+                Wybierz z magazynu (opcjonalne)
+              </label>
+              <select
+                value={selectedMaterialId || ''}
+                onChange={e => {
+                  const id = e.target.value ? Number(e.target.value) : null;
+                  if (id) handleMaterialSelect(id);
+                  else {
+                    setSelectedMaterialId(null);
+                  }
+                }}
+                className="input-industrial w-full text-sm"
+              >
+                <option value="">-- Wybierz material z magazynu lub wpisz recznie --</option>
+                {inventoryMaterials.map(mat => (
+                  <option key={mat.id} value={mat.id}>
+                    {mat.code} - {mat.name} (dostepne: {mat.total_available} {mat.unit})
+                  </option>
+                ))}
+              </select>
+              {selectedMaterialId && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Material z magazynu - po wydaniu zostanie automatycznie zdjety ze stanu
+                </p>
+              )}
+            </div>
+          )}
+
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium mb-1">Nazwa materialu *</label>
@@ -270,6 +380,7 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
                 onChange={e => setFormData(prev => ({ ...prev, material_name: e.target.value }))}
                 className="input-industrial w-full text-sm"
                 placeholder="np. Plexi bezbarwna 5mm"
+                disabled={!!selectedMaterialId}
               />
             </div>
             <div>
@@ -376,7 +487,14 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
                 <tr key={item.id} className={`border-b border-border/50 ${item.is_consumed ? 'opacity-60' : ''}`}>
                   <td className="py-2 px-2">
                     <div>
-                      <p className="font-medium">{item.material_name}</p>
+                      <div className="flex items-center gap-1">
+                        <p className="font-medium">{item.material_name}</p>
+                        {item.material_id && (
+                          <span title="Powiazany z magazynem" className="text-blue-500">
+                            <Link size={12} />
+                          </span>
+                        )}
+                      </div>
                       {item.notes && <p className="text-xs text-muted-foreground">{item.notes}</p>}
                     </div>
                   </td>
@@ -396,14 +514,18 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
                   <td className="py-2 px-2 text-center">
                     {item.is_consumed ? (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs">
-                        <CheckCircle size={12} /> Zuzyty
+                        <CheckCircle size={12} /> {item.material_id ? 'Wydano (WZ)' : 'Zuzyty'}
                       </span>
                     ) : (
                       <button
                         onClick={() => handleMarkConsumed(item.id)}
-                        className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs hover:bg-yellow-200"
+                        className={`px-2 py-0.5 rounded text-xs hover:opacity-80 ${
+                          item.material_id
+                            ? 'bg-blue-100 text-blue-800 hover:bg-blue-200'
+                            : 'bg-yellow-100 text-yellow-800 hover:bg-yellow-200'
+                        }`}
                       >
-                        W magazynie
+                        {item.material_id ? 'Wydaj z mag.' : 'Oznacz zuzyty'}
                       </button>
                     )}
                   </td>

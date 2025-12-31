@@ -318,12 +318,18 @@ export const shipmentsApi = {
   },
   create: async (orderId: number, data: {
     weight: number;
-    dimensions: string;
-    package_type: string;
-    service: string;
-    recipient_address: string;
+    dimensions?: string;
+    package_type?: string;
+    service?: string;
+    recipient_name: string;
+    recipient_street: string;
+    recipient_building_number?: string;
+    recipient_apartment_number?: string;
+    recipient_postal_code: string;
+    recipient_city: string;
+    recipient_phone: string;
     recipient_email?: string;
-    recipient_phone?: string;
+    recipient_address?: string; // Legacy - combined address
   }) => {
     checkDemoMode();
     const response = await api.post(`/api/orders/${orderId}/shipments`, data);
@@ -1108,6 +1114,7 @@ export const bomApi = {
     unit_price?: number;
     supplier?: string;
     notes?: string;
+    material_id?: number | null; // Link to inventory material
   }) => {
     checkDemoMode();
     const response = await api.post(`/api/orders/${orderId}/bom`, data);
@@ -1134,10 +1141,29 @@ export const bomApi = {
     const response = await api.delete(`/api/bom/${id}`);
     return response.data;
   },
-  // Mark as consumed
+  // Mark as consumed (simple - no inventory deduction)
   markConsumed: async (id: number) => {
     checkDemoMode();
     const response = await api.post(`/api/bom/${id}/consume`);
+    return response.data;
+  },
+  // Issue from inventory (marks consumed + creates WZ transaction)
+  issueBomItem: async (id: number, data?: {
+    location_id?: number;
+    notes?: string;
+    quantity?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/bom/order-bom-items/${id}/issue`, data || {});
+    return response.data;
+  },
+  // Reserve inventory for BOM item
+  reserveBomItem: async (id: number, data: {
+    location_id: number;
+    quantity?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/bom/order-bom-items/${id}/reserve`, data);
     return response.data;
   },
 };
@@ -1274,6 +1300,201 @@ export const backupsApi = {
   restore: async (filename: string) => {
     checkDemoMode();
     const response = await api.post('/api/admin/restore', { filename });
+    return response.data;
+  },
+};
+
+// Inventory API
+export const inventoryApi = {
+  // Categories
+  getCategories: async (active?: boolean) => {
+    checkDemoMode();
+    const params = active !== undefined ? `?active=${active}` : '';
+    const response = await api.get(`/api/inventory/categories${params}`);
+    return response.data;
+  },
+  createCategory: async (data: { name: string; description?: string; parent_id?: number }) => {
+    checkDemoMode();
+    const response = await api.post('/api/inventory/categories', data);
+    return response.data;
+  },
+
+  // Materials
+  getMaterials: async (filters?: { category_id?: number; active?: boolean; search?: string; low_stock?: boolean }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.category_id) params.append('category_id', String(filters.category_id));
+    if (filters?.active !== undefined) params.append('active', String(filters.active));
+    if (filters?.search) params.append('search', filters.search);
+    if (filters?.low_stock) params.append('low_stock', 'true');
+    const response = await api.get(`/api/inventory/materials?${params.toString()}`);
+    return response.data;
+  },
+  getMaterialById: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/inventory/materials/${id}`);
+    return response.data;
+  },
+  createMaterial: async (data: {
+    code: string;
+    name: string;
+    description?: string;
+    unit: string;
+    category_id?: number;
+    thickness_mm?: number;
+    width_mm?: number;
+    height_mm?: number;
+    color?: string;
+    supplier?: string;
+    supplier_code?: string;
+    min_stock?: number;
+    max_stock?: number;
+    reorder_point?: number;
+    unit_cost?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/inventory/materials', data);
+    return response.data;
+  },
+  updateMaterial: async (id: number, data: Partial<{
+    name: string;
+    description: string;
+    unit: string;
+    category_id: number;
+    thickness_mm: number;
+    width_mm: number;
+    height_mm: number;
+    color: string;
+    supplier: string;
+    supplier_code: string;
+    min_stock: number;
+    max_stock: number;
+    reorder_point: number;
+    unit_cost: number;
+    is_active: boolean;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/inventory/materials/${id}`, data);
+    return response.data;
+  },
+
+  // Locations
+  getLocations: async (filters?: { warehouse?: string; zone?: string; active?: boolean }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.warehouse) params.append('warehouse', filters.warehouse);
+    if (filters?.zone) params.append('zone', filters.zone);
+    if (filters?.active !== undefined) params.append('active', String(filters.active));
+    const response = await api.get(`/api/inventory/locations?${params.toString()}`);
+    return response.data;
+  },
+  createLocation: async (data: {
+    code: string;
+    name: string;
+    warehouse?: string;
+    zone?: string;
+    aisle?: string;
+    rack?: string;
+    shelf?: string;
+    bin?: string;
+    capacity_max?: number;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/inventory/locations', data);
+    return response.data;
+  },
+
+  // Stock
+  getStock: async (filters?: { material_id?: number; location_id?: number; low_stock?: boolean }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.material_id) params.append('material_id', String(filters.material_id));
+    if (filters?.location_id) params.append('location_id', String(filters.location_id));
+    if (filters?.low_stock) params.append('low_stock', 'true');
+    const response = await api.get(`/api/inventory/stock?${params.toString()}`);
+    return response.data;
+  },
+  getStockSummary: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/inventory/stock/summary');
+    return response.data;
+  },
+
+  // Transactions
+  getTransactions: async (filters?: {
+    material_id?: number;
+    type?: string;
+    from_date?: string;
+    to_date?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.material_id) params.append('material_id', String(filters.material_id));
+    if (filters?.type) params.append('type', filters.type);
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.offset) params.append('offset', String(filters.offset));
+    const response = await api.get(`/api/inventory/transactions?${params.toString()}`);
+    return response.data;
+  },
+  createReceiptPZ: async (data: {
+    material_id: number;
+    location_id?: number;
+    quantity: number;
+    unit_cost?: number;
+    batch_number?: string;
+    supplier?: string;
+    supplier_document?: string;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/inventory/transactions/pz', data);
+    return response.data;
+  },
+  createIssueWZ: async (data: {
+    inventory_item_id: number;
+    quantity: number;
+    reference_type?: string;
+    reference_id?: number;
+    reference_number?: string;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/inventory/transactions/wz', data);
+    return response.data;
+  },
+
+  // Reservations
+  getReservations: async (filters?: { order_id?: number; status?: string }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.order_id) params.append('order_id', String(filters.order_id));
+    if (filters?.status) params.append('status', filters.status);
+    const response = await api.get(`/api/inventory/reservations?${params.toString()}`);
+    return response.data;
+  },
+  createReservation: async (data: {
+    order_id: number;
+    inventory_item_id: number;
+    quantity_reserved: number;
+    order_bom_item_id?: number;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/inventory/reservations', data);
+    return response.data;
+  },
+  issueReservation: async (id: number, data?: { quantity_to_issue?: number; notes?: string }) => {
+    checkDemoMode();
+    const response = await api.post(`/api/inventory/reservations/${id}/issue`, data || {});
+    return response.data;
+  },
+  cancelReservation: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/inventory/reservations/${id}`);
     return response.data;
   },
 };

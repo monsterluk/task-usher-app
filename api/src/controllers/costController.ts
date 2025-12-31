@@ -29,6 +29,29 @@ export const getOrderCost = async (req: Request, res: Response) => {
 
     const order = orderResult.rows[0];
 
+    // Get material costs from BOM if available
+    const bomResult = await pool.query(`
+      SELECT
+        ob.id as bom_id,
+        ob.total_material_cost as bom_total,
+        COALESCE(
+          (SELECT SUM(COALESCE(obi.unit_cost, 0) * COALESCE(obi.quantity_used, obi.quantity_planned, 0) * (1 + COALESCE(obi.waste_percentage, 0) / 100))
+           FROM order_bom_items obi
+           WHERE obi.order_bom_id = ob.id), 0
+        ) as calculated_material_cost,
+        (SELECT json_agg(json_build_object(
+          'name', obi.name,
+          'quantity', COALESCE(obi.quantity_used, obi.quantity_planned),
+          'unit', obi.unit,
+          'unit_cost', obi.unit_cost,
+          'total', obi.total_cost
+        )) FROM order_bom_items obi WHERE obi.order_bom_id = ob.id) as items
+      FROM order_bom ob
+      WHERE ob.order_id = $1
+    `, [id]);
+
+    const bomData = bomResult.rows[0] || null;
+
     // Get labor cost from work sessions
     const laborResult = await pool.query(`
       SELECT
@@ -39,8 +62,8 @@ export const getOrderCost = async (req: Request, res: Response) => {
         ) as total_hours,
         COUNT(DISTINCT ws.worker_id) as workers_count
       FROM work_sessions ws
-      JOIN order_stages os ON ws.stage_id = os.id
-      WHERE os.order_id = $1
+      JOIN stages s ON ws.stage_id = s.id
+      WHERE s.order_id = $1
     `, [id]);
 
     const laborHours = parseFloat(laborResult.rows[0]?.total_hours) || 0;
@@ -50,17 +73,17 @@ export const getOrderCost = async (req: Request, res: Response) => {
     const machineResult = await pool.query(`
       SELECT
         m.name as machine_name,
-        m.hourly_rate,
+        m.cost_per_hour as hourly_rate,
         SUM(
           CASE WHEN ws.end_time IS NOT NULL
           THEN EXTRACT(EPOCH FROM (ws.end_time - ws.start_time)) / 3600
           ELSE 0 END
         ) as machine_hours
       FROM work_sessions ws
-      JOIN order_stages os ON ws.stage_id = os.id
-      LEFT JOIN machines m ON os.machine_id = m.id
-      WHERE os.order_id = $1 AND m.id IS NOT NULL
-      GROUP BY m.id, m.name, m.hourly_rate
+      JOIN stages s ON ws.stage_id = s.id
+      LEFT JOIN machines m ON ws.machine_id = m.id
+      WHERE s.order_id = $1 AND m.id IS NOT NULL
+      GROUP BY m.id, m.name, m.cost_per_hour
     `, [id]);
 
     // Default rates (can be configured in settings)
@@ -84,7 +107,11 @@ export const getOrderCost = async (req: Request, res: Response) => {
       };
     });
 
-    const materialCost = parseFloat(order.material_cost) || 0;
+    // Use BOM cost if available, otherwise fall back to order.material_cost
+    const bomMaterialCost = bomData ? parseFloat(bomData.calculated_material_cost) || parseFloat(bomData.bom_total) || 0 : 0;
+    const orderMaterialCost = parseFloat(order.material_cost) || 0;
+    const materialCost = bomMaterialCost > 0 ? bomMaterialCost : orderMaterialCost;
+
     const totalCost = materialCost + laborCost + machineCost;
     const revenue = parseFloat(order.price_total) || 0;
     const profit = revenue - totalCost;
@@ -103,7 +130,9 @@ export const getOrderCost = async (req: Request, res: Response) => {
         costs: {
           material: {
             cost: materialCost,
-            description: 'Koszt materiałów'
+            bom_items: bomData?.items || null,
+            has_bom: !!bomData,
+            description: bomData ? 'Koszt materiałów (z BOM)' : 'Koszt materiałów'
           },
           labor: {
             hours: laborHours,
@@ -190,8 +219,8 @@ export const getCostSummary = async (req: Request, res: Response) => {
             THEN EXTRACT(EPOCH FROM (ws.end_time - ws.start_time)) / 3600
             ELSE 0 END
           ) FROM work_sessions ws
-          JOIN order_stages os ON ws.stage_id = os.id
-          WHERE os.order_id = o.id), 0
+          JOIN stages s ON ws.stage_id = s.id
+          WHERE s.order_id = o.id), 0
         ) as labor_hours
       FROM orders o
       WHERE o.created_at >= $1 AND o.created_at <= $2

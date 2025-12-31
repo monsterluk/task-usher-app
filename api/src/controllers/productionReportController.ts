@@ -30,7 +30,7 @@ export const getProductionReport = async (req: Request, res: Response) => {
     const timeResult = await pool.query(`
       SELECT
         COUNT(DISTINCT ws.id) as total_sessions,
-        COUNT(DISTINCT ws.worker_id) as active_workers,
+        COUNT(DISTINCT a.worker_id) as active_workers,
         SUM(
           CASE WHEN ws.end_time IS NOT NULL
           THEN EXTRACT(EPOCH FROM (ws.end_time - ws.start_time)) / 3600
@@ -42,22 +42,23 @@ export const getProductionReport = async (req: Request, res: Response) => {
           ELSE NULL END
         )::numeric(10,2) as avg_session_hours
       FROM work_sessions ws
+      LEFT JOIN assignments a ON ws.assignment_id = a.id
       WHERE ws.start_time >= $1 AND ws.start_time <= $2
     `, [fromDate, toDate]);
 
-    // Production by department
+    // Production by department (group by current stage from stages table)
     const departmentResult = await pool.query(`
       SELECT
-        o.current_stage as department,
-        COUNT(*) as orders_count,
+        s.stage_name as department,
+        COUNT(DISTINCT o.id) as orders_count,
         SUM(o.quantity) as total_quantity,
         SUM(o.price_total) as total_value,
         AVG(o.quantity) as avg_quantity
       FROM orders o
+      LEFT JOIN stages s ON s.order_id = o.id AND s.status = 'W_TRAKCIE'
       WHERE o.created_at >= $1 AND o.created_at <= $2
         AND o.archived = false
-        AND o.current_stage IS NOT NULL
-      GROUP BY o.current_stage
+      GROUP BY s.stage_name
       ORDER BY orders_count DESC
     `, [fromDate, toDate]);
 
@@ -80,20 +81,21 @@ export const getProductionReport = async (req: Request, res: Response) => {
       SELECT
         w.id,
         w.name,
-        w.department,
+        w.position as department,
         COUNT(DISTINCT ws.id) as sessions_count,
         SUM(
           CASE WHEN ws.end_time IS NOT NULL
           THEN EXTRACT(EPOCH FROM (ws.end_time - ws.start_time)) / 3600
           ELSE 0 END
         )::numeric(10,2) as hours_worked,
-        COUNT(DISTINCT osa.order_id) as orders_worked
+        COUNT(DISTINCT s.order_id) as orders_worked
       FROM workers w
-      LEFT JOIN work_sessions ws ON ws.worker_id = w.id
+      LEFT JOIN assignments a ON a.worker_id = w.id
+      LEFT JOIN work_sessions ws ON ws.assignment_id = a.id
         AND ws.start_time >= $1 AND ws.start_time <= $2
-      LEFT JOIN order_stage_assignments osa ON osa.worker_id = w.id
-      WHERE w.role = 'PRACOWNIK' AND w.active = true
-      GROUP BY w.id, w.name, w.department
+      LEFT JOIN stages s ON a.stage_id = s.id
+      WHERE w.active = true
+      GROUP BY w.id, w.name, w.position
       ORDER BY hours_worked DESC
     `, [fromDate, toDate]);
 
@@ -104,8 +106,9 @@ export const getProductionReport = async (req: Request, res: Response) => {
         SUM(CASE
           WHEN status = 'GOTOWE' AND
                (SELECT MAX(ws.end_time) FROM work_sessions ws
-                JOIN order_stages os ON ws.stage_id = os.id
-                WHERE os.order_id = orders.id) <= planned_completion_date
+                JOIN assignments a ON ws.assignment_id = a.id
+                JOIN stages s ON a.stage_id = s.id
+                WHERE s.order_id = orders.id) <= planned_completion_date
           THEN 1 ELSE 0 END
         ) as on_time_count
       FROM orders
@@ -114,15 +117,15 @@ export const getProductionReport = async (req: Request, res: Response) => {
         AND archived = false
     `, [fromDate, toDate]);
 
-    // Quality metrics
+    // Quality metrics (using quality_checks table)
     const qualityResult = await pool.query(`
       SELECT
         COUNT(*) as total_inspections,
-        SUM(CASE WHEN passed THEN 1 ELSE 0 END) as passed_count,
-        SUM(CASE WHEN NOT passed THEN 1 ELSE 0 END) as failed_count,
-        (SUM(CASE WHEN passed THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) * 100)::numeric(5,2) as pass_rate
-      FROM quality_inspections
-      WHERE inspected_at >= $1 AND inspected_at <= $2
+        SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END) as passed_count,
+        SUM(CASE WHEN status = 'FAIL' THEN 1 ELSE 0 END) as failed_count,
+        (SUM(CASE WHEN status = 'PASS' THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) * 100)::numeric(5,2) as pass_rate
+      FROM quality_checks
+      WHERE checked_at >= $1 AND checked_at <= $2
     `, [fromDate, toDate]);
 
     const orders = ordersResult.rows[0];
@@ -306,12 +309,11 @@ export const getExportData = async (req: Request, res: Response) => {
           o.client_name,
           o.product_name,
           o.quantity,
-          o.unit,
           o.price_per_unit,
           o.price_total,
           o.status,
           o.priority,
-          o.current_stage,
+          (SELECT s.stage_name FROM stages s WHERE s.order_id = o.id AND s.status = 'W_TRAKCIE' LIMIT 1) as current_stage,
           o.planned_completion_date,
           o.created_at
         FROM orders o
@@ -325,16 +327,17 @@ export const getExportData = async (req: Request, res: Response) => {
           ws.id,
           w.name as worker_name,
           o.order_number,
-          os.name as stage_name,
+          s.stage_name as stage_name,
           ws.start_time,
           ws.end_time,
           CASE WHEN ws.end_time IS NOT NULL
             THEN EXTRACT(EPOCH FROM (ws.end_time - ws.start_time)) / 3600
             ELSE NULL END as hours_worked
         FROM work_sessions ws
-        JOIN workers w ON ws.worker_id = w.id
-        LEFT JOIN order_stages os ON ws.stage_id = os.id
-        LEFT JOIN orders o ON os.order_id = o.id
+        LEFT JOIN assignments a ON ws.assignment_id = a.id
+        LEFT JOIN workers w ON a.worker_id = w.id
+        LEFT JOIN stages s ON a.stage_id = s.id
+        LEFT JOIN orders o ON s.order_id = o.id
         WHERE ws.start_time >= $1 AND ws.start_time <= $2
         ORDER BY ws.start_time DESC
       `, [fromDate, toDate]);
@@ -344,7 +347,7 @@ export const getExportData = async (req: Request, res: Response) => {
         SELECT
           qi.id,
           o.order_number,
-          os.name as stage_name,
+          s.stage_name as stage_name,
           qi.inspection_type,
           qi.passed,
           qi.defect_type,
@@ -353,8 +356,8 @@ export const getExportData = async (req: Request, res: Response) => {
           w.name as inspector_name,
           qi.inspected_at
         FROM quality_inspections qi
-        JOIN order_stages os ON qi.stage_id = os.id
-        JOIN orders o ON os.order_id = o.id
+        LEFT JOIN stages s ON qi.stage_id = s.id
+        LEFT JOIN orders o ON s.order_id = o.id
         LEFT JOIN workers w ON qi.inspector_id = w.id
         WHERE qi.inspected_at >= $1 AND qi.inspected_at <= $2
         ORDER BY qi.inspected_at DESC
