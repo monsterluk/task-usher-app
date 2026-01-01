@@ -11,6 +11,7 @@ import { generateOrderNumber } from '@/data/mockData';
 import { ordersApi, commentsApi, attachmentsApi, shipmentsApi, isDemoMode } from '@/utils/api';
 import { useToast } from '@/hooks/use-toast';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
+import ClockWidget from '@/components/TimeTracking/ClockWidget';
 
 // Interface for comments
 interface Comment {
@@ -1358,6 +1359,10 @@ const HandlowiecDashboard = () => {
 
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* Clock Widget - rejestracja czasu pracy */}
+        <div className="mb-6">
+          <ClockWidget />
+        </div>
         <Routes>
           <Route path="/" element={<DashboardHome />} />
           <Route path="/orders" element={<OrdersList />} />
