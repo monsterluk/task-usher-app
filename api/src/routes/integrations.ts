@@ -15,11 +15,11 @@ router.post('/:name/test', requireRole('ADMIN'), integrationController.testInteg
 router.get('/:name/logs', requireRole('ADMIN'), integrationController.getIntegrationLogs);
 
 // ============ WFIRMA.PL SPECIFIC ROUTES ============
-router.post('/wfirma/create-invoice', requireRole('MANAGER'), integrationController.createWfirmaInvoice);
-router.get('/wfirma/invoices', requireRole('MANAGER'), integrationController.getWfirmaInvoices);
+router.post('/wfirma/create-invoice', requireRole('KIEROWNIK', 'MANAGER'), integrationController.createWfirmaInvoice);
+router.get('/wfirma/invoices', requireRole('KIEROWNIK', 'MANAGER'), integrationController.getWfirmaInvoices);
 
 // ============ APACZKA.PL SPECIFIC ROUTES ============
-router.post('/apaczka/create-shipment', requireRole('MANAGER'), integrationController.createApaczkaShipment);
-router.get('/apaczka/services', requireRole('MANAGER'), integrationController.getApaczkaServices);
+router.post('/apaczka/create-shipment', requireRole('KIEROWNIK', 'MANAGER'), integrationController.createApaczkaShipment);
+router.get('/apaczka/services', requireRole('KIEROWNIK', 'MANAGER'), integrationController.getApaczkaServices);
 
 export default router;

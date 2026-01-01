@@ -225,12 +225,12 @@ export const getAssignmentSessions = asyncHandler(async (req: Request, res: Resp
     [assignmentId]
   );
 
-  // Calculate totals
+  // Calculate totals (parseFloat needed - PostgreSQL returns NUMERIC as string)
   const totalMinutes = sessionsResult.rows.reduce(
-    (sum, s) => sum + (s.duration_minutes || 0),
+    (sum, s) => sum + parseFloat(s.duration_minutes || '0'),
     0
   );
-  const totalCost = sessionsResult.rows.reduce((sum, s) => sum + parseFloat(s.cost || 0), 0);
+  const totalCost = sessionsResult.rows.reduce((sum, s) => sum + parseFloat(s.cost || '0'), 0);
 
   // Check for active session
   const activeSession = sessionsResult.rows.find((s) => !s.end_time);

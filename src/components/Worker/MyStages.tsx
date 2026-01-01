@@ -178,7 +178,9 @@ const QuantityModal = ({
 
 // ===================== MAIN COMPONENT =====================
 const MyStages = () => {
-  const { currentUser, orders, workSessions, setWorkSessions, workers, machines } = useApp();
+  console.log('[MyStages v3] Component mounted');
+  const { currentUser, orders, workSessions, setWorkSessions, workers, machines, apiConnected, demoMode } = useApp();
+  console.log('[MyStages v3] Context:', { currentUser: currentUser?.id, apiConnected, demoMode });
   const [quantityModal, setQuantityModal] = useState<{
     isOpen: boolean;
     sessionId: string;
@@ -189,21 +191,75 @@ const MyStages = () => {
     currentDefective: number;
   } | null>(null);
 
+  // State for API assignments
+  const [apiAssignments, setApiAssignments] = useState<any[]>([]);
+  const [loadingAssignments, setLoadingAssignments] = useState(false);
+
+  // Fetch assignments from API when connected
+  useEffect(() => {
+    const fetchAssignments = async () => {
+      console.log('[MyStages v2] Fetching assignments for user:', currentUser?.id, 'demoMode:', demoMode);
+      if (!currentUser || demoMode) return;
+
+      setLoadingAssignments(true);
+      try {
+        const token = localStorage.getItem('plexisystem_token');
+        const response = await fetch(`/api/workers/${currentUser.id}/assignments`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          // Filter only active assignments (not completed)
+          const activeAssignments = (data.data?.assignments || []).filter(
+            (a: any) => a.status !== 'COMPLETED' && a.status !== 'GOTOWY'
+          );
+          setApiAssignments(activeAssignments);
+        }
+      } catch (err) {
+        console.log('Error fetching assignments:', err);
+      } finally {
+        setLoadingAssignments(false);
+      }
+    };
+
+    fetchAssignments();
+  }, [currentUser, demoMode]);
+
   if (!currentUser) return null;
 
   // Get active work sessions for current worker
   const myWorkSessions = workSessions.filter(ws => ws.workerId === currentUser.id);
   const activeSession = myWorkSessions.find(ws => ws.status === 'active' || ws.status === 'paused');
 
-  // Get assigned stages for this worker from orders
+  // Get assigned stages - from API if connected, else fallback to local
   const getMyAssignedStages = () => {
+    // Use API data if available
+    if (apiAssignments.length > 0) {
+      return apiAssignments.map(a => ({
+        order: {
+          id: a.order_id,
+          order_number: a.order_number,
+          client_name: a.client_name,
+          product_name: a.product_name,
+          quantity: 1000, // Default, will be fetched when starting work
+        } as Order,
+        stageId: a.stage_id,
+        stageName: a.stage_name
+      }));
+    }
+
+    // Fallback: filter from local orders (demo mode)
     const assigned: { order: Order; stageId: number; stageName: string }[] = [];
 
     orders.forEach(order => {
       if (order.archived || order.status === 'GOTOWE') return;
 
       order.stages?.forEach(stage => {
-        if (stage.assignedWorkers.includes(currentUser.id) && stage.status !== 'completed') {
+        if (stage.assignedWorkers?.includes(currentUser.id) && stage.status !== 'completed') {
           assigned.push({
             order,
             stageId: stage.stageId,
@@ -533,7 +589,12 @@ const MyStages = () => {
             Przydzielone Etapy
           </h2>
 
-          {myAssignedStages.length === 0 ? (
+          {loadingAssignments ? (
+            <div className="card-industrial text-center py-8">
+              <div className="animate-spin w-10 h-10 border-4 border-primary border-t-transparent rounded-full mx-auto mb-3"></div>
+              <p className="text-muted-foreground">Ładowanie przydzielonych etapów...</p>
+            </div>
+          ) : myAssignedStages.length === 0 ? (
             <div className="card-industrial text-center py-8">
               <AlertCircle size={40} className="mx-auto text-muted-foreground mb-3" />
               <p className="text-muted-foreground">Nie masz przydzielonych etapów</p>

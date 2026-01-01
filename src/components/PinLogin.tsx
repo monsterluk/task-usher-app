@@ -2,12 +2,12 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import { Lock, Loader2, Factory, Users, Palette, Briefcase, UserCog } from 'lucide-react';
-import { UserRole, ROLE_LABELS } from '@/types';
+import { UserRole } from '@/types';
 
 const PinLogin = () => {
   const [pin, setPin] = useState(['', '', '', '', '', '']);
   const [error, setError] = useState('');
-  const { loginWithPin, loading, currentUser, workers } = useApp();
+  const { loginWithPin, loading, currentUser } = useApp();
   const navigate = useNavigate();
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -84,25 +84,6 @@ const PinLogin = () => {
     }
   };
 
-  const getRoleIcon = (role: UserRole) => {
-    switch (role) {
-      case 'ADMIN': return <UserCog size={16} />;
-      case 'KIEROWNIK': return <Factory size={16} />;
-      case 'GRAFIK': return <Palette size={16} />;
-      case 'HANDLOWIEC': return <Briefcase size={16} />;
-      case 'PRACOWNIK': return <Users size={16} />;
-      default: return <Users size={16} />;
-    }
-  };
-
-  // Grupuj pracowników po roli
-  const workersByRole = workers.reduce((acc, w) => {
-    if (w.active && w.pin) {
-      if (!acc[w.role]) acc[w.role] = [];
-      acc[w.role].push(w);
-    }
-    return acc;
-  }, {} as Record<string, typeof workers>);
 
   return (
     <div className="min-h-screen bg-muted flex items-center justify-center p-4">
@@ -155,39 +136,117 @@ const PinLogin = () => {
             PIN składa się z 4-6 cyfr
           </p>
 
-          {/* Podpowiedź z dostępnymi PIN-ami (tylko w trybie demo) */}
+          {/* Szybkie logowanie - hardkodowane dla produkcji */}
           <div className="mt-8 pt-6 border-t border-border">
             <p className="text-xs text-muted-foreground text-center mb-4">
-              Dostępne konta (tryb demo):
+              Szybkie logowanie:
             </p>
             <div className="space-y-3">
-              {(['ADMIN', 'KIEROWNIK', 'GRAFIK', 'PRACOWNIK'] as UserRole[]).map(role => (
-                workersByRole[role] && (
-                  <div key={role} className="text-sm">
-                    <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                      {getRoleIcon(role)}
-                      <span className="font-medium">{ROLE_LABELS[role]}:</span>
-                    </div>
-                    <div className="flex flex-wrap gap-2 ml-6">
-                      {workersByRole[role].map(w => (
-                        <button
-                          key={w.id}
-                          onClick={() => {
-                            if (w.pin) {
-                              setPin([...w.pin.padEnd(6, '').split('')]);
-                              handleLogin(w.pin);
-                            }
-                          }}
-                          className="px-2 py-1 text-xs bg-muted rounded hover:bg-primary/20 transition-colors"
-                          disabled={loading}
-                        >
-                          {w.name.split(' ')[0]} ({w.pin})
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )
-              ))}
+              {/* ADMIN */}
+              <div className="text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <UserCog size={16} />
+                  <span className="font-medium">Administrator:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-6">
+                  <button
+                    onClick={() => { setError(''); handleLogin('1234'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Łukasz S.
+                  </button>
+                </div>
+              </div>
+
+              {/* KIEROWNIK */}
+              <div className="text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Factory size={16} />
+                  <span className="font-medium">Kierownik:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-6">
+                  <button
+                    onClick={() => { setError(''); handleLogin('5678'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Daniel
+                  </button>
+                </div>
+              </div>
+
+              {/* HANDLOWIEC */}
+              <div className="text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Briefcase size={16} />
+                  <span className="font-medium">Handlowiec:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-6">
+                  <button
+                    onClick={() => { setError(''); handleLogin('7890'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Dorota
+                  </button>
+                </div>
+              </div>
+
+              {/* GRAFIK */}
+              <div className="text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Palette size={16} />
+                  <span className="font-medium">Grafik:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-6">
+                  <button
+                    onClick={() => { setError(''); handleLogin('1111'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Katarzyna
+                  </button>
+                  <button
+                    onClick={() => { setError(''); handleLogin('2222'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Nikola
+                  </button>
+                </div>
+              </div>
+
+              {/* PRACOWNIK */}
+              <div className="text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground mb-1">
+                  <Users size={16} />
+                  <span className="font-medium">Pracownik:</span>
+                </div>
+                <div className="flex flex-wrap gap-2 ml-6">
+                  <button
+                    onClick={() => { setError(''); handleLogin('3333'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Monika
+                  </button>
+                  <button
+                    onClick={() => { setError(''); handleLogin('6666'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Łukasz B.
+                  </button>
+                  <button
+                    onClick={() => { setError(''); handleLogin('7777'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Sławomir
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         </div>

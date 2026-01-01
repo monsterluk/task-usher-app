@@ -26,22 +26,15 @@ export const getAllOrders = asyncHandler(async (req: AuthRequest, res: Response)
   const { status, archived, limit = 50, offset = 0, search } = req.query;
   const user = req.user;
 
-  let sql = `
-    SELECT
-      o.*,
-      (SELECT COUNT(*) FROM stages s WHERE s.order_id = o.id) as stages_count,
-      (SELECT COUNT(*) FROM stages s WHERE s.order_id = o.id AND s.status = 'GOTOWY') as completed_stages_count
-    FROM orders o
-    WHERE 1=1
-  `;
+  // Build WHERE conditions separately for reuse in count query
+  let whereConditions = 'WHERE 1=1';
   const params: any[] = [];
   let paramIndex = 1;
 
   // TASK 1.5: Filter for PRACOWNIK - only show orders where they have assignments
   if (user?.role === 'PRACOWNIK') {
-    // user.id IS the worker ID (from JWT payload)
     const workerId = user.id;
-    sql += ` AND o.id IN (
+    whereConditions += ` AND o.id IN (
       SELECT DISTINCT s.order_id
       FROM assignments a
       JOIN stages s ON a.stage_id = s.id
@@ -52,19 +45,19 @@ export const getAllOrders = asyncHandler(async (req: AuthRequest, res: Response)
   }
 
   if (status) {
-    sql += ` AND o.status = $${paramIndex}`;
+    whereConditions += ` AND o.status = $${paramIndex}`;
     params.push(status);
     paramIndex++;
   }
 
   if (archived !== undefined) {
-    sql += ` AND o.archived = $${paramIndex}`;
+    whereConditions += ` AND o.archived = $${paramIndex}`;
     params.push(archived === 'true');
     paramIndex++;
   }
 
   if (search) {
-    sql += ` AND (
+    whereConditions += ` AND (
       o.order_number ILIKE $${paramIndex} OR
       o.client_name ILIKE $${paramIndex} OR
       o.product_name ILIKE $${paramIndex} OR
@@ -74,13 +67,22 @@ export const getAllOrders = asyncHandler(async (req: AuthRequest, res: Response)
     paramIndex++;
   }
 
-  // Get total count
-  const countSql = sql.replace(/SELECT[\s\S]*FROM/, 'SELECT COUNT(*) as total FROM');
+  // Get total count - simple query without subqueries in SELECT
+  const countSql = `SELECT COUNT(*) as total FROM orders o ${whereConditions}`;
   const countResult = await query(countSql, params);
   const total = parseInt(countResult.rows[0].total);
 
-  // Add pagination and ordering
-  sql += ` ORDER BY o.created_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+  // Build main query with all columns
+  const sql = `
+    SELECT
+      o.*,
+      (SELECT COUNT(*) FROM stages s WHERE s.order_id = o.id) as stages_count,
+      (SELECT COUNT(*) FROM stages s WHERE s.order_id = o.id AND s.status = 'GOTOWY') as completed_stages_count
+    FROM orders o
+    ${whereConditions}
+    ORDER BY o.created_at DESC
+    LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
+  `;
   params.push(limit, offset);
 
   const result = await query(sql, params);
@@ -542,6 +544,127 @@ export const unarchiveOrder = asyncHandler(async (req: AuthRequest, res: Respons
     success: true,
     data: {
       order: result.rows[0],
+    },
+  });
+});
+
+// GET /api/orders/:id/work-summary
+export const getOrderWorkSummary = asyncHandler(async (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+
+  // Check if order exists
+  const orderResult = await query('SELECT id, order_number FROM orders WHERE id = $1', [id]);
+  if (orderResult.rows.length === 0) {
+    throw new AppError('Order not found', 404);
+  }
+
+  // Get all work sessions for this order with worker and stage info
+  const sessionsResult = await query(
+    `SELECT
+      ws.id,
+      ws.start_time,
+      ws.end_time,
+      ws.duration_minutes,
+      ws.cost,
+      w.id as worker_id,
+      w.name as worker_name,
+      w.hourly_rate,
+      s.id as stage_id,
+      s.stage_name,
+      s.stage_number,
+      a.id as assignment_id,
+      a.status as assignment_status
+    FROM work_sessions ws
+    JOIN assignments a ON ws.assignment_id = a.id
+    JOIN workers w ON a.worker_id = w.id
+    JOIN stages s ON a.stage_id = s.id
+    WHERE s.order_id = $1
+    ORDER BY ws.start_time DESC`,
+    [id]
+  );
+
+  // Calculate totals per worker
+  const workerSummary: Record<string, any> = {};
+  sessionsResult.rows.forEach((session: any) => {
+    const workerId = session.worker_id;
+    if (!workerSummary[workerId]) {
+      workerSummary[workerId] = {
+        worker_id: workerId,
+        worker_name: session.worker_name,
+        hourly_rate: parseFloat(session.hourly_rate),
+        total_minutes: 0,
+        total_cost: 0,
+        sessions_count: 0,
+        stages: new Set(),
+      };
+    }
+    workerSummary[workerId].total_minutes += parseFloat(session.duration_minutes || '0');
+    workerSummary[workerId].total_cost += parseFloat(session.cost || '0');
+    workerSummary[workerId].sessions_count += 1;
+    workerSummary[workerId].stages.add(session.stage_name);
+  });
+
+  // Convert Sets to arrays
+  const byWorker = Object.values(workerSummary).map((w: any) => ({
+    ...w,
+    stages: Array.from(w.stages),
+    total_hours: (w.total_minutes / 60).toFixed(2),
+    total_cost: w.total_cost.toFixed(2),
+  }));
+
+  // Calculate totals per stage
+  const stageSummary: Record<string, any> = {};
+  sessionsResult.rows.forEach((session: any) => {
+    const stageId = session.stage_id;
+    if (!stageSummary[stageId]) {
+      stageSummary[stageId] = {
+        stage_id: stageId,
+        stage_name: session.stage_name,
+        stage_number: session.stage_number,
+        total_minutes: 0,
+        total_cost: 0,
+        workers: new Set(),
+      };
+    }
+    stageSummary[stageId].total_minutes += parseFloat(session.duration_minutes || '0');
+    stageSummary[stageId].total_cost += parseFloat(session.cost || '0');
+    stageSummary[stageId].workers.add(session.worker_name);
+  });
+
+  const byStage = Object.values(stageSummary)
+    .sort((a: any, b: any) => a.stage_number - b.stage_number)
+    .map((s: any) => ({
+      ...s,
+      workers: Array.from(s.workers),
+      total_hours: (s.total_minutes / 60).toFixed(2),
+      total_cost: s.total_cost.toFixed(2),
+    }));
+
+  // Grand totals
+  const totalMinutes = sessionsResult.rows.reduce(
+    (sum: number, s: any) => sum + parseFloat(s.duration_minutes || '0'),
+    0
+  );
+  const totalCost = sessionsResult.rows.reduce(
+    (sum: number, s: any) => sum + parseFloat(s.cost || '0'),
+    0
+  );
+
+  res.json({
+    success: true,
+    data: {
+      order_id: id,
+      order_number: orderResult.rows[0].order_number,
+      totals: {
+        total_minutes: Math.round(totalMinutes * 100) / 100,
+        total_hours: (totalMinutes / 60).toFixed(2),
+        total_cost: totalCost.toFixed(2),
+        sessions_count: sessionsResult.rows.length,
+        workers_count: Object.keys(workerSummary).length,
+      },
+      by_worker: byWorker,
+      by_stage: byStage,
+      sessions: sessionsResult.rows,
     },
   });
 });

@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://beata254.mikrus.xyz:20254';
+const API_URL = import.meta.env.VITE_API_URL || '';
 
 // Sprawdź czy jesteśmy w trybie demo (bez backendu)
 // UWAGA: Domyślnie próbujemy połączyć z API, demo tylko gdy jawnie włączony

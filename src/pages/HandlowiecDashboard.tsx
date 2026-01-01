@@ -576,8 +576,11 @@ const OrderDetailsView = () => {
 
 // Formularz nowego zlecenia (uproszczony dla handlowca)
 const NewOrderForm = () => {
-  const { orders, setOrders, currentUser } = useApp();
+  const { orders, setOrders, currentUser, refreshOrders } = useApp();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const demoMode = isDemoMode();
 
   const [formData, setFormData] = useState({
     order_number: generateOrderNumber(orders),
@@ -593,23 +596,80 @@ const NewOrderForm = () => {
     notes: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newOrder: Order = {
-      id: Math.max(0, ...orders.map(o => o.id)) + 1,
-      ...formData,
-      status: 'NOWE',
-      created_by: currentUser?.name || 'Handlowiec',
-      created_at: new Date().toISOString(),
-      archived: false,
-      stages: [
-        { stageId: 1, stageName: 'GRAFIK', assignedWorkers: [], status: 'pending' },
-      ]
-    };
+    // Walidacja
+    if (!formData.client_name?.trim() || !formData.product_name?.trim()) {
+      toast({ title: 'Wypełnij wymagane pola (nazwa klienta, nazwa produktu)', variant: 'destructive' });
+      return;
+    }
 
-    setOrders(prev => [...prev, newOrder]);
-    navigate('/handlowiec/orders');
+    setLoading(true);
+
+    // W trybie demo - zapisz lokalnie
+    if (demoMode) {
+      const newOrder: Order = {
+        id: Math.max(0, ...orders.map(o => o.id)) + 1,
+        ...formData,
+        status: 'NOWE',
+        created_by: currentUser?.name || 'Handlowiec',
+        created_at: new Date().toISOString(),
+        archived: false,
+        stages: [
+          { stageId: 1, stageName: 'GRAFIK', assignedWorkers: [], status: 'pending' },
+        ]
+      };
+      setOrders(prev => [...prev, newOrder]);
+      toast({ title: 'Zlecenie utworzone (demo)' });
+      setLoading(false);
+      navigate('/handlowiec/orders');
+      return;
+    }
+
+    // Tryb z API
+    try {
+      const response = await ordersApi.create({
+        order_number: formData.order_number,
+        client_order_number: formData.client_order_number,
+        client_name: formData.client_name,
+        client_email: formData.client_email,
+        client_phone: formData.client_phone,
+        product_name: formData.product_name,
+        quantity: formData.quantity,
+        price_total: formData.price_total,
+        price_per_unit: formData.price_per_unit,
+        planned_completion_date: formData.planned_completion_date || undefined,
+        notes: formData.notes,
+      });
+
+      if (response.success) {
+        toast({ title: 'Zlecenie utworzone!' });
+        await refreshOrders();
+        navigate('/handlowiec/orders');
+      } else {
+        toast({ title: response.error || 'Błąd tworzenia zlecenia', variant: 'destructive' });
+      }
+    } catch (error) {
+      console.error('Failed to create order:', error);
+      // Fallback do lokalnego zapisu
+      const newOrder: Order = {
+        id: Math.max(0, ...orders.map(o => o.id)) + 1,
+        ...formData,
+        status: 'NOWE',
+        created_by: currentUser?.name || 'Handlowiec',
+        created_at: new Date().toISOString(),
+        archived: false,
+        stages: [
+          { stageId: 1, stageName: 'GRAFIK', assignedWorkers: [], status: 'pending' },
+        ]
+      };
+      setOrders(prev => [...prev, newOrder]);
+      toast({ title: 'Zlecenie utworzone (lokalnie)' });
+      navigate('/handlowiec/orders');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -751,13 +811,14 @@ const NewOrderForm = () => {
         </Card>
 
         <div className="flex gap-4">
-          <button type="submit" className="btn-primary flex-1">
-            Utwórz zlecenie
+          <button type="submit" className="btn-primary flex-1" disabled={loading}>
+            {loading ? 'Tworzenie...' : 'Utwórz zlecenie'}
           </button>
           <button
             type="button"
             onClick={() => navigate('/handlowiec/orders')}
             className="btn-secondary"
+            disabled={loading}
           >
             Anuluj
           </button>

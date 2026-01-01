@@ -39,10 +39,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return saved ? JSON.parse(saved) : initialOrders;
   });
 
-  const [workers, setWorkers] = useState<Worker[]>(() => {
-    const saved = localStorage.getItem('plexisystem_workers');
-    return saved ? JSON.parse(saved) : initialWorkers;
-  });
+  // Workers - zawsze startuj od initialWorkers, API zaktualizuje
+  const [workers, setWorkers] = useState<Worker[]>(initialWorkers);
 
   const [timeEntries, setTimeEntries] = useState<TimeEntry[]>(() => {
     const saved = localStorage.getItem('plexisystem_time_entries');

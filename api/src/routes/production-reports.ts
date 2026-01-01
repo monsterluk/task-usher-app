@@ -4,9 +4,9 @@ import * as productionReportController from '../controllers/productionReportCont
 
 const router = Router();
 
-// All routes require authentication and manager role
+// All routes require authentication and manager/kierownik role
 router.use(authenticate);
-router.use(requireRole('MANAGER'));
+router.use(requireRole('KIEROWNIK', 'MANAGER'));
 
 // Get comprehensive production report
 router.get('/', productionReportController.getProductionReport);

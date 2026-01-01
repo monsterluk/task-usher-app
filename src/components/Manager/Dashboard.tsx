@@ -48,7 +48,7 @@ const Dashboard = () => {
   // KPI Calculations
   const activeOrders = orders.filter(o => !o.archived && o.status !== 'GOTOWE');
   const overdueOrders = activeOrders.filter(o => new Date(o.planned_completion_date) < new Date());
-  const totalValue = activeOrders.reduce((sum, o) => sum + (o.price_total || 0), 0);
+  const totalValue = activeOrders.reduce((sum, o) => sum + (parseFloat(String(o.price_total)) || 0), 0);
   const ordersInProgress = orders.filter(o => o.status === 'W_TRAKCIE').length;
   const ordersNew = orders.filter(o => o.status === 'NOWE').length;
   const ordersCompleted = orders.filter(o => o.status === 'GOTOWE' && !o.archived).length;
@@ -79,7 +79,7 @@ const Dashboard = () => {
         const key = created.toLocaleDateString('pl-PL', { month: 'short', year: '2-digit' });
         if (months[key]) {
           months[key].orders++;
-          months[key].revenue += order.price_total || 0;
+          months[key].revenue += parseFloat(String(order.price_total)) || 0;
         }
       }
     });

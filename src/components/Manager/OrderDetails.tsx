@@ -9,7 +9,7 @@ import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
 import BOMTab from './BOMTab';
 import TraceabilityTab from './TraceabilityTab';
-import { attachmentsApi, orderItemsApi, isDemoMode } from '@/utils/api';
+import { attachmentsApi, orderItemsApi, assignmentsApi, stagesApi, isDemoMode } from '@/utils/api';
 
 // Typ dla odpowiedzi z Apaczka
 interface ShipmentResult {
@@ -180,48 +180,75 @@ const OrderDetails = () => {
     return `${hours}:${mins.toString().padStart(2, '0')}`;
   };
 
-  const saveAndAdvanceStage = (stageId: number) => {
+  const saveAndAdvanceStage = async (stageId: number) => {
     const stage = stages.find(s => s.id === stageId);
     const assignedWorkerIds = stageWorkers[stageId] || [];
 
-    const newTimeEntries: TimeEntry[] = assignedWorkerIds.map(workerId => {
-      const worker = workers.find(w => w.id === workerId)!;
-      return {
-        id: `te_${Date.now()}_${workerId}_${stageId}`,
-        orderId: order.id,
-        stageId,
-        stageName: stage!.name,
-        workerId,
-        workerName: worker.name,
-        hourlyRate: worker.hourly_rate,
-        startTime: null,
-        endTime: null,
-        totalSeconds: 0,
-        status: 'pending' as const
-      };
-    });
+    if (assignedWorkerIds.length === 0) {
+      toast({ title: "Błąd", description: "Przypisz pracowników do etapu.", variant: "destructive" });
+      return;
+    }
 
-    setTimeEntries(prev => [...prev, ...newTimeEntries]);
+    try {
+      // 1. Create assignments via API for each worker
+      for (const workerId of assignedWorkerIds) {
+        if (!isDemoMode()) {
+          await assignmentsApi.create(stageId, workerId);
+        }
+      }
 
-    const updatedStages: OrderStage[] = selectedStages.map(sId => {
-      const existingStage = order.stages?.find(s => s.stageId === sId);
-      const stageName = stages.find(s => s.id === sId)!.name;
-      
-      return {
-        stageId: sId,
-        stageName,
-        assignedWorkers: stageWorkers[sId] || [],
-        status: sId === stageId ? 'in_progress' : (existingStage?.status || 'pending')
-      };
-    });
+      // 2. Update stage status to W_TRAKCIE via API
+      if (!isDemoMode()) {
+        await stagesApi.update(stageId, { status: 'W_TRAKCIE' });
+      }
 
-    setOrders(prev => prev.map(o => 
-      o.id === order.id 
-        ? { ...o, stages: updatedStages, status: 'W_TRAKCIE' as const }
-        : o
-    ));
+      // 3. Update local state for UI
+      const newTimeEntries: TimeEntry[] = assignedWorkerIds.map(workerId => {
+        const worker = workers.find(w => w.id === workerId)!;
+        return {
+          id: `te_${Date.now()}_${workerId}_${stageId}`,
+          orderId: order.id,
+          stageId,
+          stageName: stage!.name,
+          workerId,
+          workerName: worker.name,
+          hourlyRate: worker.hourly_rate,
+          startTime: null,
+          endTime: null,
+          totalSeconds: 0,
+          status: 'pending' as const
+        };
+      });
 
-    toast({ title: "Etap uruchomiony", description: `Etap ${stage?.name} jest teraz w trakcie realizacji.` });
+      setTimeEntries(prev => [...prev, ...newTimeEntries]);
+
+      const updatedStages: OrderStage[] = selectedStages.map(sId => {
+        const existingStage = order.stages?.find(s => s.stageId === sId);
+        const stageName = stages.find(s => s.id === sId)!.name;
+
+        return {
+          stageId: sId,
+          stageName,
+          assignedWorkers: stageWorkers[sId] || [],
+          status: sId === stageId ? 'in_progress' : (existingStage?.status || 'pending')
+        };
+      });
+
+      setOrders(prev => prev.map(o =>
+        o.id === order.id
+          ? { ...o, stages: updatedStages, status: 'W_TRAKCIE' as const }
+          : o
+      ));
+
+      toast({ title: "Etap uruchomiony", description: `Etap ${stage?.name} jest teraz w trakcie realizacji.` });
+    } catch (error: any) {
+      console.error('Error starting stage:', error);
+      toast({
+        title: "Błąd",
+        description: error.message || "Nie udało się uruchomić etapu.",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleShipmentCreated = (shipment: ShipmentResult) => {

@@ -19,7 +19,7 @@ router.use(authenticate);
 // Orders
 router.get('/', orderController.getAllOrders);
 router.get('/:id', validateParams(idParamSchema), orderController.getOrderById);
-router.post('/', requireRole('MANAGER'), validateBody(createOrderSchema), orderController.createOrder);
+router.post('/', requireRole('MANAGER', 'HANDLOWIEC'), validateBody(createOrderSchema), orderController.createOrder);
 router.put('/:id', requireRole('MANAGER'), validateParams(idParamSchema), validateBody(updateOrderSchema), orderController.updateOrder);
 router.delete('/:id', requireRole('MANAGER'), validateParams(idParamSchema), orderController.deleteOrder);
 router.post('/:id/archive', requireRole('MANAGER'), validateParams(idParamSchema), orderController.archiveOrder);
@@ -55,5 +55,8 @@ router.get('/:orderId/invoices', integrationController.getOrderInvoices);
 // Order items - nested under orders
 router.get('/:orderId/items', orderItemsController.getOrderItems);
 router.post('/:orderId/items', requireRole('MANAGER'), orderItemsController.createOrderItem);
+
+// Work summary - nested under orders
+router.get('/:id/work-summary', validateParams(idParamSchema), orderController.getOrderWorkSummary);
 
 export default router;

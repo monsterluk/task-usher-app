@@ -53,29 +53,34 @@ export const getCalendarEvents = async (req: Request, res: Response, next: NextF
       });
     });
 
-    // Get maintenance schedules as events
-    const maintenanceResult = await pool.query(`
-      SELECT ms.id, ms.scheduled_date, ms.description, ms.status,
-             m.name as machine_name
-      FROM maintenance_schedules ms
-      JOIN machines m ON ms.machine_id = m.id
-      WHERE ms.scheduled_date BETWEEN $1 AND $2
-      ORDER BY ms.scheduled_date ASC
-    `, [startDate, endDate]);
+    // Get maintenance schedules as events (if table exists)
+    try {
+      const maintenanceResult = await pool.query(`
+        SELECT ms.id, ms.scheduled_date, ms.description, ms.status,
+               m.name as machine_name
+        FROM maintenance_schedules ms
+        JOIN machines m ON ms.machine_id = m.id
+        WHERE ms.scheduled_date BETWEEN $1 AND $2
+        ORDER BY ms.scheduled_date ASC
+      `, [startDate, endDate]);
 
-    maintenanceResult.rows.forEach(maint => {
-      events.push({
-        id: `maint-${maint.id}`,
-        title: `Konserwacja: ${maint.machine_name}`,
-        description: maint.description,
-        start: maint.scheduled_date,
-        end: maint.scheduled_date,
-        allDay: true,
-        type: 'maintenance',
-        color: maint.status === 'completed' ? '#10b981' : '#f59e0b',
-        status: maint.status
+      maintenanceResult.rows.forEach(maint => {
+        events.push({
+          id: `maint-${maint.id}`,
+          title: `Konserwacja: ${maint.machine_name}`,
+          description: maint.description,
+          start: maint.scheduled_date,
+          end: maint.scheduled_date,
+          allDay: true,
+          type: 'maintenance',
+          color: maint.status === 'completed' ? '#10b981' : '#f59e0b',
+          status: maint.status
+        });
       });
-    });
+    } catch (err) {
+      // Table might not exist yet - skip maintenance events
+      logger.warn('maintenance_schedules table not available, skipping maintenance events');
+    }
 
     // Filter by types if specified
     let filteredEvents = events;

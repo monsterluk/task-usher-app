@@ -107,7 +107,11 @@ const WorkersManagement = () => {
   };
 
   const startEdit = (worker: Worker) => {
-    setFormData({ ...worker, skills: worker.skills || [] });
+    setFormData({
+      ...worker,
+      skills: worker.skills || [],
+      hourly_rate: parseFloat(String(worker.hourly_rate)) || 43.27
+    });
     setEditingId(worker.id);
     setShowAddForm(false);
   };
