@@ -346,7 +346,8 @@ const ProductionReport = () => {
                   fontSize={10}
                   tickFormatter={(v) => new Date(v).toLocaleDateString('pl-PL', { day: '2-digit', month: '2-digit' })}
                 />
-                <YAxis fontSize={12} />
+                <YAxis yAxisId="left" fontSize={12} />
+                <YAxis yAxisId="right" orientation="right" fontSize={12} />
                 <Tooltip
                   contentStyle={{
                     backgroundColor: 'hsl(var(--card))',
@@ -356,7 +357,7 @@ const ProductionReport = () => {
                   labelFormatter={(v) => new Date(v).toLocaleDateString('pl-PL')}
                 />
                 <Legend />
-                <Line type="monotone" dataKey="orders_created" stroke="#3b82f6" strokeWidth={2} name="Zamowienia" dot={false} />
+                <Line type="monotone" dataKey="orders_created" stroke="#3b82f6" strokeWidth={2} name="Zamowienia" yAxisId="left" dot={false} />
                 <Line type="monotone" dataKey="quantity" stroke="#22c55e" strokeWidth={2} name="Ilosc" yAxisId="right" dot={false} />
               </LineChart>
             </ResponsiveContainer>

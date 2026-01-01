@@ -11,7 +11,10 @@ import BOMTab from './BOMTab';
 import TraceabilityTab from './TraceabilityTab';
 import ProgressTab from './ProgressTab';
 import ActivityTab from './ActivityTab';
-import { attachmentsApi, orderItemsApi, assignmentsApi, stagesApi, isDemoMode } from '@/utils/api';
+import WorkSessionsTab from './WorkSessionsTab';
+import WarehouseTab from './WarehouseTab';
+import DefectsTab from './DefectsTab';
+import { attachmentsApi, orderItemsApi, assignmentsApi, stagesApi, ordersApi, isDemoMode } from '@/utils/api';
 
 // Typ dla odpowiedzi z Apaczka
 interface ShipmentResult {
@@ -53,6 +56,40 @@ const OrderDetails = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [orderItems, setOrderItems] = useState<OrderItemDisplay[]>([]);
   const [loadingItems, setLoadingItems] = useState(false);
+  const [progressStages, setProgressStages] = useState<{ id: number; name: string; status: string }[]>([]);
+
+  // Załaduj etapy dla paska postępu
+  useEffect(() => {
+    const loadProgressStages = async () => {
+      if (!order?.id) return;
+
+      if (isDemoMode()) {
+        // Demo mode - use local data
+        if (order.stages) {
+          setProgressStages(order.stages.map(s => ({
+            id: s.stageId,
+            name: s.stageName,
+            status: s.status || 'pending'
+          })));
+        }
+        return;
+      }
+
+      try {
+        const response = await stagesApi.getOrderStages(order.id);
+        const stagesData = response.data?.stages || [];
+        setProgressStages(stagesData.map((s: any) => ({
+          id: s.id,
+          name: s.name || s.stage_name,
+          status: s.status || 'pending'
+        })));
+      } catch (error) {
+        console.error('Failed to load progress stages:', error);
+      }
+    };
+
+    loadProgressStages();
+  }, [order?.id]);
 
   useEffect(() => {
     if (order?.stages) {
@@ -579,6 +616,84 @@ const OrderDetails = () => {
         )}
       </div>
 
+      {/* Progress Bar - Pasek postępu zlecenia */}
+      {progressStages.length > 0 && (
+        <div className="card-industrial mb-6">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <Clock size={20} />
+              Postęp zlecenia
+            </h2>
+            <span className="text-2xl font-bold text-primary">
+              {Math.round((progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length / progressStages.length) * 100)}%
+            </span>
+          </div>
+
+          {/* Main progress bar */}
+          <div className="h-4 bg-gray-200 rounded-full overflow-hidden mb-3">
+            <div
+              className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500 ease-out"
+              style={{
+                width: `${(progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length / progressStages.length) * 100}%`
+              }}
+            />
+          </div>
+
+          {/* Stage indicators */}
+          <div className="flex justify-between gap-1">
+            {progressStages.map((stage) => {
+              const isCompleted = stage.status === 'completed' || stage.status === 'GOTOWE';
+              const isInProgress = stage.status === 'in_progress' || stage.status === 'W_TRAKCIE';
+              return (
+                <div
+                  key={stage.id}
+                  className="flex-1 text-center"
+                  title={stage.name}
+                >
+                  <div
+                    className={`h-2 rounded-full mb-1 ${
+                      isCompleted ? 'bg-green-500' :
+                      isInProgress ? 'bg-blue-500 animate-pulse' :
+                      'bg-gray-300'
+                    }`}
+                  />
+                  <span className={`text-xs truncate block ${
+                    isCompleted ? 'text-green-600 font-medium' :
+                    isInProgress ? 'text-blue-600 font-medium' :
+                    'text-muted-foreground'
+                  }`}>
+                    {stage.name}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Summary stats */}
+          <div className="flex gap-4 mt-3 pt-3 border-t text-sm">
+            <div>
+              <span className="text-muted-foreground">Ukończone: </span>
+              <span className="font-semibold text-green-600">
+                {progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length}
+              </span>
+              <span className="text-muted-foreground"> / {progressStages.length}</span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">W trakcie: </span>
+              <span className="font-semibold text-blue-600">
+                {progressStages.filter(s => s.status === 'in_progress' || s.status === 'W_TRAKCIE').length}
+              </span>
+            </div>
+            <div>
+              <span className="text-muted-foreground">Oczekujące: </span>
+              <span className="font-semibold">
+                {progressStages.filter(s => s.status === 'pending' || s.status === 'NOWY' || !s.status).length}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Pozycje Zlecenia */}
       {orderItems.length > 0 && (
         <div className="card-industrial mb-6">
@@ -662,6 +777,21 @@ const OrderDetails = () => {
         <ProgressTab orderId={order.id} />
       </div>
 
+      {/* Work Sessions Tab - historia sesji pracy */}
+      <div className="card-industrial mb-6">
+        <WorkSessionsTab orderId={order.id} />
+      </div>
+
+      {/* Warehouse Tab - wydania/przyjęcia materiałów */}
+      <div className="card-industrial mb-6">
+        <WarehouseTab orderId={order.id} />
+      </div>
+
+      {/* Defects Tab - jakość i defekty */}
+      <div className="card-industrial mb-6">
+        <DefectsTab orderId={order.id} stages={order.stages?.map(s => ({ id: s.stageId, stage_name: s.stageName })) || []} />
+      </div>
+
       {/* Przygotowanie - GRAFIK */}
       <div className="card-industrial mb-6">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -731,6 +861,18 @@ const OrderDetails = () => {
                       setOrders(prev => prev.map(o =>
                         o.id === order.id ? { ...o, folder_path: e.target.value } : o
                       ));
+                    }}
+                    onBlur={async (e) => {
+                      // Zapisz folder_path do API
+                      if (!isDemoMode()) {
+                        try {
+                          await ordersApi.update(order.id, { folder_path: e.target.value });
+                          toast({ title: "Zapisano", description: "Lokalizacja plików została zapisana" });
+                        } catch (error) {
+                          console.error('Failed to save folder_path:', error);
+                          toast({ title: "Błąd", description: "Nie udało się zapisać lokalizacji", variant: "destructive" });
+                        }
+                      }
                     }}
                     placeholder="np. /PROJEKTY/KLIENT/NR_ZLECENIA/ lub \\\\SERVER\\CNC\\..."
                     className="flex-1 input-industrial font-mono text-sm"

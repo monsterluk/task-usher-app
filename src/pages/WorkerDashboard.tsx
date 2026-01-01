@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Navigation from '@/components/Navigation';
 import MyStages from '@/components/Worker/MyStages';
+import ClockWidget from '@/components/TimeTracking/ClockWidget';
 import MobileDashboard from '@/components/Mobile/MobileDashboard';
 import MobileOrderDetail from '@/components/Mobile/MobileOrderDetail';
 import MobileHistory from '@/components/Mobile/MobileHistory';
@@ -57,7 +58,11 @@ const WorkerDashboard = () => {
   return (
     <div className="min-h-screen bg-muted">
       <Navigation />
-      <main className="container mx-auto">
+      <main className="container mx-auto p-4">
+        {/* Clock Widget - always visible at top */}
+        <div className="mb-6">
+          <ClockWidget />
+        </div>
         <Routes>
           <Route path="stages" element={<MyStages />} />
           <Route path="*" element={<Navigate to="stages" replace />} />

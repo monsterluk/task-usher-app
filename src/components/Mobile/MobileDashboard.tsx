@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
+import { timeTrackingApi, isDemoMode } from '@/utils/api';
+import { toast } from 'sonner';
 import {
   Play,
   Pause,
@@ -15,7 +17,8 @@ import {
   Loader2,
   Timer,
   Wrench,
-  Calendar
+  Calendar,
+  LogIn
 } from 'lucide-react';
 
 interface ActiveSession {
@@ -32,6 +35,105 @@ const MobileDashboard = () => {
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Clock in/out state
+  const [clockStatus, setClockStatus] = useState<{
+    isClockedIn: boolean;
+    entryTime: string | null;
+  }>({ isClockedIn: false, entryTime: null });
+  const [clockLoading, setClockLoading] = useState(false);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Update current time every second
+  useEffect(() => {
+    const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  // Load clock status on mount
+  useEffect(() => {
+    loadClockStatus();
+  }, [currentUser]);
+
+  const loadClockStatus = async () => {
+    if (!currentUser) return;
+    try {
+      if (isDemoMode()) {
+        const saved = localStorage.getItem('demoClockStatus');
+        if (saved) setClockStatus(JSON.parse(saved));
+        return;
+      }
+      const today = new Date().toISOString().split('T')[0];
+      const response = await timeTrackingApi.getEntries({
+        worker_id: currentUser.id,
+        start_date: today,
+        end_date: today,
+      });
+      if (response.success && response.data) {
+        const open = response.data.find((e: any) => !e.exit_time);
+        if (open) {
+          setClockStatus({ isClockedIn: true, entryTime: open.entry_time });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load clock status:', e);
+    }
+  };
+
+  const handleClockIn = async () => {
+    setClockLoading(true);
+    try {
+      if (isDemoMode()) {
+        const status = { isClockedIn: true, entryTime: new Date().toISOString() };
+        setClockStatus(status);
+        localStorage.setItem('demoClockStatus', JSON.stringify(status));
+        toast.success('Rozpoczęto pracę');
+      } else {
+        const response = await timeTrackingApi.clockIn();
+        if (response.success && response.data) {
+          setClockStatus({ isClockedIn: true, entryTime: response.data.entry_time });
+          toast.success('Rozpoczęto pracę');
+        } else {
+          throw new Error(response.error);
+        }
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Błąd rejestracji');
+    } finally {
+      setClockLoading(false);
+    }
+  };
+
+  const handleClockOut = async () => {
+    setClockLoading(true);
+    try {
+      if (isDemoMode()) {
+        setClockStatus({ isClockedIn: false, entryTime: null });
+        localStorage.removeItem('demoClockStatus');
+        toast.success('Zakończono pracę');
+      } else {
+        const response = await timeTrackingApi.clockOut();
+        if (response.success) {
+          setClockStatus({ isClockedIn: false, entryTime: null });
+          toast.success('Zakończono pracę');
+        } else {
+          throw new Error(response.error);
+        }
+      }
+    } catch (e: any) {
+      toast.error(e.message || 'Błąd rejestracji');
+    } finally {
+      setClockLoading(false);
+    }
+  };
+
+  const getWorkDuration = () => {
+    if (!clockStatus.entryTime) return '0h 00m';
+    const diff = currentTime.getTime() - new Date(clockStatus.entryTime).getTime();
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    return `${h}h ${m.toString().padStart(2, '0')}m`;
+  };
 
   // Get worker's assigned orders
   const myOrders = orders.filter(o => {
@@ -152,6 +254,48 @@ const MobileDashboard = () => {
               <LogOut size={20} />
             </button>
           </div>
+        </div>
+      </div>
+
+      {/* Clock In/Out Widget */}
+      <div className={`mx-4 mt-4 p-4 rounded-2xl shadow-lg ${clockStatus.isClockedIn ? 'bg-green-600 text-white' : 'bg-card'}`}>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className={`p-2 rounded-full ${clockStatus.isClockedIn ? 'bg-white/20' : 'bg-muted'}`}>
+              <Clock size={24} className={clockStatus.isClockedIn ? 'text-white' : 'text-muted-foreground'} />
+            </div>
+            <div>
+              <p className="text-2xl font-mono font-bold">
+                {currentTime.toLocaleTimeString('pl-PL', { hour: '2-digit', minute: '2-digit' })}
+              </p>
+              {clockStatus.isClockedIn && (
+                <p className="text-sm opacity-90">Czas pracy: {getWorkDuration()}</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={clockStatus.isClockedIn ? handleClockOut : handleClockIn}
+            disabled={clockLoading}
+            className={`px-4 py-3 rounded-xl font-semibold flex items-center gap-2 ${
+              clockStatus.isClockedIn
+                ? 'bg-white text-green-600'
+                : 'bg-green-600 text-white'
+            }`}
+          >
+            {clockLoading ? (
+              <Loader2 size={20} className="animate-spin" />
+            ) : clockStatus.isClockedIn ? (
+              <>
+                <LogOut size={20} />
+                Zakończ
+              </>
+            ) : (
+              <>
+                <LogIn size={20} />
+                Rozpocznij
+              </>
+            )}
+          </button>
         </div>
       </div>
 

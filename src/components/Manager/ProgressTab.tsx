@@ -88,7 +88,7 @@ const ProgressTab = ({ orderId }: ProgressTabProps) => {
       } else {
         // Production mode - load from API
         const [stagesRes, machinesRes] = await Promise.all([
-          stagesApi.getByOrder(orderId),
+          stagesApi.getOrderStages(orderId),
           machinesApi.getAll(),
         ]);
 
