@@ -27,12 +27,25 @@ interface Backup {
 }
 
 interface BackupStatus {
-  last_backup: string | null;
-  next_scheduled: string | null;
-  total_backups: number;
-  total_size: number;
-  auto_backup_enabled: boolean;
-  retention_days: number;
+  status: 'healthy' | 'warning' | 'no_backups';
+  last_backup: {
+    filename: string;
+    created_at: string;
+    size_mb: string;
+    hours_ago: number;
+  } | null;
+  backup_count: number;
+  total_backup_size_mb: string;
+  database_size_mb: string;
+  max_backups: number;
+  backup_directory: string;
+  recent_failures: any[];
+  // Optional fields for demo mode compatibility
+  next_scheduled?: string | null;
+  auto_backup_enabled?: boolean;
+  retention_days?: number;
+  total_backups?: number;
+  total_size?: number;
 }
 
 const BackupsPanel = () => {
@@ -57,12 +70,24 @@ const BackupsPanel = () => {
   const loadData = useCallback(async () => {
     if (demoMode) {
       setStatus({
-        last_backup: new Date(Date.now() - 3600000).toISOString(),
+        status: 'healthy',
+        last_backup: {
+          filename: 'plexisystem_backup_2024-12-30_03-00-00.sql.gz',
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          size_mb: '10.00',
+          hours_ago: 1,
+        },
         next_scheduled: new Date(Date.now() + 86400000).toISOString(),
-        total_backups: 5,
-        total_size: 52428800,
+        backup_count: 5,
+        total_backup_size_mb: '50.00',
+        database_size_mb: '25.00',
+        max_backups: 10,
+        backup_directory: '/backups',
+        recent_failures: [],
         auto_backup_enabled: true,
         retention_days: 30,
+        total_backups: 5,
+        total_size: 52428800,
       });
       setBackups([
         {
@@ -243,8 +268,8 @@ const BackupsPanel = () => {
               <div>
                 <p className="text-sm text-muted-foreground">Ostatni backup</p>
                 <p className="font-semibold">
-                  {status.last_backup
-                    ? new Date(status.last_backup).toLocaleString('pl-PL')
+                  {status.last_backup?.created_at
+                    ? new Date(status.last_backup.created_at).toLocaleString('pl-PL')
                     : 'Brak'}
                 </p>
               </div>
@@ -270,7 +295,7 @@ const BackupsPanel = () => {
               <FileArchive size={24} className="text-purple-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Liczba backupow</p>
-                <p className="font-semibold">{status.total_backups}</p>
+                <p className="font-semibold">{status.backup_count ?? status.total_backups ?? 0}</p>
               </div>
             </div>
           </div>
@@ -280,7 +305,13 @@ const BackupsPanel = () => {
               <HardDrive size={24} className="text-orange-600" />
               <div>
                 <p className="text-sm text-muted-foreground">Zajete miejsce</p>
-                <p className="font-semibold">{formatSize(status.total_size)}</p>
+                <p className="font-semibold">
+                  {status.total_backup_size_mb
+                    ? `${status.total_backup_size_mb} MB`
+                    : status.total_size
+                      ? formatSize(status.total_size)
+                      : '0 MB'}
+                </p>
               </div>
             </div>
           </div>
@@ -292,17 +323,23 @@ const BackupsPanel = () => {
         <div className="card-industrial mb-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {status.auto_backup_enabled ? (
+              {status.status === 'healthy' || status.auto_backup_enabled ? (
                 <CheckCircle size={24} className="text-green-600" />
-              ) : (
+              ) : status.status === 'warning' ? (
                 <AlertCircle size={24} className="text-yellow-600" />
+              ) : (
+                <AlertCircle size={24} className="text-gray-500" />
               )}
               <div>
                 <p className="font-medium">
-                  Automatyczne backupy: {status.auto_backup_enabled ? 'Wlaczone' : 'Wylaczone'}
+                  Status: {status.status === 'healthy' ? 'Zdrowy' : status.status === 'warning' ? 'Ostrzezenie' : status.auto_backup_enabled ? 'Wlaczone' : 'Brak backupow'}
                 </p>
                 <p className="text-sm text-muted-foreground">
-                  Backupy starsze niz {status.retention_days} dni sa automatycznie usuwane
+                  {status.max_backups
+                    ? `Maksymalnie ${status.max_backups} backupow przechowywanych`
+                    : status.retention_days
+                      ? `Backupy starsze niz ${status.retention_days} dni sa automatycznie usuwane`
+                      : 'Konfiguracja automatycznych backupow'}
                 </p>
               </div>
             </div>
