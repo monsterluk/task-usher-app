@@ -1071,6 +1071,111 @@ const migrations: Migration[] = [
       CREATE INDEX IF NOT EXISTS idx_bom_template_items_material ON bom_template_items(material_id);
     `,
   },
+  {
+    name: '019_create_time_tracking_module',
+    up: `
+      -- Work time entries (rejestracja czasu pracy - wejścia/wyjścia)
+      CREATE TABLE IF NOT EXISTS work_time_entries (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        entry_time TIMESTAMP WITH TIME ZONE NOT NULL,
+        exit_time TIMESTAMP WITH TIME ZONE,
+        shift VARCHAR(20) DEFAULT 'DZIEŃ' CHECK (shift IN ('DZIEŃ', 'NOC', 'SOBOTA', 'NIEDZIELĘ')),
+        entry_time_smoothed TIMESTAMP WITH TIME ZONE,
+        exit_time_smoothed TIMESTAMP WITH TIME ZONE,
+        work_minutes INTEGER,
+        work_minutes_smoothed INTEGER,
+        overtime_minutes INTEGER DEFAULT 0,
+        break_minutes INTEGER DEFAULT 0,
+        notes TEXT,
+        source VARCHAR(30) DEFAULT 'manual' CHECK (source IN ('manual', 'pin', 'card', 'auto')),
+        created_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        approved_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        approved_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Days off (dni wolne - urlopy, zwolnienia)
+      CREATE TABLE IF NOT EXISTS days_off (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        start_date DATE NOT NULL,
+        end_date DATE NOT NULL,
+        type VARCHAR(30) NOT NULL CHECK (type IN (
+          'URLOP_WYPOCZYNKOWY',
+          'URLOP_NA_ZADANIE',
+          'ZWOLNIENIE_LEKARSKIE',
+          'URLOP_OKOLICZNOSCIOWY',
+          'URLOP_BEZPLATNY',
+          'URLOP_MACIERZYNSKI',
+          'URLOP_RODZICIELSKI',
+          'DELEGACJA',
+          'SZKOLENIE',
+          'INNE'
+        )),
+        status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+        notes TEXT,
+        requested_by INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        approved_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        approved_at TIMESTAMP WITH TIME ZONE,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Worker monthly summary cache (podsumowanie miesięczne)
+      CREATE TABLE IF NOT EXISTS worker_monthly_summary (
+        id SERIAL PRIMARY KEY,
+        worker_id INTEGER NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+        year INTEGER NOT NULL,
+        month INTEGER NOT NULL CHECK (month BETWEEN 1 AND 12),
+        work_days INTEGER DEFAULT 0,
+        absence_days INTEGER DEFAULT 0,
+        total_work_minutes INTEGER DEFAULT 0,
+        total_work_minutes_smoothed INTEGER DEFAULT 0,
+        base_minutes_smoothed INTEGER DEFAULT 0,
+        overtime_minutes_smoothed INTEGER DEFAULT 0,
+        calculated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(worker_id, year, month)
+      );
+
+      -- Time smoothing settings (ustawienia wygładzania czasu)
+      CREATE TABLE IF NOT EXISTS time_smoothing_settings (
+        id SERIAL PRIMARY KEY,
+        setting_key VARCHAR(50) NOT NULL UNIQUE,
+        setting_value INTEGER NOT NULL,
+        description TEXT,
+        updated_by INTEGER REFERENCES workers(id) ON DELETE SET NULL,
+        updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      );
+
+      -- Insert default time smoothing settings
+      INSERT INTO time_smoothing_settings (setting_key, setting_value, description) VALUES
+        ('smoothing_interval_minutes', 15, 'Interwał zaokrąglania czasu (minuty)'),
+        ('entry_round_minutes', 15, 'Zaokrąglenie czasu wejścia (minuty)'),
+        ('exit_round_minutes', 15, 'Zaokrąglenie czasu wyjścia (minuty)'),
+        ('work_day_minutes', 480, 'Podstawowy czas pracy dziennie (8h = 480 min)'),
+        ('overtime_threshold_minutes', 480, 'Próg nadgodzin (minuty)'),
+        ('max_work_minutes', 720, 'Maksymalny czas pracy dziennie (12h = 720 min)'),
+        ('default_break_minutes', 30, 'Domyślna przerwa (minuty)')
+      ON CONFLICT (setting_key) DO NOTHING;
+
+      -- Indexes for work_time_entries
+      CREATE INDEX IF NOT EXISTS idx_work_time_entries_worker ON work_time_entries(worker_id);
+      CREATE INDEX IF NOT EXISTS idx_work_time_entries_entry_time ON work_time_entries(entry_time);
+      CREATE INDEX IF NOT EXISTS idx_work_time_entries_approved ON work_time_entries(approved_at);
+
+      -- Indexes for days_off
+      CREATE INDEX IF NOT EXISTS idx_days_off_worker ON days_off(worker_id);
+      CREATE INDEX IF NOT EXISTS idx_days_off_dates ON days_off(start_date, end_date);
+      CREATE INDEX IF NOT EXISTS idx_days_off_type ON days_off(type);
+      CREATE INDEX IF NOT EXISTS idx_days_off_status ON days_off(status);
+
+      -- Indexes for worker_monthly_summary
+      CREATE INDEX IF NOT EXISTS idx_worker_monthly_summary_worker ON worker_monthly_summary(worker_id);
+      CREATE INDEX IF NOT EXISTS idx_worker_monthly_summary_period ON worker_monthly_summary(year, month);
+    `,
+  },
 ];
 
 // Create migrations tracking table

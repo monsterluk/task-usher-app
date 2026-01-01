@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette, CalendarDays } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette, CalendarDays, Timer } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
 const Navigation = () => {
@@ -79,6 +79,7 @@ const Navigation = () => {
                 <NavButton path="/handlowiec/new" icon={Briefcase} label="Nowe Zlecenie" />
                 <NavButton path="/admin/workers" icon={Users} label="Pracownicy" />
                 <NavButton path="/admin/machines" icon={Cog} label="Maszyny" />
+                <NavButton path="/manager/time-tracking" icon={Timer} label="Czas Pracy" />
               </>
             )}
             {isKierownik && (
@@ -88,6 +89,7 @@ const Navigation = () => {
                 <NavButton path="/manager/calendar" icon={CalendarDays} label="Kalendarz" />
                 <NavButton path="/manager/machines" icon={Cog} label="Maszyny" />
                 <NavButton path="/manager/workers" icon={Users} label="Pracownicy" />
+                <NavButton path="/manager/time-tracking" icon={Timer} label="Czas Pracy" />
               </>
             )}
             {isGrafik && (
@@ -138,6 +140,7 @@ const Navigation = () => {
               <MobileNavButton path="/handlowiec/new" icon={Briefcase} label="Nowe" />
               <MobileNavButton path="/admin/workers" icon={Users} label="Pracownicy" />
               <MobileNavButton path="/admin/machines" icon={Cog} label="Maszyny" />
+              <MobileNavButton path="/manager/time-tracking" icon={Timer} label="Czas" />
             </>
           )}
           {isKierownik && (
@@ -145,6 +148,7 @@ const Navigation = () => {
               <MobileNavButton path="/manager/orders" icon={ClipboardList} label="Zlecenia" />
               <MobileNavButton path="/manager/machines" icon={Cog} label="Maszyny" />
               <MobileNavButton path="/manager/workers" icon={Users} label="Pracownicy" />
+              <MobileNavButton path="/manager/time-tracking" icon={Timer} label="Czas" />
             </>
           )}
           {isGrafik && (

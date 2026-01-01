@@ -206,3 +206,132 @@ export interface OEEData {
   producedQuantity: number;
   defectiveQuantity: number;
 }
+
+// ==================== TIME TRACKING TYPES ====================
+
+export type WorkTimeShift = 'DZIEŃ' | 'NOC' | 'SOBOTA' | 'NIEDZIELĘ';
+export type WorkTimeSource = 'manual' | 'pin' | 'card' | 'auto';
+
+export type DayOffType =
+  | 'URLOP_WYPOCZYNKOWY'
+  | 'URLOP_NA_ZADANIE'
+  | 'ZWOLNIENIE_LEKARSKIE'
+  | 'URLOP_OKOLICZNOSCIOWY'
+  | 'URLOP_BEZPLATNY'
+  | 'URLOP_MACIERZYNSKI'
+  | 'URLOP_RODZICIELSKI'
+  | 'DELEGACJA'
+  | 'SZKOLENIE'
+  | 'INNE';
+
+export type DayOffStatus = 'pending' | 'approved' | 'rejected' | 'cancelled';
+
+export const DAY_OFF_TYPE_LABELS: Record<DayOffType, string> = {
+  'URLOP_WYPOCZYNKOWY': 'Urlop wypoczynkowy',
+  'URLOP_NA_ZADANIE': 'Urlop na żądanie',
+  'ZWOLNIENIE_LEKARSKIE': 'Zwolnienie lekarskie',
+  'URLOP_OKOLICZNOSCIOWY': 'Urlop okolicznościowy',
+  'URLOP_BEZPLATNY': 'Urlop bezpłatny',
+  'URLOP_MACIERZYNSKI': 'Urlop macierzyński',
+  'URLOP_RODZICIELSKI': 'Urlop rodzicielski',
+  'DELEGACJA': 'Delegacja',
+  'SZKOLENIE': 'Szkolenie',
+  'INNE': 'Inne',
+};
+
+export const DAY_OFF_TYPE_COLORS: Record<DayOffType, string> = {
+  'URLOP_WYPOCZYNKOWY': 'bg-green-500',
+  'URLOP_NA_ZADANIE': 'bg-green-400',
+  'ZWOLNIENIE_LEKARSKIE': 'bg-red-500',
+  'URLOP_OKOLICZNOSCIOWY': 'bg-orange-500',
+  'URLOP_BEZPLATNY': 'bg-gray-500',
+  'URLOP_MACIERZYNSKI': 'bg-pink-500',
+  'URLOP_RODZICIELSKI': 'bg-pink-400',
+  'DELEGACJA': 'bg-blue-500',
+  'SZKOLENIE': 'bg-purple-500',
+  'INNE': 'bg-gray-400',
+};
+
+export interface WorkTimeEntry {
+  id: number;
+  worker_id: number;
+  worker_name?: string;
+  worker_position?: string;
+  entry_time: string;
+  exit_time: string | null;
+  shift: WorkTimeShift;
+  entry_time_smoothed: string | null;
+  exit_time_smoothed: string | null;
+  work_minutes: number | null;
+  work_minutes_smoothed: number | null;
+  overtime_minutes: number;
+  break_minutes: number;
+  notes: string | null;
+  source: WorkTimeSource;
+  created_by: number | null;
+  created_by_name?: string;
+  approved_by: number | null;
+  approved_by_name?: string;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DayOff {
+  id: number;
+  worker_id: number;
+  worker_name?: string;
+  start_date: string;
+  end_date: string;
+  type: DayOffType;
+  status: DayOffStatus;
+  notes: string | null;
+  requested_by: number;
+  requested_by_name?: string;
+  approved_by: number | null;
+  approved_by_name?: string;
+  approved_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkerMonthlySummary {
+  worker_id: number;
+  worker_name: string;
+  position: string;
+  work_days: number;
+  absence_days: number;
+  total_work_minutes: number;
+  total_work_minutes_smoothed: number;
+  base_minutes_smoothed: number;
+  overtime_minutes_smoothed: number;
+}
+
+export interface WorkerWorkCard {
+  worker: {
+    id: number;
+    name: string;
+    position: string;
+  };
+  year: number;
+  month: number;
+  entries: WorkTimeEntry[];
+  daysOff: DayOff[];
+  summary: {
+    workDays: number;
+    absenceDays: number;
+    totalWorkMinutes: number;
+    totalWorkMinutesSmoothed: number;
+    baseMinutesSmoothed: number;
+    overtimeMinutesSmoothed: number;
+  };
+}
+
+export interface TimeSmoothingSetting {
+  id: number;
+  setting_key: string;
+  setting_value: number;
+  description: string;
+  updated_by: number | null;
+  updated_at: string;
+}

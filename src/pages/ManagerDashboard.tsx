@@ -21,6 +21,7 @@ import DataExport from '@/components/Manager/Export/DataExport';
 import KPIDashboard from '@/components/Manager/KPI/KPIDashboard';
 import NotificationSettings from '@/components/Manager/Notifications/NotificationSettings';
 import AuditTrail from '@/components/Manager/Audit/AuditTrail';
+import TimeTracking from '@/components/TimeTracking/TimeTracking';
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -64,6 +65,7 @@ const ManagerDashboard = () => {
           <Route path="kpi" element={<KPIDashboard />} />
           <Route path="notifications" element={<NotificationSettings />} />
           <Route path="audit" element={<AuditTrail />} />
+          <Route path="time-tracking" element={<TimeTracking />} />
           <Route path="*" element={<Navigate to="dashboard" replace />} />
         </Routes>
       </main>

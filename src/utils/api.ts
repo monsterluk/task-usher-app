@@ -1533,4 +1533,151 @@ export const inventoryApi = {
   },
 };
 
+// Time Tracking API (Rejestracja czasu pracy)
+export const timeTrackingApi = {
+  // Work Time Entries
+  getEntries: async (filters?: {
+    worker_id?: number;
+    start_date?: string;
+    end_date?: string;
+    limit?: number;
+    offset?: number;
+  }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.worker_id) params.append('worker_id', String(filters.worker_id));
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.limit) params.append('limit', String(filters.limit));
+    if (filters?.offset) params.append('offset', String(filters.offset));
+    const response = await api.get(`/api/time-tracking/entries?${params.toString()}`);
+    return response.data;
+  },
+  getEntry: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/time-tracking/entries/${id}`);
+    return response.data;
+  },
+  createEntry: async (data: {
+    worker_id: number;
+    entry_time: string;
+    exit_time?: string;
+    shift?: string;
+    notes?: string;
+    source?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/time-tracking/entries', data);
+    return response.data;
+  },
+  updateEntry: async (id: number, data: Partial<{
+    entry_time: string;
+    exit_time: string;
+    shift: string;
+    notes: string;
+    break_minutes: number;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/time-tracking/entries/${id}`, data);
+    return response.data;
+  },
+  deleteEntry: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/time-tracking/entries/${id}`);
+    return response.data;
+  },
+  // Quick clock in/out for current user
+  clockIn: async () => {
+    checkDemoMode();
+    const response = await api.post('/api/time-tracking/clock-in');
+    return response.data;
+  },
+  clockOut: async () => {
+    checkDemoMode();
+    const response = await api.post('/api/time-tracking/clock-out');
+    return response.data;
+  },
+
+  // Days Off
+  getDaysOff: async (filters?: {
+    worker_id?: number;
+    start_date?: string;
+    end_date?: string;
+    status?: string;
+    type?: string;
+  }) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (filters?.worker_id) params.append('worker_id', String(filters.worker_id));
+    if (filters?.start_date) params.append('start_date', filters.start_date);
+    if (filters?.end_date) params.append('end_date', filters.end_date);
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.type) params.append('type', filters.type);
+    const response = await api.get(`/api/time-tracking/days-off?${params.toString()}`);
+    return response.data;
+  },
+  createDayOff: async (data: {
+    worker_id: number;
+    start_date: string;
+    end_date: string;
+    type: string;
+    notes?: string;
+  }) => {
+    checkDemoMode();
+    const response = await api.post('/api/time-tracking/days-off', data);
+    return response.data;
+  },
+  updateDayOff: async (id: number, data: Partial<{
+    start_date: string;
+    end_date: string;
+    type: string;
+    notes: string;
+    status: string;
+  }>) => {
+    checkDemoMode();
+    const response = await api.put(`/api/time-tracking/days-off/${id}`, data);
+    return response.data;
+  },
+  approveDayOff: async (id: number, status: 'approved' | 'rejected') => {
+    checkDemoMode();
+    const response = await api.post(`/api/time-tracking/days-off/${id}/approve`, { status });
+    return response.data;
+  },
+  deleteDayOff: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/time-tracking/days-off/${id}`);
+    return response.data;
+  },
+
+  // Reports
+  getWorkerWorkCard: async (workerId: number, year?: number, month?: number) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (year) params.append('year', String(year));
+    if (month) params.append('month', String(month));
+    const response = await api.get(`/api/time-tracking/work-card/${workerId}?${params.toString()}`);
+    return response.data;
+  },
+  getMonthlySummary: async (year?: number, month?: number) => {
+    checkDemoMode();
+    const params = new URLSearchParams();
+    if (year) params.append('year', String(year));
+    if (month) params.append('month', String(month));
+    const response = await api.get(`/api/time-tracking/monthly-summary?${params.toString()}`);
+    return response.data;
+  },
+
+  // Settings
+  getSettings: async () => {
+    checkDemoMode();
+    const response = await api.get('/api/time-tracking/settings');
+    return response.data;
+  },
+  updateSetting: async (setting_key: string, setting_value: number) => {
+    checkDemoMode();
+    const response = await api.put('/api/time-tracking/settings', { setting_key, setting_value });
+    return response.data;
+  },
+};
+
 export default api;
