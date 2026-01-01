@@ -3,6 +3,7 @@ import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom'
 import { useApp } from '@/context/AppContext';
 import { Palette, FileCheck, LogOut, ClipboardList, Clock } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import ClockWidget from '@/components/TimeTracking/ClockWidget';
 
 // Lista zleceń do przygotowania graficznego
 const GrafikOrders = () => {
@@ -218,6 +219,10 @@ const GrafikDashboard = () => {
 
       {/* Main content */}
       <main className="max-w-7xl mx-auto px-4 py-6">
+        {/* Clock Widget - rejestracja czasu pracy */}
+        <div className="mb-6">
+          <ClockWidget />
+        </div>
         <Routes>
           <Route path="/" element={<GrafikOrders />} />
           <Route path="*" element={<GrafikOrders />} />
