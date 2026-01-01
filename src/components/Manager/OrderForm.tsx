@@ -582,7 +582,7 @@ const OrderForm = () => {
                     <div className="md:col-span-3">
                       <label className="block text-xs font-medium mb-1">Wartość</label>
                       <div className="input-industrial bg-primary/10 text-primary font-semibold text-sm">
-                        {item.price_total.toFixed(2)} zł
+                        {Number(item.price_total || 0).toFixed(2)} zł
                       </div>
                     </div>
                   </div>
