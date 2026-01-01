@@ -9,6 +9,8 @@ import ApaczkaIntegration from './ApaczkaIntegration';
 import WorkOrderPDF from './WorkOrderPDF';
 import BOMTab from './BOMTab';
 import TraceabilityTab from './TraceabilityTab';
+import ProgressTab from './ProgressTab';
+import ActivityTab from './ActivityTab';
 import { attachmentsApi, orderItemsApi, assignmentsApi, stagesApi, isDemoMode } from '@/utils/api';
 
 // Typ dla odpowiedzi z Apaczka
@@ -655,6 +657,11 @@ const OrderDetails = () => {
         </div>
       )}
 
+      {/* Progress Tab - like Prodio */}
+      <div className="card-industrial mb-6">
+        <ProgressTab orderId={order.id} />
+      </div>
+
       {/* Przygotowanie - GRAFIK */}
       <div className="card-industrial mb-6">
         <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -710,6 +717,40 @@ const OrderDetails = () => {
                   </p>
                 </div>
               </label>
+
+              {/* Lokalizacja plików CNC */}
+              <div className="mt-4 pt-4 border-t border-border/50">
+                <label className="block text-sm font-medium text-muted-foreground mb-2">
+                  Lokalizacja plików CNC / programów
+                </label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={order.folder_path || ''}
+                    onChange={(e) => {
+                      setOrders(prev => prev.map(o =>
+                        o.id === order.id ? { ...o, folder_path: e.target.value } : o
+                      ));
+                    }}
+                    placeholder="np. /PROJEKTY/KLIENT/NR_ZLECENIA/ lub \\\\SERVER\\CNC\\..."
+                    className="flex-1 input-industrial font-mono text-sm"
+                  />
+                  {order.folder_path && order.folder_path.startsWith('http') && (
+                    <a
+                      href={order.folder_path}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="btn-secondary flex items-center gap-1"
+                    >
+                      <ExternalLink size={16} />
+                      Otwórz
+                    </a>
+                  )}
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Wpisz ścieżkę do folderu z plikami CNC, aby pracownicy mogli je pobrać
+                </p>
+              </div>
             </div>
           );
         })()}
@@ -1113,6 +1154,11 @@ const OrderDetails = () => {
             Brak załączników. Dodaj zdjęcia lub pliki PDF przeciągając je powyżej.
           </p>
         )}
+      </div>
+
+      {/* Activity Tab - like Prodio */}
+      <div className="card-industrial mt-6">
+        <ActivityTab orderId={order.id} />
       </div>
 
       {/* Comments Section */}
