@@ -190,6 +190,14 @@ export const ordersApi = {
     notes: string;
     archived: boolean;
     planned_completion_date: string;
+    folder_path: string;
+    priority: string;
+    client_name: string;
+    client_email: string;
+    client_phone: string;
+    product_name: string;
+    quantity: number;
+    price_total: number;
   }>) => {
     checkDemoMode();
     const response = await api.put(`/api/orders/${id}`, data);
@@ -302,9 +310,33 @@ export const assignmentsApi = {
     const response = await api.post(`/api/assignments/${id}/start`);
     return response.data;
   },
-  stop: async (id: number) => {
+  stop: async (id: number, completeAssignment = false) => {
     checkDemoMode();
-    const response = await api.post(`/api/assignments/${id}/stop`);
+    const response = await api.post(`/api/assignments/${id}/stop`, { complete_assignment: completeAssignment });
+    return response.data;
+  },
+  getSessions: async (id: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/assignments/${id}/sessions`);
+    return response.data;
+  },
+};
+
+// Work Sessions API
+export const workSessionsApi = {
+  getWorkerActiveSession: async (workerId: number) => {
+    checkDemoMode();
+    const response = await api.get(`/api/workers/${workerId}/active-session`);
+    return response.data;
+  },
+  update: async (id: number, data: { start_time?: string; end_time?: string; duration_minutes?: number }) => {
+    checkDemoMode();
+    const response = await api.put(`/api/work-sessions/${id}`, data);
+    return response.data;
+  },
+  delete: async (id: number) => {
+    checkDemoMode();
+    const response = await api.delete(`/api/work-sessions/${id}`);
     return response.data;
   },
 };
@@ -1426,6 +1458,7 @@ export const inventoryApi = {
     type?: string;
     from_date?: string;
     to_date?: string;
+    reference_id?: number;
     limit?: number;
     offset?: number;
   }) => {
@@ -1435,6 +1468,7 @@ export const inventoryApi = {
     if (filters?.type) params.append('type', filters.type);
     if (filters?.from_date) params.append('from_date', filters.from_date);
     if (filters?.to_date) params.append('to_date', filters.to_date);
+    if (filters?.reference_id) params.append('reference_id', String(filters.reference_id));
     if (filters?.limit) params.append('limit', String(filters.limit));
     if (filters?.offset) params.append('offset', String(filters.offset));
     const response = await api.get(`/api/inventory/transactions?${params.toString()}`);

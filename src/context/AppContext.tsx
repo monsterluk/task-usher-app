@@ -183,7 +183,16 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const response = await machinesApi.getAll();
       const machinesData = response.data?.machines || response.machines;
       if (machinesData) {
-        setMachines(machinesData);
+        // Map API field names to frontend field names
+        const mappedMachines = machinesData.map((m: any) => ({
+          id: m.id,
+          name: m.name,
+          department: m.department || 'FREZOWANIE',
+          hourly_rate: parseFloat(m.cost_per_hour) || parseFloat(m.hourly_rate) || 0,
+          status: m.status || (m.active === false ? 'offline' : 'available'),
+          description: m.description || ''
+        }));
+        setMachines(mappedMachines);
       }
     } catch (err) {
       console.log('Nie można pobrać maszyn z API');

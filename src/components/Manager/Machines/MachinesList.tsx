@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Plus, Download, Edit, X, Save, Loader2, Trash2, Cog } from 'lucide-react';
 import { toast } from 'sonner';
+import { machinesApi, isDemoMode } from '@/utils/api';
 
 // Machine interface
 interface Machine {
@@ -12,25 +13,62 @@ interface Machine {
   active: boolean;
 }
 
+// Demo data for fallback
+const DEMO_MACHINES: Machine[] = [
+  { id: 1, name: 'CNC Frezarka', cost_per_hour: 100, description: 'Frezarka CNC do precyzyjnego frezowania', active: true },
+  { id: 2, name: 'Laser CO2', cost_per_hour: 150, description: 'Cięcie i grawerowanie laserowe', active: true },
+  { id: 3, name: 'Ploter tnący', cost_per_hour: 80, description: 'Ploter do cięcia folii i materiałów', active: true },
+  { id: 4, name: 'Wytłaczarka', cost_per_hour: 120, description: 'Wytłaczanie tworzyw sztucznych', active: true },
+];
+
 const MachinesList = () => {
-  const [machines, setMachines] = useState<Machine[]>([
-    { id: 1, name: 'CNC Frezarka', cost_per_hour: 100, description: 'Frezarka CNC do precyzyjnego frezowania', active: true },
-    { id: 2, name: 'Laser CO2', cost_per_hour: 150, description: 'Cięcie i grawerowanie laserowe', active: true },
-    { id: 3, name: 'Ploter tnący', cost_per_hour: 80, description: 'Ploter do cięcia folii i materiałów', active: true },
-    { id: 4, name: 'Wytłaczarka', cost_per_hour: 120, description: 'Wytłaczanie tworzyw sztucznych', active: true },
-  ]);
-  
-  const [loading, setLoading] = useState(false);
+  const [machines, setMachines] = useState<Machine[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingMachine, setEditingMachine] = useState<Machine | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
-  
+
   const [formData, setFormData] = useState({
     name: '',
     cost_per_hour: 100,
     description: '',
     active: true,
   });
+
+  // Load machines from API on mount
+  useEffect(() => {
+    loadMachines();
+  }, []);
+
+  const loadMachines = async () => {
+    setLoading(true);
+
+    if (isDemoMode()) {
+      // Use demo data
+      setMachines(DEMO_MACHINES);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const response = await machinesApi.getAll();
+      if (response.success && response.machines) {
+        setMachines(response.machines);
+      } else if (response.data) {
+        setMachines(response.data);
+      } else {
+        // Fallback to demo data if API returns empty
+        setMachines([]);
+      }
+    } catch (error) {
+      console.error('Failed to load machines:', error);
+      // Keep empty state, user can add machines
+      setMachines([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -60,42 +98,136 @@ const MachinesList = () => {
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
     try {
-      if (editingMachine) {
-        setMachines(prev => prev.map(m => 
-          m.id === editingMachine.id
-            ? { ...m, ...formData }
-            : m
-        ));
-        toast.success('Maszyna zaktualizowana');
+      if (isDemoMode()) {
+        // Demo mode - local state only
+        if (editingMachine) {
+          setMachines(prev => prev.map(m =>
+            m.id === editingMachine.id
+              ? { ...m, ...formData }
+              : m
+          ));
+          toast.success('Maszyna zaktualizowana (tryb demo)');
+        } else {
+          const newMachine: Machine = {
+            id: Math.max(...machines.map(m => m.id), 0) + 1,
+            ...formData
+          };
+          setMachines(prev => [...prev, newMachine]);
+          toast.success('Maszyna dodana (tryb demo)');
+        }
         resetForm();
       } else {
-        const newMachine: Machine = {
-          id: Math.max(...machines.map(m => m.id), 0) + 1,
-          ...formData
-        };
-        setMachines(prev => [...prev, newMachine]);
-        toast.success('Maszyna dodana pomyślnie!');
-        resetForm();
+        // Production mode - API calls
+        if (editingMachine) {
+          const response = await machinesApi.update(editingMachine.id, {
+            name: formData.name,
+            cost_per_hour: formData.cost_per_hour,
+            description: formData.description,
+            active: formData.active
+          });
+
+          if (response.success) {
+            setMachines(prev => prev.map(m =>
+              m.id === editingMachine.id
+                ? { ...m, ...formData }
+                : m
+            ));
+            toast.success('Maszyna zaktualizowana');
+            resetForm();
+          } else {
+            throw new Error(response.error || 'Błąd aktualizacji');
+          }
+        } else {
+          const response = await machinesApi.create({
+            name: formData.name,
+            cost_per_hour: formData.cost_per_hour,
+            description: formData.description,
+            active: formData.active
+          });
+
+          if (response.success && (response.data || response.machine)) {
+            const newMachine: Machine = {
+              id: response.data?.id || response.machine?.id,
+              name: formData.name,
+              cost_per_hour: formData.cost_per_hour,
+              description: formData.description,
+              active: formData.active
+            };
+            setMachines(prev => [...prev, newMachine]);
+            toast.success('Maszyna dodana');
+            resetForm();
+          } else {
+            throw new Error(response.error || 'Błąd dodawania');
+          }
+        }
       }
-    } catch (error) {
-      toast.error('Wystąpił błąd');
+    } catch (error: any) {
+      console.error('Save error:', error);
+      toast.error(error.message || 'Wystąpił błąd podczas zapisywania');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleDelete = (machineId: number) => {
+  const handleDelete = async (machineId: number) => {
+    // Optimistic update
+    const previousMachines = [...machines];
     setMachines(prev => prev.filter(m => m.id !== machineId));
-    toast.success('Maszyna usunięta');
     setDeleteConfirm(null);
+
+    if (!isDemoMode()) {
+      try {
+        const response = await machinesApi.delete(machineId);
+        if (response.success) {
+          toast.success('Maszyna usunięta');
+        } else {
+          // Revert on failure
+          setMachines(previousMachines);
+          toast.error('Błąd usuwania maszyny');
+        }
+      } catch (error) {
+        // Revert on error
+        setMachines(previousMachines);
+        toast.error('Błąd usuwania maszyny');
+      }
+    } else {
+      toast.success('Maszyna usunięta (tryb demo)');
+    }
   };
 
-  const toggleActive = (machineId: number) => {
-    setMachines(prev => prev.map(m => 
-      m.id === machineId ? { ...m, active: !m.active } : m
+  const toggleActive = async (machineId: number) => {
+    const machine = machines.find(m => m.id === machineId);
+    if (!machine) return;
+
+    const newActiveStatus = !machine.active;
+
+    // Optimistic update
+    setMachines(prev => prev.map(m =>
+      m.id === machineId ? { ...m, active: newActiveStatus } : m
     ));
+
+    if (!isDemoMode()) {
+      try {
+        const response = await machinesApi.update(machineId, { active: newActiveStatus });
+        if (!response.success) {
+          // Revert on failure
+          setMachines(prev => prev.map(m =>
+            m.id === machineId ? { ...m, active: !newActiveStatus } : m
+          ));
+          toast.error('Błąd zmiany statusu');
+        } else {
+          toast.success(newActiveStatus ? 'Maszyna aktywowana' : 'Maszyna dezaktywowana');
+        }
+      } catch (error) {
+        // Revert on error
+        setMachines(prev => prev.map(m =>
+          m.id === machineId ? { ...m, active: !newActiveStatus } : m
+        ));
+        toast.error('Błąd zmiany statusu');
+      }
+    }
   };
 
   const exportToCSV = () => {
@@ -192,11 +324,11 @@ const MachinesList = () => {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button onClick={handleSave} disabled={loading} className="btn-primary flex-1">
-                  {loading ? <Loader2 className="animate-spin mr-2" size={18} /> : <Save size={18} className="mr-2" />}
-                  Zapisz
+                <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+                  {saving ? <Loader2 className="animate-spin mr-2" size={18} /> : <Save size={18} className="mr-2" />}
+                  {saving ? 'Zapisywanie...' : 'Zapisz'}
                 </button>
-                <button onClick={resetForm} disabled={loading} className="btn-secondary flex-1">
+                <button onClick={resetForm} disabled={saving} className="btn-secondary flex-1">
                   Anuluj
                 </button>
               </div>
@@ -205,7 +337,16 @@ const MachinesList = () => {
         </div>
       )}
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin mr-2" size={24} />
+          <span>Ładowanie maszyn...</span>
+        </div>
+      )}
+
       {/* Machines Grid */}
+      {!loading && machines.length > 0 && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {machines.map((machine) => (
           <div key={machine.id} className={`card-industrial ${!machine.active ? 'opacity-60' : ''}`}>
@@ -250,8 +391,9 @@ const MachinesList = () => {
           </div>
         ))}
       </div>
+      )}
 
-      {machines.length === 0 && (
+      {!loading && machines.length === 0 && (
         <div className="text-center py-12 text-muted-foreground">
           <Cog size={48} className="mx-auto mb-4 opacity-50" />
           <p>Brak maszyn w systemie</p>

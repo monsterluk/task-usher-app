@@ -1,14 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
 import { Worker, Position } from '@/types';
 import { positions } from '@/data/mockData';
-import { Plus, Download, Edit, X, Save, UserCheck, UserX } from 'lucide-react';
+import { Plus, Download, Edit, X, Save, UserCheck, UserX, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
+import { workersApi, isDemoMode } from '@/utils/api';
 
 const WorkersList = () => {
-  const { workers, setWorkers } = useApp();
+  const { workers, setWorkers, refreshWorkers } = useApp();
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -17,6 +20,28 @@ const WorkersList = () => {
     role: 'worker' as 'manager' | 'worker',
     active: true
   });
+
+  // Load workers from API on mount
+  useEffect(() => {
+    loadWorkers();
+  }, []);
+
+  const loadWorkers = async () => {
+    if (isDemoMode()) return; // Use context data in demo mode
+
+    setLoading(true);
+    try {
+      const response = await workersApi.getAll();
+      if (response.success && response.data) {
+        setWorkers(response.data);
+      }
+    } catch (error) {
+      console.error('Failed to load workers:', error);
+      // Keep using context data as fallback
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const resetForm = () => {
     setFormData({
@@ -44,34 +69,122 @@ const WorkersList = () => {
     setIsFormOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.email) {
       toast.error('Wypełnij wszystkie wymagane pola');
       return;
     }
 
-    if (editingWorker) {
-      setWorkers(prev => prev.map(w => 
-        w.id === editingWorker.id 
-          ? { ...w, ...formData }
-          : w
-      ));
-      toast.success('Pracownik zaktualizowany');
-    } else {
-      const newWorker: Worker = {
-        id: Math.max(...workers.map(w => w.id)) + 1,
-        ...formData
-      };
-      setWorkers(prev => [...prev, newWorker]);
-      toast.success('Pracownik dodany');
+    setSaving(true);
+
+    try {
+      if (isDemoMode()) {
+        // Demo mode - local state only
+        if (editingWorker) {
+          setWorkers(prev => prev.map(w =>
+            w.id === editingWorker.id
+              ? { ...w, ...formData }
+              : w
+          ));
+          toast.success('Pracownik zaktualizowany (tryb demo)');
+        } else {
+          const newWorker: Worker = {
+            id: Math.max(...workers.map(w => w.id), 0) + 1,
+            ...formData
+          };
+          setWorkers(prev => [...prev, newWorker]);
+          toast.success('Pracownik dodany (tryb demo)');
+        }
+      } else {
+        // Production mode - API calls
+        if (editingWorker) {
+          const response = await workersApi.update(editingWorker.id, {
+            name: formData.name,
+            email: formData.email,
+            position: formData.position,
+            hourly_rate: formData.hourly_rate,
+            role: formData.role === 'manager' ? 'KIEROWNIK' : 'PRACOWNIK',
+            active: formData.active
+          });
+
+          if (response.success) {
+            // Update local state with response data
+            setWorkers(prev => prev.map(w =>
+              w.id === editingWorker.id
+                ? { ...w, ...formData }
+                : w
+            ));
+            toast.success('Pracownik zaktualizowany');
+          } else {
+            throw new Error(response.error || 'Błąd aktualizacji');
+          }
+        } else {
+          const response = await workersApi.create({
+            name: formData.name,
+            email: formData.email,
+            position: formData.position,
+            hourly_rate: formData.hourly_rate,
+            role: formData.role === 'manager' ? 'KIEROWNIK' : 'PRACOWNIK'
+          });
+
+          if (response.success && response.data) {
+            // Add new worker to local state
+            const newWorker: Worker = {
+              id: response.data.id,
+              name: formData.name,
+              email: formData.email,
+              position: formData.position,
+              hourly_rate: formData.hourly_rate,
+              role: formData.role,
+              active: true
+            };
+            setWorkers(prev => [...prev, newWorker]);
+            toast.success('Pracownik dodany');
+          } else {
+            throw new Error(response.error || 'Błąd dodawania');
+          }
+        }
+      }
+      resetForm();
+    } catch (error: any) {
+      console.error('Save error:', error);
+      toast.error(error.message || 'Wystąpił błąd podczas zapisywania');
+    } finally {
+      setSaving(false);
     }
-    resetForm();
   };
 
-  const toggleActive = (workerId: number) => {
-    setWorkers(prev => prev.map(w => 
-      w.id === workerId ? { ...w, active: !w.active } : w
+  const toggleActive = async (workerId: number) => {
+    const worker = workers.find(w => w.id === workerId);
+    if (!worker) return;
+
+    const newActiveStatus = !worker.active;
+
+    // Optimistic update
+    setWorkers(prev => prev.map(w =>
+      w.id === workerId ? { ...w, active: newActiveStatus } : w
     ));
+
+    if (!isDemoMode()) {
+      try {
+        const response = await workersApi.update(workerId, { active: newActiveStatus });
+        if (!response.success) {
+          // Revert on failure
+          setWorkers(prev => prev.map(w =>
+            w.id === workerId ? { ...w, active: !newActiveStatus } : w
+          ));
+          toast.error('Błąd zmiany statusu');
+        } else {
+          toast.success(newActiveStatus ? 'Pracownik aktywowany' : 'Pracownik dezaktywowany');
+        }
+      } catch (error) {
+        // Revert on error
+        setWorkers(prev => prev.map(w =>
+          w.id === workerId ? { ...w, active: !newActiveStatus } : w
+        ));
+        toast.error('Błąd zmiany statusu');
+      }
+    }
   };
 
   return (
@@ -175,11 +288,15 @@ const WorkersList = () => {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button onClick={handleSave} className="btn-primary flex-1">
-                  <Save size={18} className="mr-2" />
-                  Zapisz
+                <button onClick={handleSave} className="btn-primary flex-1" disabled={saving}>
+                  {saving ? (
+                    <Loader2 size={18} className="mr-2 animate-spin" />
+                  ) : (
+                    <Save size={18} className="mr-2" />
+                  )}
+                  {saving ? 'Zapisywanie...' : 'Zapisz'}
                 </button>
-                <button onClick={resetForm} className="btn-secondary flex-1">
+                <button onClick={resetForm} className="btn-secondary flex-1" disabled={saving}>
                   Anuluj
                 </button>
               </div>
@@ -188,8 +305,16 @@ const WorkersList = () => {
         </div>
       )}
 
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin mr-2" size={24} />
+          <span>Ładowanie pracowników...</span>
+        </div>
+      )}
+
       {/* Desktop Table */}
-      <div className="hidden md:block card-industrial overflow-hidden p-0">
+      {!loading && <div className="hidden md:block card-industrial overflow-hidden p-0">
         <table className="table-industrial">
           <thead>
             <tr>
@@ -240,10 +365,10 @@ const WorkersList = () => {
             ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Mobile Cards */}
-      <div className="md:hidden space-y-4">
+      {!loading && <div className="md:hidden space-y-4">
         {workers.map((worker) => (
           <div key={worker.id} className={`card-industrial ${!worker.active ? 'opacity-50' : ''}`}>
             <div className="flex justify-between items-start mb-3">
@@ -280,7 +405,7 @@ const WorkersList = () => {
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 };

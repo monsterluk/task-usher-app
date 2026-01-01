@@ -4,7 +4,7 @@ import { useApp } from '@/context/AppContext';
 import Navigation from '@/components/Navigation';
 import { Worker, Machine, Position, UserRole, ROLE_LABELS, ROLES_WITH_PRICE_ACCESS } from '@/types';
 import { positions } from '@/data/mockData';
-import { workersApi, settingsApi, isDemoMode } from '@/utils/api';
+import { workersApi, settingsApi, machinesApi, isDemoMode } from '@/utils/api';
 import {
   Users,
   Cog,
@@ -27,7 +27,17 @@ import {
   ArrowLeft,
   Home,
   Plug,
-  Database
+  Database,
+  Calendar,
+  FileText,
+  ClipboardList,
+  Activity,
+  FileDown,
+  LayoutDashboard,
+  Target,
+  Bell,
+  History,
+  Loader2
 } from 'lucide-react';
 import { toast } from '@/hooks/use-toast';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
@@ -553,10 +563,11 @@ const WorkersManagement = () => {
 
 // ==================== MACHINES MANAGEMENT ====================
 const MachinesManagement = () => {
-  const { machines, setMachines } = useApp();
+  const { machines, setMachines, refreshMachines } = useApp();
   const navigate = useNavigate();
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState<Partial<Machine>>({
     name: '',
     department: 'FREZOWANIE',
@@ -564,6 +575,21 @@ const MachinesManagement = () => {
     status: 'available',
     description: ''
   });
+
+  // Load machines from API on mount
+  useEffect(() => {
+    const loadMachines = async () => {
+      setLoading(true);
+      try {
+        await refreshMachines();
+      } catch (error) {
+        console.error('Failed to load machines:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadMachines();
+  }, []);
 
   const resetForm = () => {
     setFormData({
@@ -578,39 +604,110 @@ const MachinesManagement = () => {
   };
 
   const startEdit = (machine: Machine) => {
-    setFormData(machine);
+    // Map cost_per_hour to hourly_rate if needed
+    setFormData({
+      ...machine,
+      hourly_rate: machine.hourly_rate || (machine as any).cost_per_hour || 100
+    });
     setEditingId(machine.id);
     setShowAddForm(false);
   };
 
-  const saveMachine = () => {
+  const saveMachine = async () => {
     if (!formData.name) {
       toast({ title: "Błąd", description: "Podaj nazwę maszyny", variant: "destructive" });
       return;
     }
 
-    if (editingId) {
-      setMachines(prev => prev.map(m => m.id === editingId ? { ...m, ...formData } as Machine : m));
-      toast({ title: "Zapisano", description: "Dane maszyny zaktualizowane" });
-    } else {
-      const newMachine: Machine = {
-        id: Math.max(0, ...machines.map(m => m.id)) + 1,
-        name: formData.name!,
-        department: formData.department as Position,
-        hourly_rate: formData.hourly_rate || 100,
-        status: formData.status || 'available',
-        description: formData.description
-      };
-      setMachines(prev => [...prev, newMachine]);
-      toast({ title: "Dodano", description: "Nowa maszyna dodana" });
+    try {
+      if (isDemoMode()) {
+        // Demo mode - local state only
+        if (editingId) {
+          setMachines(prev => prev.map(m => m.id === editingId ? { ...m, ...formData } as Machine : m));
+          toast({ title: "Zapisano", description: "Dane maszyny zaktualizowane (tryb demo)" });
+        } else {
+          const newMachine: Machine = {
+            id: Math.max(0, ...machines.map(m => m.id)) + 1,
+            name: formData.name!,
+            department: formData.department as Position,
+            hourly_rate: formData.hourly_rate || 100,
+            status: formData.status || 'available',
+            description: formData.description
+          };
+          setMachines(prev => [...prev, newMachine]);
+          toast({ title: "Dodano", description: "Nowa maszyna dodana (tryb demo)" });
+        }
+      } else {
+        // Production mode - API calls
+        if (editingId) {
+          const response = await machinesApi.update(editingId, {
+            name: formData.name,
+            cost_per_hour: formData.hourly_rate,
+            description: formData.description,
+            department: formData.department,
+            status: formData.status
+          });
+          if (response.success) {
+            setMachines(prev => prev.map(m => m.id === editingId ? { ...m, ...formData } as Machine : m));
+            toast({ title: "Zapisano", description: "Dane maszyny zaktualizowane" });
+          } else {
+            throw new Error(response.error || 'Błąd aktualizacji');
+          }
+        } else {
+          const response = await machinesApi.create({
+            name: formData.name!,
+            cost_per_hour: formData.hourly_rate || 100,
+            description: formData.description,
+            department: formData.department,
+            status: formData.status || 'available'
+          });
+          if (response.success && (response.data || response.machine)) {
+            const newMachine: Machine = {
+              id: response.data?.id || response.machine?.id,
+              name: formData.name!,
+              department: formData.department as Position,
+              hourly_rate: formData.hourly_rate || 100,
+              status: formData.status || 'available',
+              description: formData.description
+            };
+            setMachines(prev => [...prev, newMachine]);
+            toast({ title: "Dodano", description: "Nowa maszyna dodana" });
+          } else {
+            throw new Error(response.error || 'Błąd dodawania');
+          }
+        }
+      }
+      resetForm();
+    } catch (error: any) {
+      console.error('Save machine error:', error);
+      toast({ title: "Błąd", description: error.message || "Wystąpił błąd podczas zapisywania", variant: "destructive" });
     }
-    resetForm();
   };
 
-  const deleteMachine = (id: number) => {
-    if (confirm('Czy na pewno chcesz usunąć tę maszynę?')) {
-      setMachines(prev => prev.filter(m => m.id !== id));
-      toast({ title: "Usunięto", description: "Maszyna usunięta" });
+  const deleteMachine = async (id: number) => {
+    if (!confirm('Czy na pewno chcesz usunąć tę maszynę?')) return;
+
+    // Optimistic update
+    const previousMachines = [...machines];
+    setMachines(prev => prev.filter(m => m.id !== id));
+
+    if (!isDemoMode()) {
+      try {
+        const response = await machinesApi.delete(id);
+        if (response.success) {
+          toast({ title: "Usunięto", description: "Maszyna usunięta" });
+        } else {
+          // Revert on failure
+          setMachines(previousMachines);
+          toast({ title: "Błąd", description: "Nie udało się usunąć maszyny", variant: "destructive" });
+        }
+      } catch (error) {
+        // Revert on error
+        setMachines(previousMachines);
+        toast({ title: "Błąd", description: "Wystąpił błąd podczas usuwania", variant: "destructive" });
+      }
+    } else {
+      toast({ title: "Usunięto", description: "Maszyna usunięta (tryb demo)" });
     }
   };
 
@@ -651,6 +748,14 @@ const MachinesManagement = () => {
           Dodaj Maszynę
         </button>
       </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="animate-spin mr-2" size={24} />
+          <span>Ładowanie maszyn...</span>
+        </div>
+      )}
 
       {/* Add/Edit Form */}
       {(showAddForm || editingId) && (
@@ -729,7 +834,7 @@ const MachinesManagement = () => {
       )}
 
       {/* Machines by Department */}
-      {positions.filter(pos => machines.some(m => m.department === pos)).map(department => (
+      {!loading && positions.filter(pos => machines.some(m => m.department === pos)).map(department => (
         <div key={department} className="card-industrial mb-4">
           <h3 className="font-bold text-lg mb-3">{department}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -743,7 +848,7 @@ const MachinesManagement = () => {
                   {getStatusBadge(machine.status)}
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm">{Number(machine.hourly_rate || 0).toFixed(2)} zł/h</span>
+                  <span className="font-mono text-sm">{Number(machine.hourly_rate || (machine as any).cost_per_hour || 0).toFixed(2)} zł/h</span>
                   <div className="flex gap-1">
                     <button onClick={() => startEdit(machine)} className="btn-secondary py-1 px-2">
                       <Edit2 size={14} />
@@ -847,6 +952,88 @@ const AdminHome = () => {
         </button>
       </div>
 
+      {/* Manager Features - Production Tools */}
+      <div className="mb-6">
+        <h2 className="text-lg font-bold mb-3 flex items-center gap-2">
+          <LayoutDashboard size={20} /> Narzędzia Produkcji
+        </h2>
+        <p className="text-sm text-muted-foreground mb-3">
+          Zaawansowane funkcje zarządzania produkcją z panelu Kierownika
+        </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <button
+            onClick={() => navigate('/kierownik/orders')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <ClipboardList size={24} className="text-primary" />
+            <span className="text-sm font-medium">Zlecenia</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/production-report')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <FileText size={24} className="text-blue-600" />
+            <span className="text-sm font-medium">Raporty</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/gantt')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <BarChart3 size={24} className="text-purple-600" />
+            <span className="text-sm font-medium">Gantt</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/calendar')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <Calendar size={24} className="text-orange-600" />
+            <span className="text-sm font-medium">Kalendarz</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/quality')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <Target size={24} className="text-green-600" />
+            <span className="text-sm font-medium">Jakość</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/oee')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <Activity size={24} className="text-cyan-600" />
+            <span className="text-sm font-medium">OEE</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/maintenance')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <Wrench size={24} className="text-yellow-600" />
+            <span className="text-sm font-medium">Konserwacja</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/kpi')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <TrendingUp size={24} className="text-indigo-600" />
+            <span className="text-sm font-medium">KPI</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/export')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <FileDown size={24} className="text-teal-600" />
+            <span className="text-sm font-medium">Eksport</span>
+          </button>
+          <button
+            onClick={() => navigate('/kierownik/audit')}
+            className="flex flex-col items-center gap-2 p-4 bg-card border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <History size={24} className="text-gray-600" />
+            <span className="text-sm font-medium">Audyt</span>
+          </button>
+        </div>
+      </div>
+
       {/* Financial KPIs */}
       <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
         <DollarSign size={20} /> Finanse
@@ -885,7 +1072,18 @@ const AdminHome = () => {
         <div className="card-industrial">
           <h3 className="text-lg font-bold mb-4">Pracownicy wg stanowisk</h3>
           <div className="space-y-2">
-            {positions.filter(pos => workers.some(w => w.position === pos && w.active)).map(pos => {
+            {workers.filter(w => w.active).length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Users size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Brak aktywnych pracowników</p>
+                <button
+                  onClick={() => navigate('/admin/workers')}
+                  className="text-primary text-sm hover:underline mt-2"
+                >
+                  Dodaj pracownika
+                </button>
+              </div>
+            ) : positions.filter(pos => workers.some(w => w.position === pos && w.active)).map(pos => {
               const count = workers.filter(w => w.position === pos && w.active).length;
               return (
                 <div key={pos} className="flex items-center justify-between p-2 bg-muted/30 rounded">
@@ -900,7 +1098,18 @@ const AdminHome = () => {
         <div className="card-industrial">
           <h3 className="text-lg font-bold mb-4">Maszyny wg działów</h3>
           <div className="space-y-2">
-            {positions.filter(pos => machines.some(m => m.department === pos)).map(pos => {
+            {machines.length === 0 ? (
+              <div className="text-center py-6 text-muted-foreground">
+                <Cog size={32} className="mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Brak maszyn w systemie</p>
+                <button
+                  onClick={() => navigate('/admin/machines')}
+                  className="text-primary text-sm hover:underline mt-2"
+                >
+                  Dodaj pierwszą maszynę
+                </button>
+              </div>
+            ) : positions.filter(pos => machines.some(m => m.department === pos)).map(pos => {
               const count = machines.filter(m => m.department === pos).length;
               const available = machines.filter(m => m.department === pos && m.status === 'available').length;
               return (
