@@ -37,8 +37,10 @@ const AnnouncementBoard = () => {
   }, []);
 
   const loadAnnouncements = async () => {
-    if (isDemoMode()) {
-      // Demo data
+    // Sprawdź czy użytkownik jest zalogowany (ma token)
+    const token = localStorage.getItem('plexisystem_token');
+    if (isDemoMode() || !token) {
+      // Demo data - używaj gdy tryb demo lub brak tokena
       setAnnouncements([
         {
           id: 1,

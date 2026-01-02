@@ -65,10 +65,16 @@ api.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response?.status === 401) {
-      // Token wygasł - wyloguj użytkownika
-      localStorage.removeItem('plexisystem_token');
-      localStorage.removeItem('plexisystem_user');
-      window.location.href = '/';
+      // Tylko wyloguj jeśli był token (czyli użytkownik był zalogowany przez API)
+      // Nie wylogowuj w trybie demo/fallback gdzie nie ma tokena
+      const token = localStorage.getItem('plexisystem_token');
+      if (token) {
+        // Token wygasł - wyloguj użytkownika
+        localStorage.removeItem('plexisystem_token');
+        localStorage.removeItem('plexisystem_user');
+        window.location.href = '/';
+      }
+      // Bez tokena - to normalne w trybie demo, nie przekierowuj
     }
     return Promise.reject(error);
   }

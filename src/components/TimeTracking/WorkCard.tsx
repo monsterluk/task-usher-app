@@ -28,8 +28,9 @@ const WorkCard = () => {
         return;
       }
       try {
-        const data = await workersApi.getAll();
-        setWorkers(data.filter((w: Worker) => w.active));
+        const response = await workersApi.getAll();
+        const workersList = response.data?.workers || response.workers || response || [];
+        setWorkers(Array.isArray(workersList) ? workersList.filter((w: Worker) => w.active) : []);
       } catch (err) {
         console.error('Error fetching workers:', err);
       }

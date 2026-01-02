@@ -35,6 +35,11 @@ export const corsMiddleware = cors({
       return callback(null, true);
     }
 
+    // Allow any origin from plexisystem.pl domain
+    if (origin.includes('plexisystem.pl')) {
+      return callback(null, true);
+    }
+
     // Allow any localhost origin for development
     if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
       return callback(null, true);

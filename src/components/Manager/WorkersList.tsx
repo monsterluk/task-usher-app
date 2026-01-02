@@ -1,13 +1,25 @@
 import { useState, useEffect } from 'react';
 import { useApp } from '@/context/AppContext';
-import { Worker, Position } from '@/types';
+import { Worker, Position, UserRole, ROLE_LABELS } from '@/types';
 import { positions } from '@/data/mockData';
 import { Plus, Download, Edit, X, Save, UserCheck, UserX, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { workersApi, isDemoMode } from '@/utils/api';
 
+// Helper do wyświetlania roli
+const getRoleDisplay = (role: UserRole): string => {
+  return ROLE_LABELS[role] || role;
+};
+
+// Helper do sprawdzenia czy rola jest kierownicza
+const isManagerRole = (role: UserRole): boolean => {
+  return ['ADMIN', 'KIEROWNIK'].includes(role);
+};
+
 const WorkersList = () => {
+  console.log('[WorkersList] Component rendering...');
   const { workers, setWorkers, refreshWorkers } = useApp();
+  console.log('[WorkersList] workers from context:', Array.isArray(workers), workers?.length);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(false);
@@ -17,7 +29,7 @@ const WorkersList = () => {
     email: '',
     position: 'GRAFIK' as Position,
     hourly_rate: 43.27,
-    role: 'worker' as 'manager' | 'worker',
+    role: 'PRACOWNIK' as UserRole,
     active: true
   });
 
@@ -27,16 +39,20 @@ const WorkersList = () => {
   }, []);
 
   const loadWorkers = async () => {
+    console.log('[WorkersList] loadWorkers called, isDemoMode:', isDemoMode());
     if (isDemoMode()) return; // Use context data in demo mode
 
     setLoading(true);
     try {
+      console.log('[WorkersList] Calling API...');
       const response = await workersApi.getAll();
-      if (response.success && response.data) {
-        setWorkers(response.data);
+      console.log('[WorkersList] API response:', response);
+      if (response.success && response.data?.workers) {
+        console.log('[WorkersList] Setting workers:', response.data.workers.length);
+        setWorkers(response.data.workers);
       }
     } catch (error) {
-      console.error('Failed to load workers:', error);
+      console.error('[WorkersList] Failed to load workers:', error);
       // Keep using context data as fallback
     } finally {
       setLoading(false);
@@ -49,7 +65,7 @@ const WorkersList = () => {
       email: '',
       position: 'GRAFIK',
       hourly_rate: 43.27,
-      role: 'worker',
+      role: 'PRACOWNIK',
       active: true
     });
     setEditingWorker(null);
@@ -62,7 +78,7 @@ const WorkersList = () => {
       name: worker.name,
       email: worker.email,
       position: worker.position,
-      hourly_rate: worker.hourly_rate,
+      hourly_rate: worker.hourly_rate ?? 43.27,
       role: worker.role,
       active: worker.active
     });
@@ -90,7 +106,8 @@ const WorkersList = () => {
         } else {
           const newWorker: Worker = {
             id: Math.max(...workers.map(w => w.id), 0) + 1,
-            ...formData
+            ...formData,
+            skills: []
           };
           setWorkers(prev => [...prev, newWorker]);
           toast.success('Pracownik dodany (tryb demo)');
@@ -103,7 +120,7 @@ const WorkersList = () => {
             email: formData.email,
             position: formData.position,
             hourly_rate: formData.hourly_rate,
-            role: formData.role === 'manager' ? 'KIEROWNIK' : 'PRACOWNIK',
+            role: formData.role,
             active: formData.active
           });
 
@@ -124,7 +141,7 @@ const WorkersList = () => {
             email: formData.email,
             position: formData.position,
             hourly_rate: formData.hourly_rate,
-            role: formData.role === 'manager' ? 'KIEROWNIK' : 'PRACOWNIK'
+            role: formData.role
           });
 
           if (response.success && response.data) {
@@ -267,11 +284,14 @@ const WorkersList = () => {
                 <label className="block text-sm font-medium mb-2">Rola</label>
                 <select
                   value={formData.role}
-                  onChange={e => setFormData(prev => ({ ...prev, role: e.target.value as 'manager' | 'worker' }))}
+                  onChange={e => setFormData(prev => ({ ...prev, role: e.target.value as UserRole }))}
                   className="input-industrial"
                 >
-                  <option value="worker">Pracownik</option>
-                  <option value="manager">Kierownik</option>
+                  <option value="PRACOWNIK">Pracownik</option>
+                  <option value="KIEROWNIK">Kierownik</option>
+                  <option value="GRAFIK">Grafik</option>
+                  <option value="HANDLOWIEC">Handlowiec</option>
+                  <option value="ADMIN">Administrator</option>
                 </select>
               </div>
 
@@ -335,8 +355,8 @@ const WorkersList = () => {
                 <td>{worker.position}</td>
                 <td className="font-mono">{Number(worker.hourly_rate || 0).toFixed(2)} zł/h</td>
                 <td>
-                  <span className={`status-badge ${worker.role === 'manager' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                    {worker.role === 'manager' ? 'Kierownik' : 'Pracownik'}
+                  <span className={`status-badge ${isManagerRole(worker.role) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                    {getRoleDisplay(worker.role)}
                   </span>
                 </td>
                 <td>
@@ -376,8 +396,8 @@ const WorkersList = () => {
                 <h3 className="font-bold text-lg">{worker.name}</h3>
                 <p className="text-sm text-muted-foreground">{worker.email}</p>
               </div>
-              <span className={`status-badge ${worker.role === 'manager' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
-                {worker.role === 'manager' ? 'Kierownik' : 'Pracownik'}
+              <span className={`status-badge ${isManagerRole(worker.role) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
+                {getRoleDisplay(worker.role)}
               </span>
             </div>
             <div className="space-y-2 text-sm mb-4">

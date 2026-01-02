@@ -3,6 +3,7 @@ import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Navigation from '@/components/Navigation';
 import MyStages from '@/components/Worker/MyStages';
+import MyLeaveRequests from '@/components/Worker/MyLeaveRequests';
 import MobileDashboard from '@/components/Mobile/MobileDashboard';
 import MobileOrderDetail from '@/components/Mobile/MobileOrderDetail';
 import MobileHistory from '@/components/Mobile/MobileHistory';
@@ -587,7 +588,7 @@ const WorkerPanel = () => {
             onStartOrder={() => document.getElementById('orders-section')?.scrollIntoView({ behavior: 'smooth' })}
             onViewOrders={() => navigate('/worker/stages')}
             onViewHistory={() => navigate('/worker/history')}
-            onRequestLeave={() => toast.info('Funkcja urlopu wkrótce dostępna')}
+            onRequestLeave={() => navigate('/worker/leave')}
           />
         </div>
 
@@ -683,6 +684,7 @@ const WorkerDashboard = () => {
           <Route path="/" element={<WorkerPanel />} />
           <Route path="stages" element={<MyStages />} />
           <Route path="history" element={<MobileHistory />} />
+          <Route path="leave" element={<MyLeaveRequests />} />
           <Route path="*" element={<Navigate to="/worker" replace />} />
         </Routes>
       </main>

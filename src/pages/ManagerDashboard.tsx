@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
 import Sidebar from '@/components/Layout/Sidebar';
+import ErrorBoundary from '@/components/ui/error-boundary';
 import Dashboard from '@/components/Manager/Dashboard';
 import OrdersList from '@/components/Manager/OrdersList';
 import OrderDetails from '@/components/Manager/OrderDetails';
@@ -22,6 +23,15 @@ import KPIDashboard from '@/components/Manager/KPI/KPIDashboard';
 import NotificationSettings from '@/components/Manager/Notifications/NotificationSettings';
 import AuditTrail from '@/components/Manager/Audit/AuditTrail';
 import TimeTracking from '@/components/TimeTracking/TimeTracking';
+
+// Wrapper z ErrorBoundary
+const withErrorBoundary = (Component: React.ComponentType) => {
+  return (
+    <ErrorBoundary>
+      <Component />
+    </ErrorBoundary>
+  );
+};
 
 const ManagerDashboard = () => {
   const { currentUser } = useApp();
@@ -49,27 +59,27 @@ const ManagerDashboard = () => {
       <main className="flex-1 overflow-auto">
         <div className="p-6">
           <Routes>
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="orders" element={<OrdersList />} />
-            <Route path="orders/new" element={<OrderForm />} />
-            <Route path="orders/:id" element={<OrderDetails />} />
-            <Route path="orders/:id/edit" element={<OrderForm />} />
-            <Route path="workers" element={<WorkersList />} />
-            <Route path="machines" element={<MachinesList />} />
-            <Route path="reports" element={<TimeReport />} />
-            <Route path="gantt" element={<GanttChart />} />
-            <Route path="quality" element={<QualityDashboard />} />
-            <Route path="oee" element={<OEEDashboard />} />
-            <Route path="maintenance" element={<MaintenanceDashboard />} />
-            <Route path="capacity" element={<CapacityDashboard />} />
-            <Route path="production-report" element={<ProductionReport />} />
-            <Route path="costs" element={<CostCalculator />} />
-            <Route path="calendar" element={<ProductionCalendar />} />
-            <Route path="export" element={<DataExport />} />
-            <Route path="kpi" element={<KPIDashboard />} />
-            <Route path="notifications" element={<NotificationSettings />} />
-            <Route path="audit" element={<AuditTrail />} />
-            <Route path="time-tracking" element={<TimeTracking />} />
+            <Route path="dashboard" element={withErrorBoundary(Dashboard)} />
+            <Route path="orders" element={withErrorBoundary(OrdersList)} />
+            <Route path="orders/new" element={withErrorBoundary(OrderForm)} />
+            <Route path="orders/:id" element={withErrorBoundary(OrderDetails)} />
+            <Route path="orders/:id/edit" element={withErrorBoundary(OrderForm)} />
+            <Route path="workers" element={withErrorBoundary(WorkersList)} />
+            <Route path="machines" element={withErrorBoundary(MachinesList)} />
+            <Route path="reports" element={withErrorBoundary(TimeReport)} />
+            <Route path="gantt" element={withErrorBoundary(GanttChart)} />
+            <Route path="quality" element={withErrorBoundary(QualityDashboard)} />
+            <Route path="oee" element={withErrorBoundary(OEEDashboard)} />
+            <Route path="maintenance" element={withErrorBoundary(MaintenanceDashboard)} />
+            <Route path="capacity" element={withErrorBoundary(CapacityDashboard)} />
+            <Route path="production-report" element={withErrorBoundary(ProductionReport)} />
+            <Route path="costs" element={withErrorBoundary(CostCalculator)} />
+            <Route path="calendar" element={withErrorBoundary(ProductionCalendar)} />
+            <Route path="export" element={withErrorBoundary(DataExport)} />
+            <Route path="kpi" element={withErrorBoundary(KPIDashboard)} />
+            <Route path="notifications" element={withErrorBoundary(NotificationSettings)} />
+            <Route path="audit" element={withErrorBoundary(AuditTrail)} />
+            <Route path="time-tracking" element={withErrorBoundary(TimeTracking)} />
             <Route path="*" element={<Navigate to="dashboard" replace />} />
           </Routes>
         </div>
