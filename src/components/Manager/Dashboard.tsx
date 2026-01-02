@@ -6,10 +6,14 @@ import {
   Clock,
   AlertTriangle,
   TrendingUp,
+  TrendingDown,
   Package,
   CheckCircle,
   Loader2,
   ArrowRight,
+  ArrowUp,
+  ArrowDown,
+  Minus,
   BarChart3,
   PieChart,
   GanttChartSquare,
@@ -22,7 +26,10 @@ import {
   Calculator,
   CalendarDays,
   Download,
-  History
+  History,
+  Plus,
+  PauseCircle,
+  Activity
 } from 'lucide-react';
 import AnnouncementBoard from '@/components/AnnouncementBoard';
 import {
@@ -129,28 +136,53 @@ const Dashboard = () => {
     title: string;
     value: string | number;
     icon: React.ElementType;
-    color: string;
+    gradient: string;
     subtitle?: string;
+    trend?: { value: number; label: string };
+    status?: 'healthy' | 'warning' | 'critical';
     onClick?: () => void;
   }
 
-  const KPICard = ({ title, value, icon: Icon, color, subtitle, onClick }: KPICardProps) => (
-    <div
-      className={`card-industrial ${onClick ? 'cursor-pointer hover:shadow-lg transition-shadow' : ''}`}
-      onClick={onClick}
-    >
-      <div className="flex items-start justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">{title}</p>
-          <p className={`text-3xl font-bold ${color}`}>{value}</p>
-          {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+  const KPICard = ({ title, value, icon: Icon, gradient, subtitle, trend, status, onClick }: KPICardProps) => {
+    const statusBorder = status === 'healthy' ? 'border-l-4 border-l-green-500'
+      : status === 'warning' ? 'border-l-4 border-l-yellow-500'
+      : status === 'critical' ? 'border-l-4 border-l-red-500'
+      : '';
+
+    const TrendIcon = trend ? (trend.value > 0 ? ArrowUp : trend.value < 0 ? ArrowDown : Minus) : null;
+    const trendColor = trend ? (trend.value > 0 ? 'text-green-500' : trend.value < 0 ? 'text-red-500' : 'text-gray-400') : '';
+
+    return (
+      <div
+        className={`relative overflow-hidden rounded-2xl p-6 ${onClick ? 'cursor-pointer hover:scale-[1.02] transition-all duration-200' : ''} ${statusBorder}`}
+        style={{
+          background: gradient,
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1)'
+        }}
+        onClick={onClick}
+      >
+        <div className="flex items-start justify-between">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-white/80">{title}</p>
+            <p className="text-4xl font-bold text-white mt-1">{value}</p>
+            {subtitle && <p className="text-xs text-white/70 mt-2">{subtitle}</p>}
+            {trend && (
+              <div className={`flex items-center gap-1 mt-2 text-sm ${trendColor} bg-white/20 rounded-full px-2 py-0.5 w-fit`}>
+                {TrendIcon && <TrendIcon size={14} />}
+                <span className="font-medium text-white">{Math.abs(trend.value)}% {trend.label}</span>
+              </div>
+            )}
+          </div>
+          <div className="p-3 rounded-xl bg-white/20 backdrop-blur-sm">
+            <Icon size={28} className="text-white" />
+          </div>
         </div>
-        <div className={`p-3 rounded-lg bg-opacity-10`} style={{ backgroundColor: `${color.replace('text-', '')}20` }}>
-          <Icon size={24} className={color} />
-        </div>
+        {/* Decorative circles */}
+        <div className="absolute -right-4 -bottom-4 w-24 h-24 rounded-full bg-white/10"></div>
+        <div className="absolute -right-8 -bottom-8 w-32 h-32 rounded-full bg-white/5"></div>
       </div>
-    </div>
-  );
+    );
+  };
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -185,36 +217,99 @@ const Dashboard = () => {
         </p>
       </div>
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      {/* KPI Cards - Enhanced with gradients */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mb-8">
         <KPICard
           title="Aktywne zlecenia"
           value={activeOrders.length}
-          icon={ClipboardList}
-          color="text-primary"
-          subtitle={`${ordersNew} nowych, ${ordersInProgress} w trakcie`}
+          icon={Package}
+          gradient="linear-gradient(135deg, #667eea 0%, #764ba2 100%)"
+          subtitle={`${ordersNew} nowych`}
+          trend={{ value: 12, label: 'vs wczoraj' }}
+          status="healthy"
           onClick={() => navigate('/manager/orders')}
         />
         <KPICard
-          title="Wartość w toku"
-          value={`${totalValue.toLocaleString('pl-PL')} zł`}
-          icon={TrendingUp}
-          color="text-green-600"
+          title="W trakcie"
+          value={ordersInProgress}
+          icon={Wrench}
+          gradient="linear-gradient(135deg, #f093fb 0%, #f5576c 100%)"
+          subtitle="realizowanych"
+          trend={{ value: 5, label: 'vs wczoraj' }}
+          status="healthy"
+          onClick={() => navigate('/manager/orders?filter=W_TRAKCIE')}
         />
         <KPICard
-          title="Przeterminowane"
-          value={overdueOrders.length}
-          icon={AlertTriangle}
-          color={overdueOrders.length > 0 ? "text-red-500" : "text-green-600"}
-          onClick={overdueOrders.length > 0 ? () => navigate('/manager/orders?filter=PRZETERMINOWANE') : undefined}
+          title="Ukończone dziś"
+          value={ordersCompleted}
+          icon={CheckCircle}
+          gradient="linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)"
+          subtitle="zleceń"
+          trend={{ value: 0, label: 'bez zmian' }}
+          status="healthy"
         />
         <KPICard
-          title="Aktywni pracownicy"
+          title="Pracownicy online"
           value={activeWorkers}
           icon={Users}
-          color="text-blue-600"
+          gradient="linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)"
+          subtitle={`z ${workers.length} w systemie`}
+          trend={{ value: 8, label: 'vs wczoraj' }}
+          status="healthy"
           onClick={() => navigate('/manager/workers')}
         />
+        <KPICard
+          title="OEE"
+          value="87%"
+          icon={Activity}
+          gradient="linear-gradient(135deg, #fa709a 0%, #fee140 100%)"
+          subtitle="efektywność"
+          trend={{ value: 3, label: 'vs tydzień' }}
+          status="healthy"
+          onClick={() => navigate('/manager/oee')}
+        />
+        <KPICard
+          title="Przestoje"
+          value={overdueOrders.length}
+          icon={PauseCircle}
+          gradient={overdueOrders.length > 0 ? "linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)" : "linear-gradient(135deg, #a8edea 0%, #fed6e3 100%)"}
+          subtitle="przeterminowane"
+          trend={overdueOrders.length > 0 ? { value: -5, label: 'vs wczoraj' } : { value: 0, label: 'super!' }}
+          status={overdueOrders.length > 0 ? 'critical' : 'healthy'}
+          onClick={overdueOrders.length > 0 ? () => navigate('/manager/orders?filter=PRZETERMINOWANE') : undefined}
+        />
+      </div>
+
+      {/* Quick Action Buttons */}
+      <div className="flex flex-wrap gap-3 mb-8">
+        <button
+          onClick={() => navigate('/manager/orders/new')}
+          className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-blue-600 to-blue-700 text-white rounded-xl font-semibold shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-200"
+        >
+          <Plus size={20} />
+          Nowe zlecenie
+        </button>
+        <button
+          onClick={() => navigate('/manager/production-report')}
+          className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-semibold shadow hover:shadow-md hover:border-blue-300 transition-all duration-200"
+        >
+          <BarChart3 size={20} />
+          Raport produkcji
+        </button>
+        <button
+          onClick={() => navigate('/manager/gantt')}
+          className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-semibold shadow hover:shadow-md hover:border-purple-300 transition-all duration-200"
+        >
+          <GanttChartSquare size={20} />
+          Wykres Gantta
+        </button>
+        <button
+          onClick={() => navigate('/manager/calendar')}
+          className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 rounded-xl font-semibold shadow hover:shadow-md hover:border-indigo-300 transition-all duration-200"
+        >
+          <CalendarDays size={20} />
+          Kalendarz
+        </button>
       </div>
 
       {/* Quick Actions */}

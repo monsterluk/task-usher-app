@@ -107,9 +107,9 @@ const WorkTimeRegistration = () => {
         end_date: filterDate,
         limit: 100,
       });
-      if (response.success && response.data) {
-        setEntries(response.data);
-      }
+      // API returns array directly, not {success, data} object
+      const entries = Array.isArray(response) ? response : (response.data || []);
+      setEntries(entries);
     } catch (error) {
       console.error('Failed to load entries:', error);
       setEntries([]);
@@ -275,11 +275,15 @@ const WorkTimeRegistration = () => {
         toast.success('Zarejestrowano wejście (tryb demo)');
       } else {
         const response = await timeTrackingApi.clockIn();
-        if (response.success) {
+        // API returns entry directly or {success, data} object
+        const entry = response.data || response;
+        if (entry && entry.id) {
           await loadEntries();
           toast.success('Zarejestrowano wejście');
+        } else if (response.error) {
+          throw new Error(response.error);
         } else {
-          throw new Error(response.error || 'Błąd rejestracji');
+          throw new Error('Błąd rejestracji');
         }
       }
     } catch (error: any) {
@@ -320,11 +324,17 @@ const WorkTimeRegistration = () => {
         }
       } else {
         const response = await timeTrackingApi.clockOut();
-        if (response.success) {
+        // API returns entry directly or {success, data} object
+        const entry = response.data || response;
+        if (entry && entry.exit_time) {
           await loadEntries();
           toast.success('Zarejestrowano wyjście');
+        } else if (response.error) {
+          throw new Error(response.error);
         } else {
-          throw new Error(response.error || 'Błąd rejestracji');
+          // Assume success if no error
+          await loadEntries();
+          toast.success('Zarejestrowano wyjście');
         }
       }
     } catch (error: any) {

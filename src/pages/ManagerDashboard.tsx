@@ -1,7 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import Navigation from '@/components/Navigation';
+import Sidebar from '@/components/Layout/Sidebar';
 import Dashboard from '@/components/Manager/Dashboard';
 import OrdersList from '@/components/Manager/OrdersList';
 import OrderDetails from '@/components/Manager/OrderDetails';
@@ -41,33 +41,38 @@ const ManagerDashboard = () => {
   }
 
   return (
-    <div className="min-h-screen bg-muted">
-      <Navigation />
-      <main className="container mx-auto">
-        <Routes>
-          <Route path="dashboard" element={<Dashboard />} />
-          <Route path="orders" element={<OrdersList />} />
-          <Route path="orders/new" element={<OrderForm />} />
-          <Route path="orders/:id" element={<OrderDetails />} />
-          <Route path="orders/:id/edit" element={<OrderForm />} />
-          <Route path="workers" element={<WorkersList />} />
-          <Route path="machines" element={<MachinesList />} />
-          <Route path="reports" element={<TimeReport />} />
-          <Route path="gantt" element={<GanttChart />} />
-          <Route path="quality" element={<QualityDashboard />} />
-          <Route path="oee" element={<OEEDashboard />} />
-          <Route path="maintenance" element={<MaintenanceDashboard />} />
-          <Route path="capacity" element={<CapacityDashboard />} />
-          <Route path="production-report" element={<ProductionReport />} />
-          <Route path="costs" element={<CostCalculator />} />
-          <Route path="calendar" element={<ProductionCalendar />} />
-          <Route path="export" element={<DataExport />} />
-          <Route path="kpi" element={<KPIDashboard />} />
-          <Route path="notifications" element={<NotificationSettings />} />
-          <Route path="audit" element={<AuditTrail />} />
-          <Route path="time-tracking" element={<TimeTracking />} />
-          <Route path="*" element={<Navigate to="dashboard" replace />} />
-        </Routes>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 flex">
+      {/* Sidebar */}
+      <Sidebar />
+
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
+        <div className="p-6">
+          <Routes>
+            <Route path="dashboard" element={<Dashboard />} />
+            <Route path="orders" element={<OrdersList />} />
+            <Route path="orders/new" element={<OrderForm />} />
+            <Route path="orders/:id" element={<OrderDetails />} />
+            <Route path="orders/:id/edit" element={<OrderForm />} />
+            <Route path="workers" element={<WorkersList />} />
+            <Route path="machines" element={<MachinesList />} />
+            <Route path="reports" element={<TimeReport />} />
+            <Route path="gantt" element={<GanttChart />} />
+            <Route path="quality" element={<QualityDashboard />} />
+            <Route path="oee" element={<OEEDashboard />} />
+            <Route path="maintenance" element={<MaintenanceDashboard />} />
+            <Route path="capacity" element={<CapacityDashboard />} />
+            <Route path="production-report" element={<ProductionReport />} />
+            <Route path="costs" element={<CostCalculator />} />
+            <Route path="calendar" element={<ProductionCalendar />} />
+            <Route path="export" element={<DataExport />} />
+            <Route path="kpi" element={<KPIDashboard />} />
+            <Route path="notifications" element={<NotificationSettings />} />
+            <Route path="audit" element={<AuditTrail />} />
+            <Route path="time-tracking" element={<TimeTracking />} />
+            <Route path="*" element={<Navigate to="dashboard" replace />} />
+          </Routes>
+        </div>
       </main>
     </div>
   );

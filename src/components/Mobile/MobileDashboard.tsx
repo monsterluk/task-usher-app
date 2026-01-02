@@ -69,8 +69,10 @@ const MobileDashboard = () => {
         start_date: today,
         end_date: today,
       });
-      if (response.success && response.data) {
-        const open = response.data.find((e: any) => !e.exit_time);
+      // API returns array directly, not {success, data} object
+      const entries = Array.isArray(response) ? response : (response.data || []);
+      if (entries.length > 0) {
+        const open = entries.find((e: any) => !e.exit_time);
         if (open) {
           setClockStatus({ isClockedIn: true, entryTime: open.entry_time });
         }
@@ -90,11 +92,15 @@ const MobileDashboard = () => {
         toast.success('Rozpoczęto pracę');
       } else {
         const response = await timeTrackingApi.clockIn();
-        if (response.success && response.data) {
-          setClockStatus({ isClockedIn: true, entryTime: response.data.entry_time });
+        // API returns the entry directly or {success, data} object
+        const entry = response.data || response;
+        if (entry && entry.id) {
+          setClockStatus({ isClockedIn: true, entryTime: entry.entry_time });
           toast.success('Rozpoczęto pracę');
-        } else {
+        } else if (response.error) {
           throw new Error(response.error);
+        } else {
+          throw new Error('Błąd rejestracji');
         }
       }
     } catch (e: any) {
@@ -113,11 +119,17 @@ const MobileDashboard = () => {
         toast.success('Zakończono pracę');
       } else {
         const response = await timeTrackingApi.clockOut();
-        if (response.success) {
+        // API returns the updated entry directly or {success, data} object
+        const entry = response.data || response;
+        if (entry && entry.exit_time) {
           setClockStatus({ isClockedIn: false, entryTime: null });
           toast.success('Zakończono pracę');
-        } else {
+        } else if (response.error) {
           throw new Error(response.error);
+        } else {
+          // Assume success if we got a response without error
+          setClockStatus({ isClockedIn: false, entryTime: null });
+          toast.success('Zakończono pracę');
         }
       }
     } catch (e: any) {

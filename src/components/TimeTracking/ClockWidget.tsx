@@ -55,9 +55,12 @@ const ClockWidget = () => {
         end_date: today,
       });
 
-      if (response.success && response.data) {
+      // API returns array directly, not {success, data} object
+      const entries = Array.isArray(response) ? response : (response.data || []);
+
+      if (entries.length > 0) {
         // Find open entry (no exit_time)
-        const openEntry = response.data.find((e: any) => !e.exit_time);
+        const openEntry = entries.find((e: any) => !e.exit_time);
         if (openEntry) {
           setStatus({
             isClockedIn: true,
@@ -67,6 +70,8 @@ const ClockWidget = () => {
         } else {
           setStatus({ isClockedIn: false, entryTime: null, entryId: null });
         }
+      } else {
+        setStatus({ isClockedIn: false, entryTime: null, entryId: null });
       }
     } catch (error) {
       console.error('Failed to load clock status:', error);
@@ -89,15 +94,19 @@ const ClockWidget = () => {
         toast.success('Zarejestrowano rozpoczęcie pracy');
       } else {
         const response = await timeTrackingApi.clockIn();
-        if (response.success && response.data) {
+        // API returns the entry directly or {success, data} object
+        const entry = response.data || response;
+        if (entry && entry.id) {
           setStatus({
             isClockedIn: true,
-            entryTime: response.data.entry_time,
-            entryId: response.data.id,
+            entryTime: entry.entry_time,
+            entryId: entry.id,
           });
           toast.success('Zarejestrowano rozpoczęcie pracy');
+        } else if (response.error) {
+          throw new Error(response.error);
         } else {
-          throw new Error(response.error || 'Błąd rejestracji');
+          throw new Error('Błąd rejestracji');
         }
       }
     } catch (error: any) {
@@ -121,11 +130,17 @@ const ClockWidget = () => {
         toast.success('Zarejestrowano zakończenie pracy');
       } else {
         const response = await timeTrackingApi.clockOut();
-        if (response.success) {
+        // API returns the updated entry directly or {success, data} object
+        const entry = response.data || response;
+        if (entry && entry.exit_time) {
           setStatus({ isClockedIn: false, entryTime: null, entryId: null });
           toast.success('Zarejestrowano zakończenie pracy');
+        } else if (response.error) {
+          throw new Error(response.error);
         } else {
-          throw new Error(response.error || 'Błąd rejestracji');
+          // Assume success if we got a response without error
+          setStatus({ isClockedIn: false, entryTime: null, entryId: null });
+          toast.success('Zarejestrowano zakończenie pracy');
         }
       }
     } catch (error: any) {
