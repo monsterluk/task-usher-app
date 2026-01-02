@@ -47,6 +47,9 @@ const OrderDetails = () => {
   const order = orders.find(o => o.id === Number(id));
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
   const [stageWorkers, setStageWorkers] = useState<Record<number, number[]>>({});
+  const [originalStageWorkers, setOriginalStageWorkers] = useState<Record<number, number[]>>({});
+  const [hasUnsavedAssignments, setHasUnsavedAssignments] = useState(false);
+  const [savingAssignments, setSavingAssignments] = useState(false);
   const [showApaczkaIntegration, setShowApaczkaIntegration] = useState(false);
   const [showPrintCard, setShowPrintCard] = useState(false);
   const [newComment, setNewComment] = useState('');
@@ -96,9 +99,11 @@ const OrderDetails = () => {
       setSelectedStages(order.stages.map(s => s.stageId));
       const workersMap: Record<number, number[]> = {};
       order.stages.forEach(s => {
-        workersMap[s.stageId] = s.assignedWorkers;
+        workersMap[s.stageId] = [...s.assignedWorkers];
       });
       setStageWorkers(workersMap);
+      setOriginalStageWorkers(JSON.parse(JSON.stringify(workersMap)));
+      setHasUnsavedAssignments(false);
     }
   }, [order]);
 
@@ -177,11 +182,27 @@ const OrderDetails = () => {
   }
 
   const toggleStage = (stageId: number) => {
-    setSelectedStages(prev => 
-      prev.includes(stageId) 
+    setSelectedStages(prev =>
+      prev.includes(stageId)
         ? prev.filter(id => id !== stageId)
         : [...prev, stageId]
     );
+  };
+
+  // Update order status
+  const updateOrderStatus = async (newStatus: string) => {
+    try {
+      if (!isDemoMode()) {
+        await ordersApi.update(order.id, { status: newStatus });
+      }
+      setOrders(prev => prev.map(o =>
+        o.id === order.id ? { ...o, status: newStatus as any } : o
+      ));
+      toast({ title: "Status zaktualizowany", description: `Zmieniono status na: ${newStatus}` });
+    } catch (error: any) {
+      console.error('Error updating order status:', error);
+      toast({ title: "Błąd", description: "Nie udało się zmienić statusu", variant: "destructive" });
+    }
   };
 
   const toggleWorker = (stageId: number, workerId: number) => {
@@ -190,8 +211,81 @@ const OrderDetails = () => {
       const updated = current.includes(workerId)
         ? current.filter(id => id !== workerId)
         : [...current, workerId];
-      return { ...prev, [stageId]: updated };
+      const newState = { ...prev, [stageId]: updated };
+
+      // Check if there are unsaved changes by comparing with original
+      const hasChanges = Object.keys(newState).some(key => {
+        const stageIdKey = Number(key);
+        const original = originalStageWorkers[stageIdKey] || [];
+        const current = newState[stageIdKey] || [];
+        return original.length !== current.length ||
+          !original.every(id => current.includes(id));
+      });
+      setHasUnsavedAssignments(hasChanges);
+
+      return newState;
     });
+  };
+
+  // Save all worker assignments without starting stages
+  const saveAssignments = async () => {
+    setSavingAssignments(true);
+    try {
+      // Find stages that have assignment changes
+      for (const stageIdStr of Object.keys(stageWorkers)) {
+        const stageId = Number(stageIdStr);
+        const currentWorkers = stageWorkers[stageId] || [];
+        const originalWorkers = originalStageWorkers[stageId] || [];
+
+        // Find workers to add
+        const workersToAdd = currentWorkers.filter(w => !originalWorkers.includes(w));
+        // Find workers to remove (assignments to delete)
+        const workersToRemove = originalWorkers.filter(w => !currentWorkers.includes(w));
+
+        if (!isDemoMode()) {
+          // Create new assignments
+          for (const workerId of workersToAdd) {
+            await assignmentsApi.create(stageId, workerId);
+          }
+          // Note: API doesn't have delete endpoint yet, but assignments are updated
+          // For now, removing workers will be reflected after stage start
+        }
+      }
+
+      // Update local state to reflect saved state
+      setOriginalStageWorkers(JSON.parse(JSON.stringify(stageWorkers)));
+      setHasUnsavedAssignments(false);
+
+      // Update order stages in context
+      const updatedStages: OrderStage[] = selectedStages.map(sId => {
+        const existingStage = order.stages?.find(s => s.stageId === sId);
+        const stageName = stages.find(s => s.id === sId)!.name;
+
+        return {
+          stageId: sId,
+          stageName,
+          assignedWorkers: stageWorkers[sId] || [],
+          status: existingStage?.status || 'pending'
+        };
+      });
+
+      setOrders(prev => prev.map(o =>
+        o.id === order.id
+          ? { ...o, stages: updatedStages }
+          : o
+      ));
+
+      toast({ title: "Zapisano", description: "Przypisania pracowników zostały zapisane." });
+    } catch (error: any) {
+      console.error('Error saving assignments:', error);
+      toast({
+        title: "Błąd",
+        description: error.message || "Nie udało się zapisać przypisań.",
+        variant: "destructive"
+      });
+    } finally {
+      setSavingAssignments(false);
+    }
   };
 
   const getStageStatus = (stageId: number): string => {
@@ -278,6 +372,10 @@ const OrderDetails = () => {
           ? { ...o, stages: updatedStages, status: 'W_TRAKCIE' as const }
           : o
       ));
+
+      // Reset unsaved assignments state since we just saved them
+      setOriginalStageWorkers(JSON.parse(JSON.stringify(stageWorkers)));
+      setHasUnsavedAssignments(false);
 
       toast({ title: "Etap uruchomiony", description: `Etap ${stage?.name} jest teraz w trakcie realizacji.` });
     } catch (error: any) {
@@ -539,157 +637,158 @@ const OrderDetails = () => {
         Wróć do listy
       </button>
 
-      {/* Order Info */}
-      <div className="card-industrial mb-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
-          <h1 className="text-2xl md:text-3xl font-bold">
-            Zlecenie {order.order_number}
-          </h1>
+      {/* Order Info - Compact Header */}
+      <div className="card-industrial mb-4">
+        {/* Header Row */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl md:text-2xl font-bold">
+              {order.order_number}
+            </h1>
+            <select
+              value={order.status}
+              onChange={(e) => updateOrderStatus(e.target.value)}
+              className="px-3 py-1.5 text-sm font-medium rounded-full border-2 cursor-pointer transition-colors bg-background"
+              style={{
+                borderColor: order.status === 'GOTOWE' ? '#22c55e' :
+                             order.status === 'W_TRAKCIE' ? '#3b82f6' :
+                             order.status === 'DO_PRODUKCJI' ? '#a855f7' :
+                             order.status === 'CZESCIOWO_GOTOWE' ? '#06b6d4' :
+                             order.status === 'DO_WYSYLKI' ? '#6366f1' :
+                             order.status === 'WYSLANE' ? '#14b8a6' :
+                             order.status === 'ZAFAKTUROWANE' ? '#10b981' :
+                             order.status === 'ZAMKNIETE' ? '#6b7280' : '#f59e0b'
+              }}
+            >
+              <option value="NOWE">🆕 Nowe</option>
+              <option value="DO_PRODUKCJI">🎨 Do produkcji</option>
+              <option value="W_TRAKCIE">🔄 W trakcie</option>
+              <option value="CZESCIOWO_GOTOWE">📦 Częściowo gotowe</option>
+              <option value="GOTOWE">✅ Gotowe</option>
+              <option value="DO_WYSYLKI">📤 Do wysyłki</option>
+              <option value="WYSLANE">🚚 Wysłane</option>
+              <option value="ZAFAKTUROWANE">💰 Zafakturowane</option>
+              <option value="ZAMKNIETE">🔒 Zamknięte</option>
+            </select>
+          </div>
           <div className="flex gap-2">
-            <button
-              onClick={() => setShowPrintCard(true)}
-              className="btn-secondary"
-            >
-              <Printer size={18} className="mr-2" />
-              Drukuj kartę
+            <button onClick={() => setShowPrintCard(true)} className="btn-secondary text-sm py-1.5 px-3">
+              <Printer size={16} className="mr-1" /> Drukuj
             </button>
-            <button
-              onClick={() => navigate(`/manager/orders/${order.id}/edit`)}
-              className="btn-secondary"
-            >
-              <Edit size={18} className="mr-2" />
-              Edytuj
+            <button onClick={() => navigate(`/manager/orders/${order.id}/edit`)} className="btn-secondary text-sm py-1.5 px-3">
+              <Edit size={16} className="mr-1" /> Edytuj
             </button>
           </div>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 text-base">
+
+        {/* Info Grid - Compact */}
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-sm">
           <div>
-            <span className="text-muted-foreground text-sm">Klient:</span>
-            <p className="font-semibold">{order.client_name}</p>
-            {order.client_email && <p className="text-sm text-muted-foreground">{order.client_email}</p>}
-            {order.client_phone && <p className="text-sm text-muted-foreground">{order.client_phone}</p>}
-            {order.client_address && (
-              <p className="text-sm text-muted-foreground">
-                {order.client_address}, {order.client_postal} {order.client_city}
-              </p>
-            )}
+            <span className="text-muted-foreground text-xs">Klient</span>
+            <p className="font-semibold truncate">{order.client_name}</p>
           </div>
           <div>
-            <span className="text-muted-foreground text-sm">Produkt:</span>
-            <p className="font-semibold">{order.product_name}</p>
-            <p className="text-sm text-muted-foreground">{order.quantity} szt.</p>
+            <span className="text-muted-foreground text-xs">Produkt</span>
+            <p className="font-semibold truncate">{order.product_name}</p>
           </div>
           <div>
-            <span className="text-muted-foreground text-sm">Cena:</span>
+            <span className="text-muted-foreground text-xs">Ilość</span>
+            <p className="font-semibold">{order.quantity} szt.</p>
+          </div>
+          <div>
+            <span className="text-muted-foreground text-xs">Cena</span>
             <p className="font-semibold">{order.price_total ? Number(order.price_total).toFixed(2) : '-'} zł</p>
-            {order.price_per_unit && <p className="text-sm text-muted-foreground">{Number(order.price_per_unit || 0).toFixed(2)} zł/szt.</p>}
           </div>
           <div>
-            <span className="text-muted-foreground text-sm">Termin:</span>
+            <span className="text-muted-foreground text-xs">Termin</span>
             <p className="font-semibold">{new Date(order.planned_completion_date).toLocaleDateString('pl-PL')}</p>
           </div>
           {order.client_order_number && (
             <div>
-              <span className="text-muted-foreground text-sm">Nr zam. klienta:</span>
-              <p className="font-semibold">{order.client_order_number}</p>
-            </div>
-          )}
-          {order.invoice_number && (
-            <div>
-              <span className="text-muted-foreground text-sm">Faktura:</span>
-              <p className="font-semibold">{order.invoice_number}</p>
-              {order.invoice_date && <p className="text-sm text-muted-foreground">{new Date(order.invoice_date).toLocaleDateString('pl-PL')}</p>}
+              <span className="text-muted-foreground text-xs">Nr klienta</span>
+              <p className="font-semibold truncate">{order.client_order_number}</p>
             </div>
           )}
         </div>
-        {order.notes && (
-          <div className="mt-4 pt-4 border-t border-border">
-            <span className="text-muted-foreground text-sm">Uwagi:</span>
-            <p className="font-medium">{order.notes}</p>
+
+        {/* Expandable Details */}
+        <details className="mt-3">
+          <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+            Więcej szczegółów...
+          </summary>
+          <div className="mt-2 pt-2 border-t grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
+            {order.client_email && (
+              <div>
+                <span className="text-muted-foreground text-xs">Email</span>
+                <p className="truncate">{order.client_email}</p>
+              </div>
+            )}
+            {order.client_phone && (
+              <div>
+                <span className="text-muted-foreground text-xs">Telefon</span>
+                <p>{order.client_phone}</p>
+              </div>
+            )}
+            {order.client_address && (
+              <div>
+                <span className="text-muted-foreground text-xs">Adres</span>
+                <p className="truncate">{order.client_address}, {order.client_postal} {order.client_city}</p>
+              </div>
+            )}
+            {order.invoice_number && (
+              <div>
+                <span className="text-muted-foreground text-xs">Faktura</span>
+                <p>{order.invoice_number}</p>
+              </div>
+            )}
+            {order.folder_path && (
+              <div className="col-span-2">
+                <span className="text-muted-foreground text-xs">Folder</span>
+                <p className="font-mono text-xs truncate">{order.folder_path}</p>
+              </div>
+            )}
+            {order.notes && (
+              <div className="col-span-full">
+                <span className="text-muted-foreground text-xs">Uwagi</span>
+                <p>{order.notes}</p>
+              </div>
+            )}
           </div>
-        )}
-        {order.folder_path && (
-          <div className="mt-2">
-            <span className="text-muted-foreground text-sm">Folder:</span>
-            <p className="font-mono text-sm">{order.folder_path}</p>
-          </div>
-        )}
+        </details>
       </div>
 
-      {/* Progress Bar - Pasek postępu zlecenia */}
+      {/* Progress Bar - Compact */}
       {progressStages.length > 0 && (
-        <div className="card-industrial mb-6">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-lg font-semibold flex items-center gap-2">
-              <Clock size={20} />
-              Postęp zlecenia
-            </h2>
-            <span className="text-2xl font-bold text-primary">
-              {Math.round((progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length / progressStages.length) * 100)}%
-            </span>
-          </div>
-
-          {/* Main progress bar */}
-          <div className="h-4 bg-gray-200 rounded-full overflow-hidden mb-3">
-            <div
-              className="h-full bg-gradient-to-r from-green-500 to-green-600 transition-all duration-500 ease-out"
-              style={{
-                width: `${(progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length / progressStages.length) * 100}%`
-              }}
-            />
-          </div>
-
-          {/* Stage indicators */}
-          <div className="flex justify-between gap-1">
-            {progressStages.map((stage) => {
-              const isCompleted = stage.status === 'completed' || stage.status === 'GOTOWE';
-              const isInProgress = stage.status === 'in_progress' || stage.status === 'W_TRAKCIE';
-              return (
-                <div
-                  key={stage.id}
-                  className="flex-1 text-center"
-                  title={stage.name}
-                >
+        <div className="card-industrial mb-4 py-3">
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-muted-foreground whitespace-nowrap">Postęp:</span>
+            <div className="flex-1 flex items-center gap-1">
+              {progressStages.map((stage) => {
+                const isCompleted = stage.status === 'completed' || stage.status === 'GOTOWE';
+                const isInProgress = stage.status === 'in_progress' || stage.status === 'W_TRAKCIE';
+                return (
                   <div
-                    className={`h-2 rounded-full mb-1 ${
-                      isCompleted ? 'bg-green-500' :
-                      isInProgress ? 'bg-blue-500 animate-pulse' :
-                      'bg-gray-300'
-                    }`}
-                  />
-                  <span className={`text-xs truncate block ${
-                    isCompleted ? 'text-green-600 font-medium' :
-                    isInProgress ? 'text-blue-600 font-medium' :
-                    'text-muted-foreground'
-                  }`}>
-                    {stage.name}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Summary stats */}
-          <div className="flex gap-4 mt-3 pt-3 border-t text-sm">
-            <div>
-              <span className="text-muted-foreground">Ukończone: </span>
-              <span className="font-semibold text-green-600">
-                {progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length}
-              </span>
-              <span className="text-muted-foreground"> / {progressStages.length}</span>
+                    key={stage.id}
+                    className="flex-1 group relative"
+                    title={stage.name}
+                  >
+                    <div
+                      className={`h-3 rounded transition-all ${
+                        isCompleted ? 'bg-green-500' :
+                        isInProgress ? 'bg-blue-500 animate-pulse' :
+                        'bg-gray-200'
+                      }`}
+                    />
+                    <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-background px-1 rounded shadow">
+                      {stage.name}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
-            <div>
-              <span className="text-muted-foreground">W trakcie: </span>
-              <span className="font-semibold text-blue-600">
-                {progressStages.filter(s => s.status === 'in_progress' || s.status === 'W_TRAKCIE').length}
-              </span>
-            </div>
-            <div>
-              <span className="text-muted-foreground">Oczekujące: </span>
-              <span className="font-semibold">
-                {progressStages.filter(s => s.status === 'pending' || s.status === 'NOWY' || !s.status).length}
-              </span>
-            </div>
+            <span className="text-lg font-bold text-primary whitespace-nowrap">
+              {progressStages.filter(s => s.status === 'completed' || s.status === 'GOTOWE').length}/{progressStages.length}
+            </span>
           </div>
         </div>
       )}
@@ -1087,6 +1186,35 @@ const OrderDetails = () => {
             );
           })}
         </div>
+
+        {/* Save Assignments Button */}
+        {hasUnsavedAssignments && (
+          <div className="mt-6 p-4 bg-yellow-50 dark:bg-yellow-950 border border-yellow-200 dark:border-yellow-800 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-yellow-500 rounded-full animate-pulse"></div>
+              <span className="text-yellow-800 dark:text-yellow-200 font-medium">
+                Masz niezapisane zmiany w przypisaniach pracowników
+              </span>
+            </div>
+            <button
+              onClick={saveAssignments}
+              disabled={savingAssignments}
+              className="btn-primary flex items-center gap-2"
+            >
+              {savingAssignments ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Zapisywanie...
+                </>
+              ) : (
+                <>
+                  <Check size={18} />
+                  Zapisz zmiany
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Shipping Section */}

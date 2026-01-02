@@ -24,7 +24,9 @@ import {
   Clock,
   Menu,
   X,
-  Home
+  Home,
+  Boxes,
+  Warehouse
 } from 'lucide-react';
 
 interface NavItemProps {
@@ -202,6 +204,8 @@ const Sidebar = () => {
             <NavItem path="/manager/orders" icon={ClipboardList} label="Zlecenia" badge={activeOrders} badgeColor="blue" />
             <NavItem path="/manager/calendar" icon={CalendarDays} label="Kalendarz" />
             <NavItem path="/manager/machines" icon={Cog} label="Maszyny" />
+            <NavItem path="/manager/inventory" icon={Warehouse} label="Magazyn" />
+            <NavItem path="/manager/bom" icon={Boxes} label="BOM / Receptury" />
             {urgentOrders > 0 && (
               <NavItem path="/manager/orders?filter=PRZETERMINOWANE" icon={AlertTriangle} label="Pilne" badge={urgentOrders} badgeColor="red" />
             )}

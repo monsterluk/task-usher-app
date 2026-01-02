@@ -1,66 +1,142 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate, Routes, Route, Link, useLocation } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { Palette, FileCheck, LogOut, ClipboardList, Clock } from 'lucide-react';
+import { Palette, FileCheck, LogOut, ClipboardList, Clock, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import ClockWidget from '@/components/TimeTracking/ClockWidget';
+import { stagesApi } from '@/utils/api';
 
 // Lista zleceń do przygotowania graficznego
 const GrafikOrders = () => {
-  const { orders, setOrders, currentUser } = useApp();
+  const { orders, setOrders, currentUser, refreshOrders, demoMode } = useApp();
+  const [loading, setLoading] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Zlecenia wymagające przygotowania graficznego (etap GRAFIK w statusie pending)
+  // Helper: Get stage ID for GRAFIK stage
+  // Note: API returns 'id' but frontend type has 'stageId' - check both
+  const getGrafikStageId = (orderId: number): number | null => {
+    const order = orders.find(o => o.id === orderId);
+    const grafikStage = order?.stages?.find(s =>
+      s.stageName === 'GRAFIK' || (s as any).stage_name === 'GRAFIK'
+    );
+    // API returns 'id', frontend type has 'stageId'
+    return grafikStage?.stageId || (grafikStage as any)?.id || null;
+  };
+
+  // Helper: check if stage is GRAFIK (handles both stageName and stage_name from API)
+  const isGrafikStage = (s: any) => s.stageName === 'GRAFIK' || s.stage_name === 'GRAFIK';
+
+  // Zlecenia wymagające przygotowania graficznego (etap GRAFIK w statusie pending/NOWY)
   const pendingOrders = orders.filter(o =>
     !o.archived &&
-    o.stages?.some(s => s.stageName === 'GRAFIK' && s.status === 'pending')
+    o.stages?.some(s => isGrafikStage(s) && (s.status === 'pending' || s.status === 'NOWY'))
   );
 
   const inProgressOrders = orders.filter(o =>
     !o.archived &&
-    o.stages?.some(s => s.stageName === 'GRAFIK' && s.status === 'in_progress')
+    o.stages?.some(s => isGrafikStage(s) && (s.status === 'in_progress' || s.status === 'W_TRAKCIE'))
   );
 
   const completedOrders = orders.filter(o =>
     !o.archived &&
-    o.stages?.some(s => s.stageName === 'GRAFIK' && s.status === 'completed')
+    o.stages?.some(s => isGrafikStage(s) && (s.status === 'completed' || s.status === 'GOTOWY' || s.status === 'ZAKONCZONE'))
   ).slice(0, 10); // ostatnie 10
 
-  const markAsCompleted = (orderId: number) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId && o.stages) {
-        return {
-          ...o,
-          stages: o.stages.map(s =>
-            s.stageName === 'GRAFIK'
-              ? { ...s, status: 'completed' as const, assignedWorkers: [currentUser?.id || 0] }
-              : s
-          )
-        };
+  const markAsCompleted = async (orderId: number) => {
+    const stageId = getGrafikStageId(orderId);
+
+    if (!stageId) {
+      setError('Nie znaleziono etapu GRAFIK');
+      return;
+    }
+
+    setLoading(orderId);
+    setError(null);
+
+    try {
+      if (!demoMode) {
+        // Call API to update stage status to GOTOWY
+        // Backend will automatically set order status to DO_PRODUKCJI
+        await stagesApi.update(stageId, { status: 'GOTOWY' });
+        // Refresh orders to get updated data from server
+        await refreshOrders();
+      } else {
+        // Demo mode - update local state only
+        setOrders(prev => prev.map(o => {
+          if (o.id === orderId && o.stages) {
+            return {
+              ...o,
+              status: 'DO_PRODUKCJI' as const, // Ready for production, not started yet
+              stages: o.stages.map(s =>
+                s.stageName === 'GRAFIK'
+                  ? { ...s, status: 'completed' as const, assignedWorkers: [currentUser?.id || 0] }
+                  : s
+              )
+            };
+          }
+          return o;
+        }));
       }
-      return o;
-    }));
+    } catch (err: any) {
+      console.error('Error marking stage as completed:', err);
+      setError(err.response?.data?.message || 'Błąd podczas zapisywania');
+    } finally {
+      setLoading(null);
+    }
   };
 
-  const markAsInProgress = (orderId: number) => {
-    setOrders(prev => prev.map(o => {
-      if (o.id === orderId && o.stages) {
-        return {
-          ...o,
-          status: 'W_TRAKCIE' as const,
-          stages: o.stages.map(s =>
-            s.stageName === 'GRAFIK'
-              ? { ...s, status: 'in_progress' as const, assignedWorkers: [currentUser?.id || 0] }
-              : s
-          )
-        };
+  const markAsInProgress = async (orderId: number) => {
+    const stageId = getGrafikStageId(orderId);
+
+    if (!stageId) {
+      setError('Nie znaleziono etapu GRAFIK');
+      return;
+    }
+
+    setLoading(orderId);
+    setError(null);
+
+    try {
+      if (!demoMode) {
+        // Call API to update stage status
+        await stagesApi.update(stageId, { status: 'W_TRAKCIE' });
+        // Refresh orders to get updated data from server
+        await refreshOrders();
+      } else {
+        // Demo mode - update local state only
+        setOrders(prev => prev.map(o => {
+          if (o.id === orderId && o.stages) {
+            return {
+              ...o,
+              status: 'W_TRAKCIE' as const,
+              stages: o.stages.map(s =>
+                s.stageName === 'GRAFIK'
+                  ? { ...s, status: 'in_progress' as const, assignedWorkers: [currentUser?.id || 0] }
+                  : s
+              )
+            };
+          }
+          return o;
+        }));
       }
-      return o;
-    }));
+    } catch (err: any) {
+      console.error('Error marking stage as in progress:', err);
+      setError(err.response?.data?.message || 'Błąd podczas zapisywania');
+    } finally {
+      setLoading(null);
+    }
   };
 
   return (
     <div className="space-y-6">
       <h2 className="text-2xl font-bold">Moje zlecenia do przygotowania</h2>
+
+      {/* Error message */}
+      {error && (
+        <div className="bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg p-4 text-red-700 dark:text-red-300">
+          {error}
+        </div>
+      )}
 
       {/* Oczekujące */}
       <Card>
@@ -84,8 +160,10 @@ const GrafikOrders = () => {
                   </div>
                   <button
                     onClick={() => markAsInProgress(order.id)}
-                    className="btn-primary"
+                    disabled={loading === order.id}
+                    className="btn-primary disabled:opacity-50 flex items-center gap-2"
                   >
+                    {loading === order.id && <Loader2 size={16} className="animate-spin" />}
                     Rozpocznij
                   </button>
                 </div>
@@ -120,8 +198,10 @@ const GrafikOrders = () => {
                   </div>
                   <button
                     onClick={() => markAsCompleted(order.id)}
-                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg"
+                    disabled={loading === order.id}
+                    className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg disabled:opacity-50 flex items-center gap-2"
                   >
+                    {loading === order.id && <Loader2 size={16} className="animate-spin" />}
                     Zakończ
                   </button>
                 </div>

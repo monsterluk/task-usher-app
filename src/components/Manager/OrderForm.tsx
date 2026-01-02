@@ -528,8 +528,8 @@ const OrderForm = () => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                    {/* Nazwa produktu - szersze pole */}
-                    <div className="md:col-span-5">
+                    {/* Nazwa produktu */}
+                    <div className="md:col-span-4">
                       <label className="block text-xs font-medium mb-1">Nazwa produktu *</label>
                       <input
                         type="text"
@@ -543,26 +543,29 @@ const OrderForm = () => {
                     {/* Ilość */}
                     <div className="md:col-span-2">
                       <label className="block text-xs font-medium mb-1">Ilość</label>
-                      <div className="flex gap-1">
-                        <input
-                          type="number"
-                          min="1"
-                          value={item.quantity}
-                          onChange={e => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
-                          className="input-industrial text-sm w-full"
-                        />
-                        <select
-                          value={item.unit}
-                          onChange={e => updateItem(index, 'unit', e.target.value)}
-                          className="input-industrial text-sm w-20"
-                        >
-                          <option value="szt.">szt.</option>
-                          <option value="kpl.">kpl.</option>
-                          <option value="m">m</option>
-                          <option value="m²">m²</option>
-                          <option value="kg">kg</option>
-                        </select>
-                      </div>
+                      <input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={e => updateItem(index, 'quantity', parseInt(e.target.value) || 1)}
+                        className="input-industrial text-sm"
+                      />
+                    </div>
+
+                    {/* Jednostka */}
+                    <div className="md:col-span-1">
+                      <label className="block text-xs font-medium mb-1">Jedn.</label>
+                      <select
+                        value={item.unit}
+                        onChange={e => updateItem(index, 'unit', e.target.value)}
+                        className="input-industrial text-sm"
+                      >
+                        <option value="szt.">szt.</option>
+                        <option value="kpl.">kpl.</option>
+                        <option value="m">m</option>
+                        <option value="m²">m²</option>
+                        <option value="kg">kg</option>
+                      </select>
                     </div>
 
                     {/* Cena za sztukę */}

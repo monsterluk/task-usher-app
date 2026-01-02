@@ -13,9 +13,15 @@ type SortDirection = 'asc' | 'desc';
 // Enhanced Status Badge Component
 const StatusBadge = ({ status }: { status: string }) => {
   const styles: Record<string, { bg: string; text: string; label: string }> = {
-    'NOWE': { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Oczekujące' },
+    'NOWE': { bg: 'bg-amber-100', text: 'text-amber-800', label: 'Nowe' },
+    'DO_PRODUKCJI': { bg: 'bg-purple-100', text: 'text-purple-800', label: 'Do produkcji' },
     'W_TRAKCIE': { bg: 'bg-blue-100', text: 'text-blue-800', label: 'W trakcie' },
+    'CZESCIOWO_GOTOWE': { bg: 'bg-cyan-100', text: 'text-cyan-800', label: 'Częściowo gotowe' },
     'GOTOWE': { bg: 'bg-green-100', text: 'text-green-800', label: 'Gotowe' },
+    'DO_WYSYLKI': { bg: 'bg-indigo-100', text: 'text-indigo-800', label: 'Do wysyłki' },
+    'WYSLANE': { bg: 'bg-teal-100', text: 'text-teal-800', label: 'Wysłane' },
+    'ZAFAKTUROWANE': { bg: 'bg-emerald-100', text: 'text-emerald-800', label: 'Zafakturowane' },
+    'ZAMKNIETE': { bg: 'bg-gray-200', text: 'text-gray-700', label: 'Zamknięte' },
   };
   const style = styles[status] || { bg: 'bg-gray-100', text: 'text-gray-800', label: status };
 

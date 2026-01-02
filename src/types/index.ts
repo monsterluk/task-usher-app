@@ -76,7 +76,7 @@ export interface Order {
   quantity: number;
   price_total?: number;
   price_per_unit?: number;
-  status: 'NOWE' | 'W_TRAKCIE' | 'GOTOWE';
+  status: 'NOWE' | 'DO_PRODUKCJI' | 'W_TRAKCIE' | 'CZESCIOWO_GOTOWE' | 'GOTOWE' | 'DO_WYSYLKI' | 'WYSLANE' | 'ZAFAKTUROWANE' | 'ZAMKNIETE';
   priority: OrderPriority;
   planned_completion_date: string;
   notes?: string;

@@ -13,7 +13,17 @@ export const idParamSchema = z.object({
 // ============================================
 
 export const orderPrioritySchema = z.enum(['LOW', 'NORMAL', 'HIGH', 'URGENT']);
-export const orderStatusSchema = z.enum(['NOWE', 'W_TRAKCIE', 'GOTOWE']);
+export const orderStatusSchema = z.enum([
+  'NOWE',
+  'DO_PRODUKCJI',
+  'W_TRAKCIE',
+  'CZESCIOWO_GOTOWE',
+  'GOTOWE',
+  'DO_WYSYLKI',
+  'WYSLANE',
+  'ZAFAKTUROWANE',
+  'ZAMKNIETE'
+]);
 
 export const createOrderSchema = z.object({
   order_number: z.string().min(1, 'Numer zlecenia jest wymagany'),

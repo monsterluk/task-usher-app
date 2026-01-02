@@ -182,10 +182,24 @@
   }
 
   .input-industrial {
-    @apply w-full min-h-[48px] px-4 border border-border rounded-lg 
+    @apply w-full min-h-[48px] px-4 border border-border rounded-lg
            bg-background text-foreground text-base
            focus:outline-none focus:ring-2 focus:ring-ring focus:border-primary
            transition-all duration-200 placeholder:text-muted-foreground;
+    color-scheme: light dark;
+  }
+
+  /* Fix for number inputs visibility */
+  input[type="number"].input-industrial {
+    -webkit-appearance: none;
+    -moz-appearance: textfield;
+    color: hsl(var(--foreground));
+    background-color: hsl(var(--background));
+  }
+
+  input[type="number"].input-industrial::-webkit-inner-spin-button,
+  input[type="number"].input-industrial::-webkit-outer-spin-button {
+    opacity: 1;
   }
 
   .table-industrial {

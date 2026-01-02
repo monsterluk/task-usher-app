@@ -284,10 +284,17 @@ export const deleteStage = asyncHandler(async (req: AuthRequest, res: Response) 
   });
 });
 
+// Production stages - these indicate actual production work (not preparation or administrative)
+const PRODUCTION_STAGES = [
+  'FREZOWANIE', 'FREZOWANIE/LASER', 'LASER',
+  'POLEROWANIE', 'WYGINANIE', 'KLEJENIE',
+  'DRUKOWANIE', 'OKLEJANIE', 'PAKOWANIE'
+];
+
 // Helper function to update order status based on stages
 export const updateOrderStatusFromStages = async (orderId: number): Promise<void> => {
   const stagesResult = await query(
-    'SELECT status FROM stages WHERE order_id = $1 AND is_required = true',
+    'SELECT stage_name, status FROM stages WHERE order_id = $1 AND is_required = true',
     [orderId]
   );
 
@@ -297,18 +304,30 @@ export const updateOrderStatusFromStages = async (orderId: number): Promise<void
     return;
   }
 
-  // Both GOTOWY and ZAKONCZONE count as completed
+  // Check various conditions
   const allCompleted = stages.every((s) => s.status === 'GOTOWY' || s.status === 'ZAKONCZONE');
-  const anyInProgress = stages.some(
-    (s) => s.status === 'W_TRAKCIE' || s.status === 'GOTOWY' || s.status === 'ZAKONCZONE'
+
+  // Check if GRAFIK stage is completed
+  const grafikCompleted = stages.some(
+    (s) => s.stage_name === 'GRAFIK' && (s.status === 'GOTOWY' || s.status === 'ZAKONCZONE')
+  );
+
+  // Check if any production stage is in progress or completed
+  const productionStarted = stages.some(
+    (s) => PRODUCTION_STAGES.includes(s.stage_name) &&
+           (s.status === 'W_TRAKCIE' || s.status === 'GOTOWY' || s.status === 'ZAKONCZONE')
   );
 
   let newStatus = 'NOWE';
 
   if (allCompleted) {
     newStatus = 'GOTOWE';
-  } else if (anyInProgress) {
+  } else if (productionStarted) {
+    // Production has actually started
     newStatus = 'W_TRAKCIE';
+  } else if (grafikCompleted) {
+    // Graphic files ready, waiting for production to start
+    newStatus = 'DO_PRODUKCJI';
   }
 
   await query(

@@ -17,8 +17,9 @@ router.get('/efficiency-report', stageController.getEfficiencyReport);
 
 // Stage routes
 router.get('/:id', stageController.getStageById);
-router.put('/:id', requireRole('MANAGER'), stageController.updateStage);
-router.delete('/:id', requireRole('MANAGER'), stageController.deleteStage);
+// GRAFIK can update their own stage status, MANAGER can update any stage
+router.put('/:id', requireRole('MANAGER', 'KIEROWNIK', 'GRAFIK'), stageController.updateStage);
+router.delete('/:id', requireRole('MANAGER', 'KIEROWNIK'), stageController.deleteStage);
 
 // Stage times management
 router.put('/:id/times', stageController.updateStageTimes);
