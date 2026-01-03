@@ -122,7 +122,7 @@ const WorkersList = () => {
             name: formData.name,
             email: formData.email,
             position: formData.position,
-            hourly_rate: formData.hourly_rate,
+            hourly_rate: Number(formData.hourly_rate) || 43.27,
             role: formData.role,
             active: formData.active
           });
@@ -143,7 +143,7 @@ const WorkersList = () => {
             name: formData.name,
             email: formData.email,
             position: formData.position,
-            hourly_rate: formData.hourly_rate,
+            hourly_rate: Number(formData.hourly_rate) || 43.27,
             role: formData.role
           });
 
