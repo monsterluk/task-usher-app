@@ -81,7 +81,7 @@ const WorkersList = () => {
       name: worker.name,
       email: worker.email,
       position: worker.position,
-      hourly_rate: worker.hourly_rate ?? 43.27,
+      hourly_rate: Number(worker.hourly_rate) || 43.27,
       role: worker.role,
       active: worker.active
     });
@@ -339,7 +339,7 @@ const WorkersList = () => {
       )}
 
       {/* Desktop Table */}
-      {!loading && <div className="hidden md:block card-industrial overflow-hidden p-0">
+      {!loading && <div className="hidden md:block card-industrial overflow-x-auto p-0">
         <table className="table-industrial">
           <thead>
             <tr>
@@ -349,14 +349,14 @@ const WorkersList = () => {
               {isAdmin && <th>Stawka</th>}
               <th>Rola</th>
               <th>Status</th>
-              <th>Akcje</th>
+              <th className="sticky right-0 bg-card">Akcje</th>
             </tr>
           </thead>
           <tbody>
             {workers.map((worker) => (
               <tr key={worker.id} className={!worker.active ? 'opacity-50' : ''}>
                 <td className="font-semibold">{worker.name}</td>
-                <td className="text-muted-foreground">{worker.email}</td>
+                <td className="text-muted-foreground max-w-[180px] truncate">{worker.email}</td>
                 <td>{worker.position}</td>
                 {isAdmin && <td className="font-mono">{Number(worker.hourly_rate || 0).toFixed(2)} zł/h</td>}
                 <td>
@@ -377,7 +377,7 @@ const WorkersList = () => {
                     {worker.active ? 'Aktywny' : 'Nieaktywny'}
                   </button>
                 </td>
-                <td>
+                <td className="sticky right-0 bg-card">
                   <button
                     onClick={() => handleEdit(worker)}
                     className="btn-secondary py-2 px-4"

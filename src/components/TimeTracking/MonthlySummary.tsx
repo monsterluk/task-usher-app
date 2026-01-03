@@ -97,14 +97,14 @@ const MonthlySummary = () => {
   }, [currentYear, currentMonth]);
 
   const formatMinutes = (minutes: number | null) => {
-    if (minutes === null || minutes === undefined) return '-';
+    if (minutes === null || minutes === undefined || isNaN(minutes)) return '-';
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     return `${hours}h ${mins}m`;
   };
 
   const formatHoursDecimal = (minutes: number | null) => {
-    if (minutes === null || minutes === undefined) return '-';
+    if (minutes === null || minutes === undefined || isNaN(minutes)) return '-';
     return (minutes / 60).toFixed(2);
   };
 
@@ -148,15 +148,15 @@ const MonthlySummary = () => {
     return sortDir === 'asc' ? comparison : -comparison;
   });
 
-  // Calculate totals
+  // Calculate totals (handle null/undefined values to avoid NaN)
   const totals = summaries.reduce(
     (acc, s) => ({
-      workDays: acc.workDays + s.work_days,
-      absenceDays: acc.absenceDays + s.absence_days,
-      totalMinutes: acc.totalMinutes + s.total_work_minutes,
-      totalMinutesSmoothed: acc.totalMinutesSmoothed + s.total_work_minutes_smoothed,
-      baseMinutesSmoothed: acc.baseMinutesSmoothed + s.base_minutes_smoothed,
-      overtimeMinutesSmoothed: acc.overtimeMinutesSmoothed + s.overtime_minutes_smoothed,
+      workDays: acc.workDays + (s.work_days || 0),
+      absenceDays: acc.absenceDays + (s.absence_days || 0),
+      totalMinutes: acc.totalMinutes + (s.total_work_minutes || 0),
+      totalMinutesSmoothed: acc.totalMinutesSmoothed + (s.total_work_minutes_smoothed || 0),
+      baseMinutesSmoothed: acc.baseMinutesSmoothed + (s.base_minutes_smoothed || 0),
+      overtimeMinutesSmoothed: acc.overtimeMinutesSmoothed + (s.overtime_minutes_smoothed || 0),
     }),
     { workDays: 0, absenceDays: 0, totalMinutes: 0, totalMinutesSmoothed: 0, baseMinutesSmoothed: 0, overtimeMinutesSmoothed: 0 }
   );
