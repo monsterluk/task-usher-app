@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '@/context/AppContext';
-import { Lock, Loader2, Factory, Users, Palette, Briefcase, UserCog } from 'lucide-react';
+import { Lock, Loader2, Factory, Users, Briefcase, UserCog } from 'lucide-react';
 import { UserRole } from '@/types';
 
 const PinLogin = () => {
@@ -19,29 +19,18 @@ const PinLogin = () => {
   }, [currentUser]);
 
   const redirectToDashboard = (role: UserRole) => {
-    switch (role) {
-      case 'ADMIN':
-        navigate('/admin');
-        break;
-      case 'KIEROWNIK':
-        navigate('/manager/orders');
-        break;
-      case 'GRAFIK':
-        navigate('/grafik');
-        break;
-      case 'HANDLOWIEC':
-        navigate('/handlowiec');
-        break;
-      case 'PRACOWNIK':
-        navigate('/worker/stages');
-        break;
-      default:
-        navigate('/');
+    // Dwa typy paneli:
+    // 1. Manager panel - dla ADMIN, KIEROWNIK, HANDLOWIEC
+    // 2. Worker panel - dla PRACOWNIK
+    if (role === 'PRACOWNIK') {
+      navigate('/worker');
+    } else {
+      // ADMIN, KIEROWNIK, HANDLOWIEC - wszyscy idą do panelu manager
+      navigate('/manager/orders');
     }
   };
 
   const handlePinChange = (index: number, value: string) => {
-    // Tylko cyfry
     if (value && !/^\d$/.test(value)) return;
 
     const newPin = [...pin];
@@ -49,12 +38,10 @@ const PinLogin = () => {
     setPin(newPin);
     setError('');
 
-    // Przejdź do następnego pola
     if (value && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
 
-    // Automatyczne logowanie gdy wszystkie pola wypełnione
     const fullPin = newPin.join('');
     if (fullPin.length >= 4 && newPin.slice(0, 4).every(d => d !== '')) {
       handleLogin(fullPin.slice(0, Math.min(6, newPin.filter(d => d !== '').length)));
@@ -83,7 +70,6 @@ const PinLogin = () => {
       inputRefs.current[0]?.focus();
     }
   };
-
 
   return (
     <div className="min-h-screen bg-muted flex items-center justify-center p-4">
@@ -136,7 +122,7 @@ const PinLogin = () => {
             PIN składa się z 4-6 cyfr
           </p>
 
-          {/* Szybkie logowanie - hardkodowane dla produkcji */}
+          {/* Szybkie logowanie */}
           <div className="mt-8 pt-6 border-t border-border">
             <p className="text-xs text-muted-foreground text-center mb-4">
               Szybkie logowanie:
@@ -173,6 +159,20 @@ const PinLogin = () => {
                   >
                     Daniel
                   </button>
+                  <button
+                    onClick={() => { setError(''); handleLogin('1111'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Katarzyna
+                  </button>
+                  <button
+                    onClick={() => { setError(''); handleLogin('2222'); }}
+                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
+                    disabled={loading}
+                  >
+                    Nikola
+                  </button>
                 </div>
               </div>
 
@@ -193,35 +193,11 @@ const PinLogin = () => {
                 </div>
               </div>
 
-              {/* GRAFIK */}
-              <div className="text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground mb-1">
-                  <Palette size={16} />
-                  <span className="font-medium">Grafik:</span>
-                </div>
-                <div className="flex flex-wrap gap-2 ml-6">
-                  <button
-                    onClick={() => { setError(''); handleLogin('1111'); }}
-                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
-                    disabled={loading}
-                  >
-                    Katarzyna
-                  </button>
-                  <button
-                    onClick={() => { setError(''); handleLogin('2222'); }}
-                    className="px-3 py-2 text-sm bg-muted rounded-lg hover:bg-primary/20 transition-colors border border-border"
-                    disabled={loading}
-                  >
-                    Nikola
-                  </button>
-                </div>
-              </div>
-
               {/* PRACOWNIK */}
               <div className="text-sm">
                 <div className="flex items-center gap-2 text-muted-foreground mb-1">
                   <Users size={16} />
-                  <span className="font-medium">Pracownik:</span>
+                  <span className="font-medium">Pracownik produkcji:</span>
                 </div>
                 <div className="flex flex-wrap gap-2 ml-6">
                   <button

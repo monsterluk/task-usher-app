@@ -328,7 +328,7 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
         <div className="flex items-center gap-2">
           <DollarSign size={18} className="text-green-600" />
           <span className="text-sm">
-            Koszt materialow: <strong>{totalCost.toFixed(2)} zl</strong>
+            Koszt materialow: <strong>{Number(totalCost || 0).toFixed(2)} zl</strong>
           </span>
         </div>
       </div>
@@ -505,10 +505,10 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
                     {item.quantity} {item.unit}
                   </td>
                   <td className="py-2 px-2 text-right font-mono">
-                    {item.unit_price.toFixed(2)} zl
+                    {Number(item.unit_price || 0).toFixed(2)} zl
                   </td>
                   <td className="py-2 px-2 text-right font-mono font-medium">
-                    {(item.total_price || item.quantity * item.unit_price).toFixed(2)} zl
+                    {Number(item.total_price || (item.quantity || 0) * (item.unit_price || 0)).toFixed(2)} zl
                   </td>
                   <td className="py-2 px-2 text-muted-foreground">{item.supplier || '-'}</td>
                   <td className="py-2 px-2 text-center">
@@ -547,7 +547,7 @@ const BOMTab = ({ orderId, canEdit = true }: BOMTabProps) => {
             <tfoot>
               <tr className="border-t-2 border-border font-bold">
                 <td colSpan={4} className="py-2 px-2 text-right">Razem:</td>
-                <td className="py-2 px-2 text-right font-mono">{totalCost.toFixed(2)} zl</td>
+                <td className="py-2 px-2 text-right font-mono">{Number(totalCost || 0).toFixed(2)} zl</td>
                 <td colSpan={canEdit ? 3 : 2}></td>
               </tr>
             </tfoot>

@@ -3,8 +3,11 @@ import { useApp } from '@/context/AppContext';
 import { FileText, Search, X } from 'lucide-react';
 
 const TimeReport = () => {
-  const { timeEntries, orders } = useApp();
+  const { timeEntries, orders, currentUser } = useApp();
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Only admin can see hourly rates
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -106,8 +109,8 @@ const TimeReport = () => {
                       <th>Etap</th>
                       <th>Pracownik</th>
                       <th>Czas</th>
-                      <th>Stawka</th>
-                      <th className="text-right">Koszt</th>
+                      {isAdmin && <th>Stawka</th>}
+                      {isAdmin && <th className="text-right">Koszt</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -116,10 +119,12 @@ const TimeReport = () => {
                         <td className="font-semibold">{entry.stageName}</td>
                         <td>{entry.workerName}</td>
                         <td className="font-mono">{formatTime(entry.totalSeconds)}</td>
-                        <td>{Number(entry.hourlyRate || 0).toFixed(2)} zł/h</td>
-                        <td className="text-right font-semibold">
-                          {Number(calculateCost(entry.totalSeconds, entry.hourlyRate) || 0).toFixed(2)} zł
-                        </td>
+                        {isAdmin && <td>{Number(entry.hourlyRate || 0).toFixed(2)} zł/h</td>}
+                        {isAdmin && (
+                          <td className="text-right font-semibold">
+                            {Number(calculateCost(entry.totalSeconds, entry.hourlyRate) || 0).toFixed(2)} zł
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -132,13 +137,15 @@ const TimeReport = () => {
                   <div key={entry.id} className="p-4 bg-muted rounded-md">
                     <div className="flex justify-between items-start mb-2">
                       <span className="font-bold">{entry.stageName}</span>
-                      <span className="font-bold">
-                        {Number(calculateCost(entry.totalSeconds, entry.hourlyRate) || 0).toFixed(2)} zł
-                      </span>
+                      {isAdmin && (
+                        <span className="font-bold">
+                          {Number(calculateCost(entry.totalSeconds, entry.hourlyRate) || 0).toFixed(2)} zł
+                        </span>
+                      )}
                     </div>
                     <div className="text-sm text-muted-foreground space-y-1">
                       <p>{entry.workerName}</p>
-                      <p>Czas: {formatTime(entry.totalSeconds)} • {Number(entry.hourlyRate || 0).toFixed(2)} zł/h</p>
+                      <p>Czas: {formatTime(entry.totalSeconds)}{isAdmin && ` • ${Number(entry.hourlyRate || 0).toFixed(2)} zł/h`}</p>
                     </div>
                   </div>
                 ))}
@@ -146,14 +153,16 @@ const TimeReport = () => {
             </div>
           ))}
 
-          <div className="card-industrial bg-primary text-primary-foreground">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
-              <span className="text-lg font-semibold">
-                {searchQuery ? 'RAZEM (filtrowane):' : 'RAZEM ROBOCIZNA:'}
-              </span>
-              <span className="text-3xl font-bold">{Number(totalCost || 0).toFixed(2)} zł</span>
+          {isAdmin && (
+            <div className="card-industrial bg-primary text-primary-foreground">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <span className="text-lg font-semibold">
+                  {searchQuery ? 'RAZEM (filtrowane):' : 'RAZEM ROBOCIZNA:'}
+                </span>
+                <span className="text-3xl font-bold">{Number(totalCost || 0).toFixed(2)} zł</span>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
     </div>

@@ -318,7 +318,7 @@ const DefectsTab = ({ orderId, stages = [] }: DefectsTabProps) => {
               <div className="text-sm text-purple-600 mb-1 flex items-center gap-1">
                 Koszt defektów
               </div>
-              <div className="text-2xl font-bold text-purple-800">{totalCostImpact.toFixed(2)} zł</div>
+              <div className="text-2xl font-bold text-purple-800">{Number(totalCostImpact || 0).toFixed(2)} zł</div>
             </div>
           </div>
 

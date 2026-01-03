@@ -602,8 +602,8 @@ const CapacityDashboard = () => {
                     <td className="p-3 font-medium">{worker.name}</td>
                     <td className="p-3 text-muted-foreground">{worker.department}</td>
                     <td className="p-3 text-center">{worker.active_tasks}</td>
-                    <td className="p-3 text-center">{worker.hours_worked_today.toFixed(1)}h</td>
-                    <td className="p-3 text-center font-medium">{worker.hours_remaining.toFixed(1)}h</td>
+                    <td className="p-3 text-center">{Number(worker.hours_worked_today || 0).toFixed(1)}h</td>
+                    <td className="p-3 text-center font-medium">{Number(worker.hours_remaining || 0).toFixed(1)}h</td>
                     <td className="p-3 text-center">
                       <span className={`px-2 py-1 rounded text-xs font-medium ${getAvailabilityColor(worker.availability)}`}>
                         {getAvailabilityLabel(worker.availability)}

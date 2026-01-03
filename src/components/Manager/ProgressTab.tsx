@@ -215,7 +215,7 @@ const ProgressTab = ({ orderId }: ProgressTabProps) => {
         <div className="p-4 bg-muted/30 rounded-lg border">
           <div className="text-sm text-muted-foreground mb-1">Produkty (got./wszyst.)</div>
           <div className="text-2xl font-bold text-right">
-            {summary.completed_products.toFixed(2)} / {summary.total_products.toFixed(2)}
+            {Number(summary.completed_products || 0).toFixed(2)} / {Number(summary.total_products || 0).toFixed(2)}
           </div>
           {getProgressBar(summary.completed_products, summary.total_products)}
         </div>
@@ -223,7 +223,7 @@ const ProgressTab = ({ orderId }: ProgressTabProps) => {
         <div className="p-4 bg-muted/30 rounded-lg border">
           <div className="text-sm text-muted-foreground mb-1">Produkty (wyd./wszyst.)</div>
           <div className="text-2xl font-bold text-right">
-            0.00 / {summary.total_products.toFixed(2)}
+            0.00 / {Number(summary.total_products || 0).toFixed(2)}
           </div>
           <div className="h-2 bg-gray-200 rounded-full mt-2" />
         </div>
@@ -338,7 +338,7 @@ const ProgressTab = ({ orderId }: ProgressTabProps) => {
                   <td className="p-3" colSpan={2}>Podsumowanie strony:</td>
                   <td className="p-3"></td>
                   <td className="p-3"></td>
-                  <td className="p-3">{summary.total_products.toFixed(2)}</td>
+                  <td className="p-3">{Number(summary.total_products || 0).toFixed(2)}</td>
                   <td className="p-3 text-center">{summary.defects_total || '-'}</td>
                   <td className="p-3 font-mono">{formatTime(summary.total_time_seconds)}</td>
                   <td className="p-3 font-mono">{formatTime(summary.normative_time_seconds)}</td>

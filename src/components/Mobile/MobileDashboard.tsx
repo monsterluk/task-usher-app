@@ -18,7 +18,8 @@ import {
   Timer,
   Wrench,
   Calendar,
-  LogIn
+  LogIn,
+  Palmtree
 } from 'lucide-react';
 
 interface ActiveSession {
@@ -482,6 +483,13 @@ const MobileDashboard = () => {
         >
           <Clock size={24} />
           <span className="text-xs">Historia</span>
+        </button>
+        <button
+          onClick={() => navigate('/worker/leave')}
+          className="flex flex-col items-center gap-1 p-2 text-muted-foreground"
+        >
+          <Palmtree size={24} />
+          <span className="text-xs">Urlop</span>
         </button>
         <button
           onClick={() => navigate('/worker/profile')}

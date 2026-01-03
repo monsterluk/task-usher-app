@@ -313,7 +313,7 @@ const OrderDetailsView = () => {
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Przepracowano</p>
-              <p className="text-2xl font-bold text-primary mt-1">{totalHours.toFixed(1)} h</p>
+              <p className="text-2xl font-bold text-primary mt-1">{Number(totalHours || 0).toFixed(1)} h</p>
             </div>
             <div>
               <p className="text-sm text-muted-foreground">Ukończone etapy</p>
@@ -583,10 +583,15 @@ const NewOrderForm = () => {
   const [loading, setLoading] = useState(false);
   const demoMode = isDemoMode();
 
+  // State for pending attachments (files selected before order creation)
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [uploadingFiles, setUploadingFiles] = useState(false);
+
   const [formData, setFormData] = useState({
     order_number: generateOrderNumber(orders),
     client_order_number: '',
     client_name: '',
+    client_nip: '',
     client_email: '',
     client_phone: '',
     product_name: '',
@@ -596,6 +601,76 @@ const NewOrderForm = () => {
     planned_completion_date: '',
     notes: '',
   });
+
+  // Handle file selection
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = event.target.files;
+    if (!files) return;
+
+    const newFiles: File[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      // Check file size (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        toast({ title: `Plik ${file.name} jest za duży (max 10MB)`, variant: 'destructive' });
+        continue;
+      }
+      newFiles.push(file);
+    }
+    setPendingFiles(prev => [...prev, ...newFiles]);
+    event.target.value = ''; // Reset input
+  };
+
+  // Remove pending file
+  const removePendingFile = (index: number) => {
+    setPendingFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Format file size
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  // Get file icon
+  const getFileIcon = (type: string) => {
+    if (type?.startsWith('image/')) return <Image size={16} className="text-blue-500" />;
+    if (type?.includes('pdf')) return <FileText size={16} className="text-red-500" />;
+    return <Paperclip size={16} className="text-gray-500" />;
+  };
+
+  // Upload attachments after order creation
+  const uploadAttachments = async (orderId: number) => {
+    if (pendingFiles.length === 0) return;
+
+    setUploadingFiles(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const file of pendingFiles) {
+      try {
+        const response = await attachmentsApi.upload(orderId, file);
+        if (response.success) {
+          successCount++;
+        } else {
+          errorCount++;
+        }
+      } catch (error) {
+        console.error('Failed to upload file:', error);
+        errorCount++;
+      }
+    }
+
+    setUploadingFiles(false);
+
+    if (successCount > 0) {
+      toast({ title: `Przesłano ${successCount} załącznik(ów)` });
+    }
+    if (errorCount > 0) {
+      toast({ title: `Nie udało się przesłać ${errorCount} pliku(ów)`, variant: 'destructive' });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -623,6 +698,9 @@ const NewOrderForm = () => {
       };
       setOrders(prev => [...prev, newOrder]);
       toast({ title: 'Zlecenie utworzone (demo)' });
+      if (pendingFiles.length > 0) {
+        toast({ title: `W trybie demo załączniki nie są zapisywane`, variant: 'destructive' });
+      }
       setLoading(false);
       navigate('/handlowiec/orders');
       return;
@@ -634,6 +712,7 @@ const NewOrderForm = () => {
         order_number: formData.order_number,
         client_order_number: formData.client_order_number,
         client_name: formData.client_name,
+        client_nip: formData.client_nip || undefined,
         client_email: formData.client_email,
         client_phone: formData.client_phone,
         product_name: formData.product_name,
@@ -644,8 +723,15 @@ const NewOrderForm = () => {
         notes: formData.notes,
       });
 
-      if (response.success) {
+      if (response.success && response.data?.order) {
+        const newOrderId = response.data.order.id;
         toast({ title: 'Zlecenie utworzone!' });
+
+        // Upload pending attachments
+        if (pendingFiles.length > 0) {
+          await uploadAttachments(newOrderId);
+        }
+
         await refreshOrders();
         navigate('/handlowiec/orders');
       } else {
@@ -683,15 +769,31 @@ const NewOrderForm = () => {
             <CardTitle>Dane klienta</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">Nazwa klienta *</label>
-              <input
-                type="text"
-                value={formData.client_name}
-                onChange={e => setFormData(prev => ({ ...prev, client_name: e.target.value }))}
-                className="input-industrial"
-                required
-              />
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">Nazwa klienta *</label>
+                <input
+                  type="text"
+                  value={formData.client_name}
+                  onChange={e => setFormData(prev => ({ ...prev, client_name: e.target.value }))}
+                  className="input-industrial"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">NIP</label>
+                <input
+                  type="text"
+                  value={formData.client_nip}
+                  onChange={e => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setFormData(prev => ({ ...prev, client_nip: value }));
+                  }}
+                  className="input-industrial"
+                  placeholder="np. 1234567890"
+                  maxLength={10}
+                />
+              </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
@@ -811,9 +913,87 @@ const NewOrderForm = () => {
           </CardContent>
         </Card>
 
+        {/* Sekcja załączników */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Paperclip size={20} />
+              Załączniki (zdjęcia, PDF)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Dodaj pliki do zlecenia (max 10MB każdy)
+              </label>
+              <div className="flex items-center gap-2">
+                <label className="btn-secondary cursor-pointer flex items-center gap-2">
+                  <Upload size={16} />
+                  Wybierz pliki
+                  <input
+                    type="file"
+                    className="hidden"
+                    multiple
+                    accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"
+                    onChange={handleFileSelect}
+                    disabled={loading}
+                  />
+                </label>
+                <span className="text-sm text-muted-foreground">
+                  {pendingFiles.length > 0 ? `${pendingFiles.length} plik(ów) wybranych` : 'Brak wybranych plików'}
+                </span>
+              </div>
+            </div>
+
+            {/* Lista wybranych plików */}
+            {pendingFiles.length > 0 && (
+              <div className="space-y-2">
+                {pendingFiles.map((file, index) => (
+                  <div key={index} className="flex items-center justify-between p-3 bg-muted rounded-lg">
+                    <div className="flex items-center gap-3">
+                      {getFileIcon(file.type)}
+                      <div>
+                        <p className="font-medium text-sm truncate max-w-[200px]">{file.name}</p>
+                        <p className="text-xs text-muted-foreground">{formatFileSize(file.size)}</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removePendingFile(index)}
+                      className="p-1 hover:bg-red-100 rounded text-red-500"
+                    >
+                      <X size={16} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Podgląd obrazków */}
+            {pendingFiles.filter(f => f.type.startsWith('image/')).length > 0 && (
+              <div className="grid grid-cols-4 gap-2 mt-4">
+                {pendingFiles.filter(f => f.type.startsWith('image/')).map((file, index) => (
+                  <div key={index} className="relative aspect-square rounded-lg overflow-hidden border">
+                    <img
+                      src={URL.createObjectURL(file)}
+                      alt={file.name}
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Akceptowane formaty: zdjęcia (JPG, PNG, GIF), PDF, dokumenty Office.
+              Załączniki zostaną przesłane po utworzeniu zlecenia.
+            </p>
+          </CardContent>
+        </Card>
+
         <div className="flex gap-4">
-          <button type="submit" className="btn-primary flex-1" disabled={loading}>
-            {loading ? 'Tworzenie...' : 'Utwórz zlecenie'}
+          <button type="submit" className="btn-primary flex-1" disabled={loading || uploadingFiles}>
+            {loading ? (uploadingFiles ? 'Przesyłanie załączników...' : 'Tworzenie...') : 'Utwórz zlecenie'}
           </button>
           <button
             type="button"

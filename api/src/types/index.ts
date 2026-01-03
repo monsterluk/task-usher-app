@@ -58,6 +58,7 @@ export interface Order {
   order_number: string;
   client_order_number?: string;
   client_name: string;
+  client_nip?: string;
   client_email?: string;
   client_phone?: string;
   product_name: string;

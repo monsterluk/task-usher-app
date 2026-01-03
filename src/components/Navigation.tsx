@@ -1,6 +1,6 @@
 import { useApp } from '@/context/AppContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette, CalendarDays, Timer } from 'lucide-react';
+import { LogOut, ClipboardList, Clock, FileText, Users, Layers, LayoutDashboard, Cog, Shield, Settings, Briefcase, Palette, CalendarDays, Timer, Palmtree } from 'lucide-react';
 import NotificationBell from './NotificationBell';
 
 const Navigation = () => {
@@ -104,7 +104,10 @@ const Navigation = () => {
               </>
             )}
             {isPracownik && (
-              <NavButton path="/worker/stages" icon={Clock} label="Moje Etapy" />
+              <>
+                <NavButton path="/worker/stages" icon={Clock} label="Moje Etapy" />
+                <NavButton path="/worker/leave" icon={Palmtree} label="Wnioski urlopowe" />
+              </>
             )}
           </div>
 
@@ -161,7 +164,10 @@ const Navigation = () => {
             </>
           )}
           {isPracownik && (
-            <MobileNavButton path="/worker/stages" icon={Clock} label="Etapy" />
+            <>
+              <MobileNavButton path="/worker/stages" icon={Clock} label="Etapy" />
+              <MobileNavButton path="/worker/leave" icon={Palmtree} label="Urlopy" />
+            </>
           )}
         </div>
       </div>

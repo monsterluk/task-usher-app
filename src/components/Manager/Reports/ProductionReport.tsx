@@ -403,7 +403,7 @@ const ProductionReport = () => {
           </h2>
           <div className="grid grid-cols-2 gap-4">
             <div className="text-center p-4 bg-muted rounded-lg">
-              <p className="text-3xl font-bold text-blue-600">{report.time_tracking.total_hours_worked.toFixed(1)}h</p>
+              <p className="text-3xl font-bold text-blue-600">{Number(report.time_tracking.total_hours_worked || 0).toFixed(1)}h</p>
               <p className="text-sm text-muted-foreground">Laczny czas pracy</p>
             </div>
             <div className="text-center p-4 bg-muted rounded-lg">
@@ -415,7 +415,7 @@ const ProductionReport = () => {
               <p className="text-sm text-muted-foreground">Sesji pracy</p>
             </div>
             <div className="text-center p-4 bg-muted rounded-lg">
-              <p className="text-3xl font-bold text-amber-600">{report.time_tracking.avg_session_hours.toFixed(1)}h</p>
+              <p className="text-3xl font-bold text-amber-600">{Number(report.time_tracking.avg_session_hours || 0).toFixed(1)}h</p>
               <p className="text-sm text-muted-foreground">Srednia sesja</p>
             </div>
           </div>
@@ -442,7 +442,7 @@ const ProductionReport = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="font-bold">{worker.hours_worked.toFixed(1)}h</p>
+                  <p className="font-bold">{Number(worker.hours_worked || 0).toFixed(1)}h</p>
                   <p className="text-xs text-muted-foreground">{worker.orders_worked} zlecen</p>
                 </div>
               </div>

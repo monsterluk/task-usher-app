@@ -202,14 +202,14 @@ const WarehouseTab = ({ orderId }: WarehouseTabProps) => {
                 <ArrowUpFromLine size={14} />
                 Wydano materiałów
               </div>
-              <div className="text-2xl font-bold text-red-800">{totalIssued.toFixed(2)} zł</div>
+              <div className="text-2xl font-bold text-red-800">{Number(totalIssued || 0).toFixed(2)} zł</div>
             </div>
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="text-sm text-green-600 mb-1 flex items-center gap-1">
                 <ArrowDownToLine size={14} />
                 Przyjęto materiałów
               </div>
-              <div className="text-2xl font-bold text-green-800">{totalReceived.toFixed(2)} zł</div>
+              <div className="text-2xl font-bold text-green-800">{Number(totalReceived || 0).toFixed(2)} zł</div>
             </div>
             <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200">
               <div className="text-sm text-yellow-600 mb-1 flex items-center gap-1">
@@ -287,7 +287,7 @@ const WarehouseTab = ({ orderId }: WarehouseTabProps) => {
                             {transaction.type === 'WZ' ? '-' : '+'}{transaction.quantity} {transaction.unit}
                           </td>
                           <td className="p-2 text-right font-mono">
-                            {transaction.total_cost?.toFixed(2) || '-'} zł
+                            {transaction.total_cost ? Number(transaction.total_cost).toFixed(2) : '-'} zł
                           </td>
                           <td className="p-2 text-sm">
                             {transaction.type === 'WZ' ? transaction.from_location_name : transaction.to_location_name || '-'}
@@ -345,7 +345,7 @@ const WarehouseTab = ({ orderId }: WarehouseTabProps) => {
                             {reservation.quantity_issued} {reservation.unit}
                             {reservation.quantity_issued < reservation.quantity_reserved && (
                               <span className="text-yellow-600 ml-1">
-                                ({((reservation.quantity_issued / reservation.quantity_reserved) * 100).toFixed(0)}%)
+                                ({Number((Number(reservation.quantity_issued || 0) / Number(reservation.quantity_reserved || 1)) * 100).toFixed(0)}%)
                               </span>
                             )}
                           </td>

@@ -439,7 +439,7 @@ const MaterialPricesPanel = () => {
                           </span>
                         </td>
                         <td className="font-mono font-semibold">
-                          {Number(material.price_per_unit).toFixed(2)} PLN/{material.unit}
+                          {Number(material.price_per_unit || 0).toFixed(2)} PLN/{material.unit}
                         </td>
                         <td>{material.supplier || '-'}</td>
                         <td>
@@ -685,30 +685,30 @@ const MaterialPricesPanel = () => {
               <div>
                 <p className="text-muted-foreground">Materialy + narzut</p>
                 <p className="font-mono font-bold">
-                  {(1000 * (1 + (settings.material_margin?.value || 15) / 100)).toFixed(2)} PLN
+                  {Number(1000 * (1 + (settings.material_margin?.value || 15) / 100) || 0).toFixed(2)} PLN
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Robocizna + narzut</p>
                 <p className="font-mono font-bold">
-                  {(500 * (1 + (settings.labor_margin?.value || 25) / 100)).toFixed(2)} PLN
+                  {Number(500 * (1 + (settings.labor_margin?.value || 25) / 100) || 0).toFixed(2)} PLN
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">+ Koszty ogolne</p>
                 <p className="font-mono font-bold">
-                  {(1500 * (settings.overhead_rate?.value || 10) / 100).toFixed(2)} PLN
+                  {Number(1500 * (settings.overhead_rate?.value || 10) / 100 || 0).toFixed(2)} PLN
                 </p>
               </div>
               <div>
                 <p className="text-muted-foreground">Cena koncowa (z marza)</p>
                 <p className="font-mono font-bold text-green-600">
-                  {(
+                  {Number(
                     (1000 * (1 + (settings.material_margin?.value || 15) / 100) +
                     500 * (1 + (settings.labor_margin?.value || 25) / 100)) *
                     (1 + (settings.overhead_rate?.value || 10) / 100) *
                     (1 + (settings.profit_margin?.value || 20) / 100)
-                  ).toFixed(2)} PLN
+                  || 0).toFixed(2)} PLN
                 </p>
               </div>
             </div>

@@ -217,7 +217,7 @@ const KPIDashboard = () => {
     },
     {
       title: 'Terminowosc dostaw',
-      value: kpis.onTimeRate.toFixed(1),
+      value: Number(kpis.onTimeRate || 0).toFixed(1),
       unit: '%',
       change: kpis.onTimeRate - kpis.prevOnTimeRate,
       changeLabel: 'vs poprzedni okres',
@@ -229,7 +229,7 @@ const KPIDashboard = () => {
     },
     {
       title: 'Sredni czas realizacji',
-      value: kpis.avgLeadTime.toFixed(1),
+      value: Number(kpis.avgLeadTime || 0).toFixed(1),
       unit: 'dni',
       change: -calcChange(kpis.avgLeadTime, kpis.prevAvgLeadTime),
       changeLabel: 'vs poprzedni okres',
@@ -241,7 +241,7 @@ const KPIDashboard = () => {
     },
     {
       title: 'Przychod',
-      value: (kpis.totalRevenue / 1000).toFixed(1),
+      value: Number((kpis.totalRevenue || 0) / 1000).toFixed(1),
       unit: 'tys. PLN',
       change: calcChange(kpis.totalRevenue, kpis.prevRevenue),
       changeLabel: 'vs poprzedni okres',
@@ -428,7 +428,7 @@ const KPIDashboard = () => {
                   kpi.trend === 'up' ? 'text-green-600' : 'text-red-600'
                 }`}>
                   {kpi.trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                  {Math.abs(kpi.change).toFixed(1)}%
+                  {Number(Math.abs(kpi.change) || 0).toFixed(1)}%
                 </div>
               )}
             </div>
@@ -441,7 +441,7 @@ const KPIDashboard = () => {
                 <div className="mt-2">
                   <div className="flex items-center justify-between text-xs text-muted-foreground mb-1">
                     <span>Cel: {kpi.target}{kpi.unit}</span>
-                    <span>{Math.min(100, (Number(kpi.value) / kpi.target) * 100).toFixed(0)}%</span>
+                    <span>{Number(Math.min(100, (Number(kpi.value) / (kpi.target || 1)) * 100) || 0).toFixed(0)}%</span>
                   </div>
                   <div className="h-1.5 bg-muted rounded-full overflow-hidden">
                     <div
@@ -527,7 +527,7 @@ const KPIDashboard = () => {
                 outerRadius={100}
                 paddingAngle={5}
                 dataKey="value"
-                label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                label={({ name, percent }) => `${name} (${Number((percent || 0) * 100).toFixed(0)}%)`}
                 labelLine={false}
               >
                 {statusData.map((entry, index) => (
@@ -603,7 +603,7 @@ const KPIDashboard = () => {
                 cornerRadius={10}
               />
               <Tooltip
-                formatter={(value: number) => `${value.toFixed(1)}%`}
+                formatter={(value: number) => `${Number(value || 0).toFixed(1)}%`}
                 contentStyle={{
                   backgroundColor: 'hsl(var(--card))',
                   border: '1px solid hsl(var(--border))',
@@ -621,7 +621,7 @@ const KPIDashboard = () => {
             {oeeData.map((item, idx) => (
               <div key={idx} className="text-center">
                 <div className="text-2xl font-bold" style={{ color: item.fill }}>
-                  {item.value.toFixed(1)}%
+                  {Number(item.value || 0).toFixed(1)}%
                 </div>
                 <div className="text-xs text-muted-foreground">{item.name}</div>
               </div>
@@ -640,7 +640,7 @@ const KPIDashboard = () => {
               Mocne strony
             </div>
             <ul className="text-sm text-green-600 space-y-1">
-              {kpis.onTimeRate >= 90 && <li>• Wysoka terminowosc ({kpis.onTimeRate.toFixed(0)}%)</li>}
+              {kpis.onTimeRate >= 90 && <li>• Wysoka terminowosc ({Number(kpis.onTimeRate || 0).toFixed(0)}%)</li>}
               {kpis.completedOrders > kpis.prevCompletedOrders && <li>• Wzrost realizacji zlecen</li>}
               {kpis.totalRevenue > kpis.prevRevenue && <li>• Wzrost przychodow</li>}
               {kpis.overdueCount === 0 && <li>• Brak zaleglosci</li>}
@@ -653,7 +653,7 @@ const KPIDashboard = () => {
             </div>
             <ul className="text-sm text-yellow-600 space-y-1">
               {kpis.onTimeRate < 90 && <li>• Terminowosc ponizej 90%</li>}
-              {kpis.avgLeadTime > 7 && <li>• Dlugi czas realizacji ({kpis.avgLeadTime.toFixed(1)} dni)</li>}
+              {kpis.avgLeadTime > 7 && <li>• Dlugi czas realizacji ({Number(kpis.avgLeadTime || 0).toFixed(1)} dni)</li>}
               {kpis.overdueCount > 0 && <li>• {kpis.overdueCount} zlecen zalegych</li>}
               {kpis.completedOrders < kpis.prevCompletedOrders && <li>• Spadek realizacji zlecen</li>}
             </ul>
@@ -664,9 +664,9 @@ const KPIDashboard = () => {
               Cele
             </div>
             <ul className="text-sm text-blue-600 space-y-1">
-              <li>• Terminowosc: 95% (obecna: {kpis.onTimeRate.toFixed(0)}%)</li>
-              <li>• Czas realizacji: 5 dni (obecny: {kpis.avgLeadTime.toFixed(1)})</li>
-              <li>• OEE: 85% (obecny: {oeeData[0].value.toFixed(0)}%)</li>
+              <li>• Terminowosc: 95% (obecna: {Number(kpis.onTimeRate || 0).toFixed(0)}%)</li>
+              <li>• Czas realizacji: 5 dni (obecny: {Number(kpis.avgLeadTime || 0).toFixed(1)})</li>
+              <li>• OEE: 85% (obecny: {Number(oeeData[0]?.value || 0).toFixed(0)}%)</li>
             </ul>
           </div>
           <div className="p-4 rounded-lg bg-purple-50 border border-purple-200">

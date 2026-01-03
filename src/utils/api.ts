@@ -425,6 +425,7 @@ export const attachmentsApi = {
     formData.append('file', file);
     const response = await api.post(`/api/orders/${orderId}/attachments`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 60000, // 60 sekund dla uploadu plików
     });
     return response.data;
   },
@@ -885,19 +886,20 @@ export const documentsApi = {
     const response = await api.get(`/api/documents/${id}`);
     return response.data;
   },
-  // Upload document
-  upload: async (data: {
-    order_id: number;
-    filename: string;
-    original_name: string;
-    mime_type?: string;
-    file_size?: number;
-    file_path: string;
-    category: string;
-    description?: string;
-  }) => {
+  // Upload document with actual file
+  upload: async (file: File, orderId: number, category: string, description?: string) => {
     checkDemoMode();
-    const response = await api.post('/api/documents', data);
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('order_id', orderId.toString());
+    formData.append('category', category);
+    if (description) {
+      formData.append('description', description);
+    }
+    const response = await api.post('/api/documents', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+      timeout: 120000, // 2 minuty dla uploadu
+    });
     return response.data;
   },
   // Update document metadata
@@ -911,6 +913,24 @@ export const documentsApi = {
     checkDemoMode();
     const response = await api.delete(`/api/documents/${id}`);
     return response.data;
+  },
+  // Download document
+  download: async (id: number, filename: string) => {
+    checkDemoMode();
+    const response = await api.get(`/api/documents/${id}/download`, {
+      responseType: 'blob',
+      timeout: 120000, // 2 minuty dla pobierania
+    });
+    // Create blob URL and trigger download
+    const blob = new Blob([response.data]);
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   },
   // Get document versions
   getVersions: async (id: number) => {

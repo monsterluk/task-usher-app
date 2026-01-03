@@ -394,8 +394,8 @@ const CostCalculator = () => {
                 {quoteForm.cutting_meters > 0 && quoteForm.cutting_speed > 0 && (
                   <div className="mt-3 p-2 bg-blue-100 dark:bg-blue-800/30 rounded text-sm text-center">
                     <strong>Szacowany czas ciecia:</strong>{' '}
-                    {(quoteForm.cutting_meters / quoteForm.cutting_speed).toFixed(2)}h
-                    ({Math.round(quoteForm.cutting_meters / quoteForm.cutting_speed * 60)} min)
+                    {Number(quoteForm.cutting_meters / quoteForm.cutting_speed || 0).toFixed(2)}h
+                    ({Math.round((quoteForm.cutting_meters / quoteForm.cutting_speed || 0) * 60)} min)
                   </div>
                 )}
               </div>
@@ -475,7 +475,7 @@ const CostCalculator = () => {
                           outerRadius={70}
                           paddingAngle={5}
                           dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }) => `${name} ${Number((percent || 0) * 100).toFixed(0)}%`}
                           labelLine={false}
                         >
                           {[0, 1, 2].map((_, index) => (
@@ -497,7 +497,7 @@ const CostCalculator = () => {
                         <Package size={16} className="text-blue-600" />
                         Material ({quoteResult.costs.material.quantity} m2)
                       </span>
-                      <span className="font-bold">{quoteResult.costs.material.total.toFixed(2)} zl</span>
+                      <span className="font-bold">{Number(quoteResult.costs.material.total || 0).toFixed(2)} zl</span>
                     </div>
                     {/* Cutting efficiency info */}
                     {quoteResult.costs.cutting && (
@@ -508,7 +508,7 @@ const CostCalculator = () => {
                             Ciecie: {quoteResult.costs.cutting.meters} mb @ {quoteResult.costs.cutting.speed} mb/h
                           </span>
                           <span className="font-medium text-cyan-700 dark:text-cyan-300">
-                            = {quoteResult.costs.cutting.calculated_hours.toFixed(2)}h
+                            = {Number(quoteResult.costs.cutting.calculated_hours || 0).toFixed(2)}h
                           </span>
                         </div>
                       </div>
@@ -519,7 +519,7 @@ const CostCalculator = () => {
                           <Wrench size={16} className="text-green-600" />
                           {STAGE_OPTIONS.find(opt => opt.value === s.stage)?.label || s.stage} ({s.hours}h)
                         </span>
-                        <span className="font-bold">{s.cost.toFixed(2)} zl</span>
+                        <span className="font-bold">{Number(s.cost || 0).toFixed(2)} zl</span>
                       </div>
                     ))}
                     <div className="flex justify-between p-2 bg-orange-50 dark:bg-orange-900/20 rounded">
@@ -527,11 +527,11 @@ const CostCalculator = () => {
                         <Clock size={16} className="text-orange-600" />
                         Robocizna ({quoteResult.costs.labor.hours}h)
                       </span>
-                      <span className="font-bold">{quoteResult.costs.labor.total.toFixed(2)} zl</span>
+                      <span className="font-bold">{Number(quoteResult.costs.labor.total || 0).toFixed(2)} zl</span>
                     </div>
                     <div className="flex justify-between p-3 bg-muted rounded-lg text-lg">
                       <span className="font-bold">Koszt calkowity</span>
-                      <span className="font-bold text-primary">{quoteResult.costs.total.toFixed(2)} zl</span>
+                      <span className="font-bold text-primary">{Number(quoteResult.costs.total || 0).toFixed(2)} zl</span>
                     </div>
                   </div>
                 </div>
@@ -553,7 +553,7 @@ const CostCalculator = () => {
                     </div>
                   </div>
                   <p className="text-sm text-muted-foreground mt-4 text-center">
-                    Przy marzy {quoteResult.pricing.target_margin}% | Koszt jednostkowy: {quoteResult.pricing.cost_per_unit.toFixed(2)} zl
+                    Przy marzy {quoteResult.pricing.target_margin}% | Koszt jednostkowy: {Number(quoteResult.pricing.cost_per_unit || 0).toFixed(2)} zl
                   </p>
                 </div>
               </>
@@ -624,7 +624,7 @@ const CostCalculator = () => {
                     <span className="text-sm text-muted-foreground">Srednia marza</span>
                   </div>
                   <p className={`text-2xl font-bold ${getMarginColor(summary.average_margin)}`}>
-                    {summary.average_margin.toFixed(1)}%
+                    {Number(summary.average_margin || 0).toFixed(1)}%
                   </p>
                 </div>
               </div>
@@ -647,7 +647,7 @@ const CostCalculator = () => {
                           outerRadius={70}
                           paddingAngle={5}
                           dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ name, percent }) => `${name} ${Number((percent || 0) * 100).toFixed(0)}%`}
                         >
                           <Cell fill="#3b82f6" />
                           <Cell fill="#f97316" />
@@ -676,7 +676,7 @@ const CostCalculator = () => {
                         <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
                         <XAxis type="number" domain={[0, 100]} unit="%" fontSize={12} />
                         <YAxis dataKey="order_number" type="category" width={90} fontSize={10} />
-                        <Tooltip formatter={(value: number) => `${value.toFixed(1)}%`} />
+                        <Tooltip formatter={(value: number) => `${Number(value || 0).toFixed(1)}%`} />
                         <Bar dataKey="margin" radius={[0, 4, 4, 0]}>
                           {summaryOrders.slice(0, 5).map((entry, index) => (
                             <Cell
@@ -716,7 +716,7 @@ const CostCalculator = () => {
                         <td className="p-3 text-right text-orange-600">{order.labor_cost.toLocaleString('pl-PL')} zl</td>
                         <td className="p-3 text-right text-green-600 font-medium">{order.profit.toLocaleString('pl-PL')} zl</td>
                         <td className={`p-3 text-right font-bold ${getMarginColor(order.margin)}`}>
-                          {order.margin.toFixed(1)}%
+                          {Number(order.margin || 0).toFixed(1)}%
                         </td>
                       </tr>
                     ))}

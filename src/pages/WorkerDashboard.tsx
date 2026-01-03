@@ -670,6 +670,7 @@ const WorkerDashboard = () => {
         <Route path="history" element={<MobileHistory />} />
         <Route path="profile" element={<MobileProfile />} />
         <Route path="stages" element={<MobileDashboard />} />
+        <Route path="leave" element={<MyLeaveRequests />} />
         <Route path="*" element={<Navigate to="/worker" replace />} />
       </Routes>
     );

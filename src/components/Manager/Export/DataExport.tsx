@@ -111,7 +111,7 @@ const DataExport = () => {
         'Status': o.status === 'NOWE' ? 'Nowe' : o.status === 'W_TRAKCIE' ? 'W trakcie' : 'Gotowe',
         'Priorytet': o.priority,
         'Termin': new Date(o.planned_completion_date).toLocaleDateString('pl-PL'),
-        'Wartosc netto': o.price_total?.toFixed(2) || '0.00',
+        'Wartosc netto': o.price_total ? Number(o.price_total).toFixed(2) : '0.00',
         'Data utworzenia': new Date(o.created_at || 0).toLocaleDateString('pl-PL')
       }));
   };
@@ -189,13 +189,13 @@ const DataExport = () => {
       },
       {
         'Metryka': 'Wartosc zlecen',
-        'Wartosc': filteredOrders.reduce((sum, o) => sum + (o.price_total || 0), 0).toFixed(2),
+        'Wartosc': Number(filteredOrders.reduce((sum, o) => sum + (Number(o.price_total) || 0), 0) || 0).toFixed(2),
         'Jednostka': 'PLN'
       },
       {
         'Metryka': 'Srednia wartosc zlecenia',
         'Wartosc': filteredOrders.length > 0
-          ? (filteredOrders.reduce((sum, o) => sum + (o.price_total || 0), 0) / filteredOrders.length).toFixed(2)
+          ? Number(filteredOrders.reduce((sum, o) => sum + (Number(o.price_total) || 0), 0) / filteredOrders.length || 0).toFixed(2)
           : '0.00',
         'Jednostka': 'PLN'
       }

@@ -11,7 +11,6 @@ import WorkerLogin from "./components/Worker/WorkerLogin";
 import ManagerDashboard from "./pages/ManagerDashboard";
 import WorkerDashboard from "./pages/WorkerDashboard";
 import AdminDashboard from "./pages/AdminDashboard";
-import GrafikDashboard from "./pages/GrafikDashboard";
 import HandlowiecDashboard from "./pages/HandlowiecDashboard";
 import NotFound from "./pages/NotFound";
 
@@ -34,11 +33,14 @@ const App = () => (
             <Route path="/worker/login" element={<WorkerLogin />} />
 
             {/* Panele ról */}
-            <Route path="/admin/*" element={<AdminDashboard />} />
+            {/* Admin, Kierownik, Handlowiec - wspólny panel Manager */}
             <Route path="/manager/*" element={<ManagerDashboard />} />
-            <Route path="/kierownik/*" element={<Navigate to="/manager" replace />} />
-            <Route path="/grafik/*" element={<GrafikDashboard />} />
-            <Route path="/handlowiec/*" element={<HandlowiecDashboard />} />
+            <Route path="/admin/*" element={<Navigate to="/manager/orders" replace />} />
+            <Route path="/kierownik/*" element={<Navigate to="/manager/orders" replace />} />
+            <Route path="/handlowiec/*" element={<Navigate to="/manager/orders" replace />} />
+
+
+            {/* Pracownik - osobny panel */}
             <Route path="/worker/*" element={<WorkerDashboard />} />
             <Route path="/pracownik/*" element={<Navigate to="/worker/stages" replace />} />
 

@@ -9,24 +9,12 @@ const Index = () => {
 
   useEffect(() => {
     if (currentUser) {
-      // Route based on role
-      switch (currentUser.role) {
-        case 'ADMIN':
-          navigate('/admin');
-          break;
-        case 'KIEROWNIK':
-          navigate('/manager/dashboard');
-          break;
-        case 'GRAFIK':
-          navigate('/grafik');
-          break;
-        case 'HANDLOWIEC':
-          navigate('/handlowiec');
-          break;
-        case 'PRACOWNIK':
-        default:
-          navigate('/worker/stages');
-          break;
+      // Dwa typy paneli: Manager i Pracownik
+      if (currentUser.role === 'PRACOWNIK') {
+        navigate('/worker');
+      } else {
+        // ADMIN, KIEROWNIK, HANDLOWIEC
+        navigate('/manager/orders');
       }
     }
   }, [currentUser, navigate]);

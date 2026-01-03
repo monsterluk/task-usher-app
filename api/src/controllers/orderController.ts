@@ -175,6 +175,7 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     order_number,
     client_order_number,
     client_name,
+    client_nip,
     client_email,
     client_phone,
     product_name,
@@ -212,16 +213,17 @@ export const createOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     // Create order
     const orderResult = await client.query(
       `INSERT INTO orders (
-        order_number, client_order_number, client_name, client_email, client_phone,
+        order_number, client_order_number, client_name, client_nip, client_email, client_phone,
         product_name, quantity, price_total, price_per_unit, status, priority,
         planned_completion_date, notes, folder_path, invoice_number, invoice_date,
         created_by, archived
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, 'NOWE', $10, $11, $12, $13, $14, $15, $16, false)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'NOWE', $11, $12, $13, $14, $15, $16, $17, false)
       RETURNING *`,
       [
         order_number,
         client_order_number,
         client_name,
+        client_nip || null,
         client_email,
         client_phone,
         product_name,
@@ -304,6 +306,7 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     order_number,
     client_order_number,
     client_name,
+    client_nip,
     client_email,
     client_phone,
     product_name,
@@ -348,6 +351,7 @@ export const updateOrder = asyncHandler(async (req: AuthRequest, res: Response) 
     order_number,
     client_order_number,
     client_name,
+    client_nip,
     client_email,
     client_phone,
     product_name,

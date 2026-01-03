@@ -10,11 +10,11 @@ export const getAllWorkers = asyncHandler(async (req: AuthRequest, res: Response
   const { active, position, role } = req.query;
   const user = req.user;
 
-  // TASK 1.5: PRACOWNIK sees limited fields (no hourly_rate of others)
-  const isPracownik = user?.role === 'PRACOWNIK';
-  const columns = isPracownik
-    ? 'id, name, email, position, role, skills, active, created_at, updated_at'
-    : 'id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at';
+  // Only ADMIN can see hourly_rate
+  const isAdmin = user?.role === 'ADMIN';
+  const columns = isAdmin
+    ? 'id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at'
+    : 'id, name, email, position, role, skills, active, created_at, updated_at';
 
   let sql = `
     SELECT ${columns}
@@ -59,14 +59,9 @@ export const getWorkerById = asyncHandler(async (req: AuthRequest, res: Response
   const { id } = req.params;
   const user = req.user;
 
-  // TASK 1.5: PRACOWNIK can only see full details of themselves
-  const isPracownik = user?.role === 'PRACOWNIK';
-  // user.id IS the worker ID (from JWT payload)
-  const isOwnProfile = isPracownik && user?.id === parseInt(id);
-
-  // Full details for managers/admins, or for PRACOWNIK viewing their own profile
-  const showFullDetails = !isPracownik || isOwnProfile;
-  const columns = showFullDetails
+  // Only ADMIN can see hourly_rate
+  const isAdmin = user?.role === 'ADMIN';
+  const columns = isAdmin
     ? 'id, name, email, pin, position, role, hourly_rate, skills, active, created_at, updated_at'
     : 'id, name, email, position, role, skills, active, created_at, updated_at';
 

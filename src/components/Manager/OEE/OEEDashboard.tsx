@@ -159,22 +159,22 @@ const OEEDashboard = () => {
   // Calculate averages
   const averageOEE = useMemo(() => {
     const sum = filteredMachines.reduce((acc, m) => acc + m.oee, 0);
-    return (sum / filteredMachines.length).toFixed(1);
+    return filteredMachines.length > 0 ? (sum / filteredMachines.length).toFixed(1) : '0.0';
   }, [filteredMachines]);
 
   const averageAvailability = useMemo(() => {
     const sum = filteredMachines.reduce((acc, m) => acc + m.availability, 0);
-    return (sum / filteredMachines.length).toFixed(1);
+    return filteredMachines.length > 0 ? (sum / filteredMachines.length).toFixed(1) : '0.0';
   }, [filteredMachines]);
 
   const averagePerformance = useMemo(() => {
     const sum = filteredMachines.reduce((acc, m) => acc + m.performance, 0);
-    return (sum / filteredMachines.length).toFixed(1);
+    return filteredMachines.length > 0 ? (sum / filteredMachines.length).toFixed(1) : '0.0';
   }, [filteredMachines]);
 
   const averageQuality = useMemo(() => {
     const sum = filteredMachines.reduce((acc, m) => acc + m.quality, 0);
-    return (sum / filteredMachines.length).toFixed(1);
+    return filteredMachines.length > 0 ? (sum / filteredMachines.length).toFixed(1) : '0.0';
   }, [filteredMachines]);
 
   // Departments list

@@ -521,7 +521,7 @@ const MyStages = () => {
         <div className="card-industrial p-3">
           <p className="text-sm text-muted-foreground">Jakość produkcji</p>
           <p className={`text-xl font-bold ${todayStats.qualityPercent >= 95 ? 'text-green-600' : todayStats.qualityPercent >= 85 ? 'text-yellow-600' : 'text-red-600'}`}>
-            {todayStats.qualityPercent.toFixed(1)}%
+            {Number(todayStats.qualityPercent || 0).toFixed(1)}%
           </p>
         </div>
         <div className="card-industrial p-3">

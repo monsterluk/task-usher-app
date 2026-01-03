@@ -39,6 +39,7 @@ const OrderForm = () => {
     order_number: autoOrderNumber,
     client_order_number: '',
     client_name: '',
+    client_nip: '',
     client_email: '',
     client_phone: '',
     client_address: '',
@@ -210,6 +211,7 @@ const OrderForm = () => {
           order_number: orderData.order_number!,
           client_order_number: orderData.client_order_number,
           client_name: orderData.client_name!,
+          client_nip: orderData.client_nip,
           client_email: orderData.client_email,
           client_phone: orderData.client_phone,
           client_address: orderData.client_address,
@@ -429,7 +431,21 @@ const OrderForm = () => {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Email Klienta *</label>
+                <label className="block text-sm font-medium mb-2">NIP</label>
+                <input
+                  type="text"
+                  value={formData.client_nip || ''}
+                  onChange={e => {
+                    const value = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    updateField('client_nip', value);
+                  }}
+                  className="input-industrial"
+                  placeholder="1234567890"
+                  maxLength={10}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Email Klienta</label>
                 <input
                   type="email"
                   value={formData.client_email || ''}
@@ -616,7 +632,7 @@ const OrderForm = () => {
                 <div className="text-right">
                   <label className="block text-sm font-medium mb-1">💰 Wartość Całkowita</label>
                   <div className="text-3xl font-bold text-primary">
-                    {totalPrice.toFixed(2)} zł
+                    {Number(totalPrice || 0).toFixed(2)} zł
                   </div>
                 </div>
               </div>

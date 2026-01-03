@@ -18,8 +18,11 @@ const isManagerRole = (role: UserRole): boolean => {
 
 const WorkersList = () => {
   console.log('[WorkersList] Component rendering...');
-  const { workers, setWorkers, refreshWorkers } = useApp();
+  const { workers, setWorkers, refreshWorkers, currentUser } = useApp();
   console.log('[WorkersList] workers from context:', Array.isArray(workers), workers?.length);
+
+  // Only admin can see/edit hourly rates
+  const isAdmin = currentUser?.role === 'ADMIN';
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editingWorker, setEditingWorker] = useState<Worker | null>(null);
   const [loading, setLoading] = useState(false);
@@ -269,16 +272,18 @@ const WorkersList = () => {
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Stawka (zł/h)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={formData.hourly_rate}
-                  onChange={e => setFormData(prev => ({ ...prev, hourly_rate: parseFloat(e.target.value) || 0 }))}
-                  className="input-industrial"
-                />
-              </div>
+              {isAdmin && (
+                <div>
+                  <label className="block text-sm font-medium mb-2">Stawka (zł/h)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={formData.hourly_rate}
+                    onChange={e => setFormData(prev => ({ ...prev, hourly_rate: parseFloat(e.target.value) || 0 }))}
+                    className="input-industrial"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-2">Rola</label>
@@ -341,7 +346,7 @@ const WorkersList = () => {
               <th>Imię i Nazwisko</th>
               <th>Email</th>
               <th>Stanowisko</th>
-              <th>Stawka</th>
+              {isAdmin && <th>Stawka</th>}
               <th>Rola</th>
               <th>Status</th>
               <th>Akcje</th>
@@ -353,7 +358,7 @@ const WorkersList = () => {
                 <td className="font-semibold">{worker.name}</td>
                 <td className="text-muted-foreground">{worker.email}</td>
                 <td>{worker.position}</td>
-                <td className="font-mono">{Number(worker.hourly_rate || 0).toFixed(2)} zł/h</td>
+                {isAdmin && <td className="font-mono">{Number(worker.hourly_rate || 0).toFixed(2)} zł/h</td>}
                 <td>
                   <span className={`status-badge ${isManagerRole(worker.role) ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}>
                     {getRoleDisplay(worker.role)}
@@ -402,7 +407,7 @@ const WorkersList = () => {
             </div>
             <div className="space-y-2 text-sm mb-4">
               <p><span className="text-muted-foreground">Stanowisko:</span> {worker.position}</p>
-              <p><span className="text-muted-foreground">Stawka:</span> {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>
+              {isAdmin && <p><span className="text-muted-foreground">Stawka:</span> {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>}
               <p>
                 <span className="text-muted-foreground">Status:</span>{' '}
                 <span className={worker.active ? 'text-success' : 'text-destructive'}>

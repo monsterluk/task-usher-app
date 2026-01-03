@@ -266,7 +266,7 @@ const WorkSessionsTab = ({ orderId }: WorkSessionsTabProps) => {
             </div>
             <div className="p-4 bg-green-50 rounded-lg border border-green-200">
               <div className="text-sm text-green-600 mb-1">Całkowity koszt pracy</div>
-              <div className="text-2xl font-bold text-green-800">{totalAllCost.toFixed(2)} zł</div>
+              <div className="text-2xl font-bold text-green-800">{Number(totalAllCost || 0).toFixed(2)} zł</div>
             </div>
           </div>
 
@@ -378,7 +378,7 @@ const WorkSessionsTab = ({ orderId }: WorkSessionsTabProps) => {
                                       )}
                                     </td>
                                     <td className="p-2">
-                                      {session.cost ? `${session.cost.toFixed(2)} zł` : '-'}
+                                      {session.cost ? `${Number(session.cost).toFixed(2)} zł` : '-'}
                                     </td>
                                     <td className="p-2 text-right space-x-1">
                                       {!isDemoMode() && (

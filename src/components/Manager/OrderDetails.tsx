@@ -44,6 +44,9 @@ const OrderDetails = () => {
   const navigate = useNavigate();
   const { orders, setOrders, setTimeEntries, timeEntries, currentUser, workers } = useApp();
 
+  // Only admin can see hourly rates
+  const isAdmin = currentUser?.role === 'ADMIN';
+
   const order = orders.find(o => o.id === Number(id));
   const [selectedStages, setSelectedStages] = useState<number[]>([]);
   const [stageWorkers, setStageWorkers] = useState<Record<number, number[]>>({});
@@ -1124,7 +1127,7 @@ const OrderDetails = () => {
                                     />
                                     <div className="flex-1 min-w-0">
                                       <p className="font-medium truncate">{worker.name}</p>
-                                      <p className="text-sm text-muted-foreground">{worker.position} • {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>
+                                      <p className="text-sm text-muted-foreground">{worker.position}{isAdmin && ` • ${Number(worker.hourly_rate || 0).toFixed(2)} zł/h`}</p>
                                     </div>
                                   </label>
                                 ))}
@@ -1160,7 +1163,7 @@ const OrderDetails = () => {
                                     />
                                     <div className="flex-1 min-w-0">
                                       <p className="font-medium truncate">{worker.name}</p>
-                                      <p className="text-sm text-muted-foreground">{worker.position} • {Number(worker.hourly_rate || 0).toFixed(2)} zł/h</p>
+                                      <p className="text-sm text-muted-foreground">{worker.position}{isAdmin && ` • ${Number(worker.hourly_rate || 0).toFixed(2)} zł/h`}</p>
                                     </div>
                                   </label>
                                 ))}

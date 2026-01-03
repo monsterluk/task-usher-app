@@ -61,9 +61,11 @@ const Sidebar = () => {
 
   const isAdmin = currentUser.role === 'ADMIN';
   const isKierownik = currentUser.role === 'KIEROWNIK';
-  const isGrafik = currentUser.role === 'GRAFIK';
   const isHandlowiec = currentUser.role === 'HANDLOWIEC';
   const isPracownik = currentUser.role === 'PRACOWNIK';
+
+  // Admin, Kierownik, Handlowiec mają dostęp do głównego panelu
+  const hasManagerAccess = isAdmin || isKierownik || isHandlowiec;
 
   // Calculate badges
   const activeOrders = orders.filter(o => !o.archived && o.status !== 'GOTOWE').length;
@@ -191,7 +193,7 @@ const Sidebar = () => {
       {/* Navigation */}
       <div className="flex-1 overflow-y-auto py-4 px-2">
         {/* Dashboard - always first */}
-        {(isAdmin || isKierownik) && (
+        {hasManagerAccess && (
           <>
             <NavItem path="/manager/dashboard" icon={Home} label="Dashboard" />
             <Separator />
@@ -199,7 +201,7 @@ const Sidebar = () => {
         )}
 
         {/* Produkcja Section */}
-        {(isAdmin || isKierownik) && (
+        {hasManagerAccess && (
           <NavSection title="Produkcja" icon={Package}>
             <NavItem path="/manager/orders" icon={ClipboardList} label="Zlecenia" badge={activeOrders} badgeColor="blue" />
             <NavItem path="/manager/calendar" icon={CalendarDays} label="Kalendarz" />
@@ -212,7 +214,7 @@ const Sidebar = () => {
           </NavSection>
         )}
 
-        {/* Pracownicy Section */}
+        {/* Pracownicy Section - tylko Admin i Kierownik */}
         {(isAdmin || isKierownik) && (
           <NavSection title="Pracownicy" icon={Users}>
             <NavItem path="/manager/workers" icon={Users} label="Lista pracowników" />
@@ -221,36 +223,23 @@ const Sidebar = () => {
         )}
 
         {/* Raporty Section */}
-        {(isAdmin || isKierownik) && (
+        {hasManagerAccess && (
           <NavSection title="Raporty" icon={BarChart3}>
             <NavItem path="/manager/reports" icon={FileText} label="Raporty" />
             <NavItem path="/manager/analytics" icon={BarChart3} label="Analityka" />
           </NavSection>
         )}
 
-        {/* Admin Section */}
+        {/* Admin Section - tylko Admin */}
         {isAdmin && (
           <>
             <Separator />
             <NavSection title="Administracja" icon={Shield}>
-              <NavItem path="/admin" icon={Shield} label="Panel Admin" />
-              <NavItem path="/admin/settings" icon={Settings} label="Ustawienia" />
+              <NavItem path="/manager/admin-settings" icon={Settings} label="Ustawienia systemu" />
             </NavSection>
           </>
         )}
 
-        {/* Grafik */}
-        {isGrafik && (
-          <NavItem path="/grafik" icon={Palette} label="Panel Grafika" />
-        )}
-
-        {/* Handlowiec */}
-        {isHandlowiec && (
-          <>
-            <NavItem path="/handlowiec" icon={Briefcase} label="Moje Zlecenia" />
-            <NavItem path="/handlowiec/new" icon={ClipboardList} label="Nowe Zlecenie" />
-          </>
-        )}
 
         {/* Pracownik */}
         {isPracownik && (
@@ -263,8 +252,8 @@ const Sidebar = () => {
         <Separator />
 
         {/* Notifications */}
-        {(isAdmin || isKierownik) && (
-          <NavItem path="/notifications" icon={Bell} label="Powiadomienia" badge={notifications} badgeColor="orange" />
+        {hasManagerAccess && (
+          <NavItem path="/manager/notifications" icon={Bell} label="Powiadomienia" badge={notifications} badgeColor="orange" />
         )}
       </div>
 

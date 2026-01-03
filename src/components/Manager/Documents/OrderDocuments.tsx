@@ -187,23 +187,20 @@ const OrderDocuments = ({ orderId, orderNumber, readOnly = false }: OrderDocumen
 
     try {
       setUploading(true);
-      // In production, would use FormData and actual file upload
-      await documentsApi.upload({
-        order_id: orderId,
-        filename: uploadForm.file.name.toLowerCase().replace(/\s/g, '_'),
-        original_name: uploadForm.file.name,
-        mime_type: uploadForm.file.type,
-        file_size: uploadForm.file.size,
-        file_path: `/uploads/documents/${orderId}/${uploadForm.file.name}`,
-        category: uploadForm.category,
-        description: uploadForm.description
-      });
+      // Upload with FormData - actual file transfer
+      await documentsApi.upload(
+        uploadForm.file,
+        orderId,
+        uploadForm.category,
+        uploadForm.description || undefined
+      );
       await loadDocuments();
       setShowUploadModal(false);
       setUploadForm({ category: 'drawing', description: '', file: null });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading document:', error);
-      alert('Nie udało się przesłać dokumentu');
+      const errorMsg = error?.response?.data?.error || error?.message || 'Nie udalo sie przeslac dokumentu';
+      alert(errorMsg);
     } finally {
       setUploading(false);
     }
@@ -315,7 +312,14 @@ const OrderDocuments = ({ orderId, orderNumber, readOnly = false }: OrderDocumen
                       <Eye size={16} />
                     </button>
                     <button
-                      onClick={() => alert('Pobieranie dokumentu (funkcja w przygotowaniu)')}
+                      onClick={async () => {
+                        try {
+                          await documentsApi.download(doc.id, doc.original_name);
+                        } catch (error) {
+                          console.error('Error downloading:', error);
+                          alert('Nie udalo sie pobrac dokumentu');
+                        }
+                      }}
                       className="p-2 text-green-600 hover:bg-green-100 dark:hover:bg-green-900/30 rounded"
                       title="Pobierz"
                     >
